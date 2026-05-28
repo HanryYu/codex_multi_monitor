@@ -9,6 +9,10 @@ jobs:
     runs-on: macos-15
     permissions:
       contents: write
+    env:
+      CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+      CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_PASSWORD }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -16,10 +20,7 @@ jobs:
         run: swift build -c release
 
       - name: Code sign with Developer ID
-        env:
-          CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION }}
-          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        if: env.CERTIFICATE != ''
         run: |
           # Create temporary keychain
           KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
