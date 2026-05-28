@@ -108,20 +108,16 @@ struct QuotaCardView: View {
 
             Spacer(minLength: 4)
 
-            // Big percentage
+            // Percentage (compact — readable but not oversized)
             Text("\(displayPercent)%")
-                .font(.system(size: 34, weight: .bold))
+                .font(.system(size: 26, weight: .bold))
                 .foregroundStyle(Color.primary)
-                .tracking(-0.7)
+                .tracking(-0.5)
                 .lineLimit(1)
                 .monospacedDigit()
 
-            // Sublabel
-            Text(displayMode == .remaining ? "剩余" : "已用")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(Color.secondary.opacity(0.7))
-                .tracking(0.2)
-                .padding(.top, 2)
+            // Spacer placeholder (no label text)
+            Spacer(minLength: 0)
 
             Spacer(minLength: 6)
 
@@ -230,25 +226,22 @@ struct CreditsCardView: View {
 
             if credits.unlimited {
                 Image(systemName: "infinity")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 26, weight: .bold))
                     .foregroundStyle(.green)
             } else if let balance = credits.balance {
                 Text(balance)
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(Color.primary)
                     .lineLimit(1)
                     .monospacedDigit()
             } else {
                 Text("—")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 26, weight: .bold))
                     .foregroundStyle(Color.secondary)
             }
 
-            Text(credits.unlimited ? "无限" : "余额")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(Color.secondary.opacity(0.7))
-                .tracking(0.2)
-                .padding(.top, 2)
+            // Spacer placeholder (no label text)
+            Spacer(minLength: 0)
 
             Spacer(minLength: 6)
 
@@ -282,11 +275,6 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header — account name + refresh time
-            headerView
-
-            Divider().opacity(0.5)
-
             // Content
             if accountStore.isLoading && accountStore.accounts.isEmpty {
                 loadingPlaceholder
@@ -302,6 +290,7 @@ struct MenuBarView: View {
             footerView
         }
         .frame(width: 340)
+        .frame(maxHeight: 520)
         .background(.ultraThinMaterial)
         .onAppear { loadDisplayMode() }
         .onReceive(NotificationCenter.default.publisher(for: .displayModeChanged)) { _ in
@@ -312,67 +301,6 @@ struct MenuBarView: View {
     private func loadDisplayMode() {
         let modeString = UserDefaults.standard.string(forKey: PreferencesKeys.displayMode) ?? DisplayMode.remaining.rawValue
         displayMode = DisplayMode(rawValue: modeString) ?? .remaining
-    }
-
-    // MARK: - Header (Gemini Canvas style: account name left, refresh time + icon right)
-
-    private var headerView: some View {
-        HStack(alignment: .center) {
-            // Account name — small, gray
-            if let firstAccount = accountStore.accounts.first {
-                Text(firstAccount.name)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.secondary)
-                    .tracking(0.2)
-            } else {
-                Text("CodexMonitor")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.secondary)
-                    .tracking(0.2)
-            }
-
-            Spacer()
-
-            // Refresh time + icon
-            Button(action: {
-                Task { await accountStore.refreshAll() }
-            }) {
-                HStack(spacing: 5) {
-                    Text(refreshTimeText)
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.secondary.opacity(0.7))
-                        .monospacedDigit()
-
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Color.secondary.opacity(0.7))
-                        .rotationEffect(.degrees(accountStore.isLoading ? 360 : 0))
-                        .animation(
-                            accountStore.isLoading
-                                ? .linear(duration: 0.6).repeatForever(autoreverses: false)
-                                : .default,
-                            value: accountStore.isLoading
-                        )
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-            }
-            .buttonStyle(.plain)
-            .disabled(accountStore.isLoading)
-            .help("Refresh all accounts")
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
-    }
-
-    private var refreshTimeText: String {
-        if let time = accountStore.lastRefreshTime {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "HH:mm"
-            return formatter.string(from: time) + " 更新"
-        }
-        return "--:-- 更新"
     }
 
     // MARK: - Loading Placeholder
@@ -419,53 +347,120 @@ struct MenuBarView: View {
     // MARK: - Accounts Quota View (Gemini Canvas style — cards grid)
 
     private var accountsQuotaView: some View {
-        VStack(spacing: 12) {
-            // Loading indicator when refreshing
-            if accountStore.isLoading {
-                HStack(spacing: 6) {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                    Text("Refreshing...")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 2)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-
-            ForEach(accountStore.accounts) { account in
-                if let usageResult = accountStore.usageData[account.id] {
-                    switch usageResult {
-                    case .success(let usage):
-                        QuotaCardsGridView(usage: usage, displayMode: displayMode)
-                    case .failure(let error):
-                        HStack(spacing: 6) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.red)
-                            Text(error.localizedDescription)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.red)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                    }
-                } else {
+        ScrollView {
+            VStack(spacing: 12) {
+                // Loading indicator when refreshing
+                if accountStore.isLoading {
                     HStack(spacing: 6) {
-                        Image(systemName: "questionmark.circle")
+                        ProgressView()
+                            .scaleEffect(0.6)
+                        Text("Refreshing...")
                             .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
-                        Text("No data")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 2)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
+                ForEach(accountStore.accounts) { account in
+                    VStack(spacing: 0) {
+                        // Account header: name + plan badge + refresh time
+                        HStack(alignment: .center) {
+                            Text(account.name)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color.secondary)
+                                .lineLimit(1)
+
+                            if let usageResult = accountStore.usageData[account.id],
+                               case .success(let usage) = usageResult {
+                                Text(usage.planType.localizedCapitalized)
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundStyle(Color.orange)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Color.orange.opacity(0.12))
+                                    .clipShape(Capsule())
+                            }
+
+                            Spacer()
+
+                            Button(action: {
+                                Task { await accountStore.refreshAll() }
+                            }) {
+                                HStack(spacing: 4) {
+                                    Text(formattedRefreshTime)
+                                        .font(.system(size: 10).monospacedDigit())
+                                        .foregroundStyle(Color.secondary.opacity(0.7))
+
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(Color.secondary.opacity(0.7))
+                                        .rotationEffect(.degrees(accountStore.isLoading ? 360 : 0))
+                                        .animation(
+                                            accountStore.isLoading
+                                                ? .linear(duration: 0.6).repeatForever(autoreverses: false)
+                                                : .default,
+                                            value: accountStore.isLoading
+                                        )
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(accountStore.isLoading)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.top, 10)
+                        .padding(.bottom, 6)
+
+                        Divider().opacity(0.4)
+                            .padding(.horizontal, 14)
+
+                        // Quota cards content
+                        if let usageResult = accountStore.usageData[account.id] {
+                            switch usageResult {
+                            case .success(let usage):
+                                QuotaCardsGridView(usage: usage, displayMode: displayMode)
+                            case .failure(let error):
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.red)
+                                    Text(error.localizedDescription)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.red)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                            }
+                        } else {
+                            HStack(spacing: 6) {
+                                Image(systemName: "questionmark.circle")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                                Text("No data")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                        }
+                    }
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
                 }
             }
+            .padding(16)
+            .animation(.easeInOut(duration: 0.3), value: accountStore.accounts.count)
         }
-        .padding(16)
-        .animation(.easeInOut(duration: 0.3), value: accountStore.accounts.count)
+    }
+
+    private var formattedRefreshTime: String {
+        if let time = accountStore.lastRefreshTime {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm"
+            return formatter.string(from: time) + " 更新"
+        }
+        return "--:-- 更新"
     }
 
     // MARK: - Footer (Gemini Canvas style)
@@ -493,71 +488,6 @@ struct MenuBarView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(Color.primary.opacity(0.01))
-    }
-}
-
-// MARK: - AccountCardReadOnly (legacy — kept for potential reuse)
-
-struct AccountCardReadOnly: View {
-    let account: Account
-    let usageResult: Result<UsageResponse, APIError>?
-    let displayMode: DisplayMode
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Header
-            HStack(alignment: .center) {
-                Image(systemName: "person.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.secondary)
-
-                Text(account.name)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
-
-                Spacer()
-
-                if let usage = try? usageResult?.get() {
-                    Text(usage.planType.localizedCapitalized)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.12))
-                        .clipShape(Capsule())
-                }
-            }
-
-            Divider().opacity(0.4)
-
-            // Usage content
-            if let usageResult = usageResult {
-                switch usageResult {
-                case .success(let usage):
-                    QuotaCardsGridView(usage: usage, displayMode: displayMode)
-                case .failure(let error):
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.red)
-                        Text(error.localizedDescription)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.red)
-                    }
-                }
-            } else {
-                HStack(spacing: 6) {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                    Text("No data")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-        }
-        .padding(14)
-        .glassCard()
     }
 }
 
