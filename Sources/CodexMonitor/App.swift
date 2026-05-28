@@ -23,9 +23,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        // Set orange accent color for the app
-        NSApp.appearance = nil // follow system, but tint controls orange
-
         accountStore = AccountStore()
 
         // Setup WindowManager
@@ -38,7 +35,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            let icon = NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "CodexMonitor")
+            let icon = NSImage(systemSymbolName: "gauge.with.dots.fill.60percent", accessibilityDescription: "CodexMonitor")
             icon?.isTemplate = true
             button.image = icon
             button.action = #selector(togglePopover)
@@ -157,12 +154,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func updateStatusBarIcon() {
         guard let button = statusItem.button else { return }
 
-        let symbolName = "gauge.medium"
-        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+        let status = accountStore.overallStatus
+        let symbolName = "gauge.with.dots.fill.60percent"
+        let tintColor: NSColor
+
+        switch status {
+        case .healthy:
+            tintColor = .systemGreen
+        case .warning:
+            tintColor = .systemYellow
+        case .critical:
+            tintColor = .systemRed
+        case .noAccounts:
+            tintColor = .secondaryLabelColor
+        }
+
+        let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
         if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "CodexMonitor")?
             .withSymbolConfiguration(config) {
             image.isTemplate = true
             button.image = image
+            button.contentTintColor = tintColor
         }
 
         // Update title with usage summary

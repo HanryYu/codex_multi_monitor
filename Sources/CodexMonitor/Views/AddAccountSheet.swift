@@ -26,7 +26,7 @@ struct AddAccountSheet: View {
             VStack(spacing: 8) {
                 Image(systemName: isEditing ? "pencil.circle.fill" : "person.badge.plus")
                     .font(.system(size: 32, weight: .light))
-                    .foregroundStyle(.orange.opacity(0.7))
+                    .foregroundStyle(.secondary)
 
                 Text(isEditing ? "Edit Account" : "Add Account")
                     .font(.system(size: 16, weight: .semibold))
@@ -86,13 +86,13 @@ struct AddAccountSheet: View {
                     saveAccount()
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.orange)
                 .keyboardShortcut(.defaultAction)
                 .disabled(name.isEmpty || authToken.isEmpty)
             }
         }
         .padding(24)
         .frame(width: 400)
+        .background(.ultraThinMaterial)
         .onAppear {
             if let account = editingAccount {
                 name = account.name

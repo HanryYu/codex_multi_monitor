@@ -123,6 +123,7 @@ struct MenuBarView: View {
         }
         .frame(width: 340)
         .frame(maxHeight: 520)
+        .background(.ultraThinMaterial)
         .onAppear { loadDisplayMode() }
         .onReceive(NotificationCenter.default.publisher(for: .displayModeChanged)) { _ in
             loadDisplayMode()
@@ -301,7 +302,7 @@ struct AccountCardReadOnly: View {
                 // Account icon
                 Image(systemName: "person.circle.fill")
                     .font(.system(size: 16))
-                    .foregroundStyle(.orange.opacity(0.7))
+                    .foregroundStyle(.secondary)
 
                 Text(account.name)
                     .font(.system(size: 13, weight: .semibold))
@@ -312,10 +313,10 @@ struct AccountCardReadOnly: View {
                 if let usage = try? usageResult?.get() {
                     Text(usage.planType.localizedCapitalized)
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.12))
+                        .background(Color.accentColor.opacity(0.12))
                         .clipShape(Capsule())
                 }
             }
@@ -541,7 +542,6 @@ struct AccountManagementView: View {
                         .font(.system(size: 12, weight: .medium))
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.orange)
                 .controlSize(.small)
             }
             .padding(.horizontal, 16)
@@ -549,12 +549,8 @@ struct AccountManagementView: View {
 
             Divider().opacity(0.5)
 
-            // Content: inline form OR account list
-            if showingAddForm {
-                AddAccountSheet(accountStore: accountStore, isPresented: $showingAddForm)
-            } else if let editing = editingAccount {
-                EditAccountSheetWrapper(accountStore: accountStore, account: editing, editingAccount: $editingAccount)
-            } else if accountStore.accounts.isEmpty {
+            // Account list
+            if accountStore.accounts.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "person.badge.plus")
                         .font(.system(size: 28, weight: .light))
@@ -562,9 +558,8 @@ struct AccountManagementView: View {
                     Text("No accounts yet")
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
-                    Button("Add Account") { showingAddForm = true }
+                    Button("Add Account") { showingAddForm = true }  // keep functional
                         .buttonStyle(.borderedProminent)
-                        .tint(.orange)
                         .controlSize(.small)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -574,13 +569,13 @@ struct AccountManagementView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "person.circle.fill")
                                 .font(.system(size: 20))
-                                .foregroundStyle(.orange.opacity(0.7))
+                                .foregroundStyle(.secondary)
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(account.name)
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundStyle(.primary)
-                                Text(account.authToken)
+                                Text(maskedToken(account.authToken))
                                     .font(.system(size: 11).monospaced())
                                     .foregroundStyle(.tertiary)
                                     .lineLimit(1)
@@ -595,7 +590,7 @@ struct AccountManagementView: View {
                                     if let percent = usage.rateLimit?.primaryWindow?.usedPercent {
                                         Text("\(percent)%")
                                             .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                            .foregroundStyle(percent >= 80 ? .orange : .green)
+                                            .foregroundStyle(percent >= 80 ? .orange : .green)  // keep functional color
                                     } else if let credits = usage.credits {
                                         if credits.unlimited {
                                             Text("∞")
@@ -657,13 +652,25 @@ struct AccountManagementView: View {
                     WindowManager.shared.closeAccountManagementWindow()
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.orange)
                 .keyboardShortcut(.defaultAction)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
         .frame(width: 420, height: 380)
+        .background(.ultraThinMaterial)
+        .sheet(isPresented: $showingAddForm) {
+            AddAccountSheet(accountStore: accountStore, isPresented: $showingAddForm)
+        }
+        .sheet(item: $editingAccount) { account in
+            EditAccountSheetWrapper(accountStore: accountStore, account: account, editingAccount: $editingAccount)
+        }
+    }
+    func maskedToken(_ token: String) -> String {
+        guard token.count > 12 else { return "••••••••" }
+        let prefix = token.prefix(8)
+        let suffix = token.suffix(4)
+        return "\(prefix)••••\(suffix)"
     }
 }
 

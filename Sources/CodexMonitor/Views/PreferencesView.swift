@@ -178,11 +178,10 @@ struct PreferencesView: View {
                         Spacer()
                         Text("\(Int(alertThreshold))%")
                             .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(.secondary)
                     }
 
                     Slider(value: $alertThreshold, in: 50...95, step: 5)
-                        .tint(.orange)
                         .onChange(of: alertThreshold) { _, newValue in
                             UserDefaults.standard.set(Int(newValue), forKey: PreferencesKeys.alertThreshold)
                         }
@@ -200,7 +199,6 @@ struct PreferencesView: View {
                         Label("Launch at Login", systemImage: "power")
                             .font(.system(size: 12, weight: .medium))
                     }
-                    .tint(.orange)
                     .onChange(of: launchAtLogin) { _, newValue in
                         toggleLaunchAtLogin(enable: newValue)
                     }
@@ -240,12 +238,12 @@ struct PreferencesView: View {
                     closeWindow()
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.orange)
                 .keyboardShortcut(.defaultAction)
             }
         }
         .padding(24)
         .frame(width: 380)
+        .background(.ultraThinMaterial)
         .onAppear {
             loadPreferences()
         }
