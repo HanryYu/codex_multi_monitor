@@ -106,32 +106,32 @@ struct QuotaCardView: View {
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(Color.secondary)
 
-            Spacer(minLength: 4)
+            Spacer(minLength: 2)
 
             // Percentage + sublabel on one line
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text("\(displayPercent)%")
-                    .font(.system(size: isLimited ? 15 : 17, weight: .semibold))
+                    .font(.system(size: isLimited ? 13 : 15, weight: .semibold))
                     .foregroundStyle(Color.primary)
                     .lineLimit(1)
                     .monospacedDigit()
 
                 Text(displayMode == .remaining ? "剩余" : "已用")
-                    .font(.system(size: 9.5, weight: .medium))
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(Color.secondary.opacity(0.7))
                     .tracking(0.2)
             }
 
             Spacer(minLength: 0)
 
-            Spacer(minLength: 6)
+            Spacer(minLength: 4)
 
             // Progress bar at bottom
             CompactProgressBar(percentage: usedPercent)
                 .opacity(isLimited ? 0.4 : 1.0)
         }
-        .padding(12)
-        .frame(height: 108)
+        .padding(10)
+        .frame(height: 82)
         .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(isLimited ? 0.55 : 1.0)
         .saturation(isLimited ? 0.2 : 1.0)
@@ -153,7 +153,7 @@ struct QuotaCardsGridView: View {
 
     var body: some View {
         if let rateLimit = usage.rateLimit {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 if let primary = rateLimit.primaryWindow {
                     QuotaCardView(
                         label: formatWindowLabel(seconds: primary.limitWindowSeconds),
@@ -180,12 +180,12 @@ struct QuotaCardsGridView: View {
             }
         } else if let credits = usage.credits {
             // Team plan — show single card with credits info
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 CreditsCardView(credits: credits, isLimited: isLimited)
             }
         } else if usage.rateLimitReachedType != nil {
             // Rate limit reached with no detailed data — show placeholder cards
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 QuotaCardView(
                     label: "限额已达",
                     displayPercent: 0,
@@ -243,17 +243,17 @@ struct CreditsCardView: View {
 
             if credits.unlimited {
                 Image(systemName: "infinity")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 26, weight: .bold))
                     .foregroundStyle(.green)
             } else if let balance = credits.balance {
                 Text(balance)
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(Color.primary)
                     .lineLimit(1)
                     .monospacedDigit()
             } else {
                 Text("—")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 26, weight: .bold))
                     .foregroundStyle(Color.secondary)
             }
 
@@ -263,7 +263,7 @@ struct CreditsCardView: View {
                 .tracking(0.2)
                 .padding(.top, 2)
 
-            Spacer(minLength: 6)
+            Spacer(minLength: 4)
 
             // Status indicator
             HStack(spacing: 4) {
@@ -275,8 +275,8 @@ struct CreditsCardView: View {
                     .foregroundStyle(credits.hasCredits ? .green : .red)
             }
         }
-        .padding(12)
-        .frame(height: 108)
+        .padding(10)
+        .frame(height: 82)
         .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(isLimited ? 0.55 : 1.0)
         .saturation(isLimited ? 0.2 : 1.0)
@@ -312,7 +312,7 @@ struct MenuBarView: View {
             footerView
         }
         .frame(width: 340)
-        .frame(maxHeight: 520)
+        .frame(maxHeight: 600)
         .background(.ultraThinMaterial)
         .onAppear { loadDisplayMode() }
         .onReceive(NotificationCenter.default.publisher(for: .displayModeChanged)) { _ in
@@ -386,12 +386,12 @@ struct MenuBarView: View {
 
     private var loadingPlaceholder: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                ShimmerView().frame(height: 108)
-                ShimmerView().frame(height: 108)
+            HStack(spacing: 8) {
+                ShimmerView().frame(height: 82)
+                ShimmerView().frame(height: 82)
             }
         }
-        .padding(16)
+        .padding(12)
     }
 
     // MARK: - Empty State
@@ -427,7 +427,7 @@ struct MenuBarView: View {
 
     private var accountsQuotaView: some View {
         ScrollView {
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 // Loading indicator when refreshing
                 if accountStore.isLoading {
                     HStack(spacing: 6) {
@@ -469,8 +469,8 @@ struct MenuBarView: View {
                             Spacer()
                         }
                         .padding(.horizontal, 14)
-                        .padding(.top, 10)
-                        .padding(.bottom, 6)
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
 
                         Divider().opacity(0.4)
                             .padding(.horizontal, 14)
@@ -514,7 +514,7 @@ struct MenuBarView: View {
                     .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
                 }
             }
-            .padding(16)
+            .padding(12)
             .animation(.easeInOut(duration: 0.3), value: accountStore.accounts.count)
         }
     }
@@ -585,10 +585,10 @@ struct MenuBarView: View {
                     .foregroundStyle(Color.secondary.opacity(0.7))
             }
             .buttonStyle(.plain)
-            .padding(.top, 6)
+            .padding(.top, 4)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(Color.primary.opacity(0.01))
     }
 }
