@@ -1,5 +1,40 @@
 import SwiftUI
 
+// MARK: - Shimmer Loading Animation
+
+struct ShimmerView: View {
+    @State private var phase: CGFloat = 0
+
+    var body: some View {
+        LinearGradient(
+            colors: [
+                Color.primary.opacity(0.04),
+                Color.primary.opacity(0.10),
+                Color.primary.opacity(0.04)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .mask(
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [.clear, .white, .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .offset(x: phase)
+        )
+        .onAppear {
+            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                phase = 200
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 // MARK: - Gradient Progress Bar
 
 struct GradientProgressBar: View {
@@ -42,23 +77,20 @@ struct GradientProgressBar: View {
     }
 }
 
-// MARK: - Flat Card Modifier (no glass, just subtle border)
+// MARK: - Glass Card Modifier
 
-struct FlatCardModifier: ViewModifier {
+struct GlassCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(Color.primary.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.08))
-            )
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
     }
 }
 
 extension View {
-    func flatCard() -> some View {
-        modifier(FlatCardModifier())
+    func glassCard() -> some View {
+        modifier(GlassCardModifier())
     }
 }
 
@@ -106,9 +138,9 @@ struct MenuBarView: View {
 
     private var headerView: some View {
         HStack {
-            Label("CodexMonitor", systemImage: "gauge.medium")
+            Label("CodexMonitor", systemImage: "gauge.with.dots.fill.60percent")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(.primary)
 
             Spacer()
 
@@ -117,7 +149,7 @@ struct MenuBarView: View {
             }) {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(accountStore.isLoading ? 360 : 0))
                     .animation(
                         accountStore.isLoading
@@ -139,16 +171,17 @@ struct MenuBarView: View {
     private var loadingPlaceholder: some View {
         VStack(spacing: 12) {
             ForEach(0..<2, id: \.self) { _ in
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                    Text("Loading...")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                    Spacer()
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        ShimmerView().frame(width: 100, height: 14)
+                        Spacer()
+                        ShimmerView().frame(width: 50, height: 14)
+                    }
+                    ShimmerView().frame(height: 4)
+                    ShimmerView().frame(width: 120, height: 10)
                 }
                 .padding(14)
-                .flatCard()
+                .glassCard()
             }
         }
         .padding(16)
@@ -178,7 +211,6 @@ struct MenuBarView: View {
                     .font(.system(size: 12, weight: .medium))
             }
             .buttonStyle(.borderedProminent)
-            .tint(.orange)
             .controlSize(.small)
         }
         .padding(.vertical, 32)
@@ -317,7 +349,7 @@ struct AccountCardReadOnly: View {
             }
         }
         .padding(14)
-        .flatCard()
+        .glassCard()
     }
 }
 
@@ -351,15 +383,41 @@ struct UsageContentView: View {
                         displayMode: displayMode
                     )
                 }
-            } else {
-                // rate_limit 为 null — 无用量数据
+            } else if let credits = usage.credits {
+                // Team plan with credits data
                 HStack(spacing: 5) {
-                    Image(systemName: "info.circle")
+                    Image(systemName: credits.unlimited ? "infinity" : "creditcard")
+                        .font(.system(size: 10))
+                        .foregroundStyle(credits.hasCredits ? .green : .red)
+                    if credits.unlimited {
+                        Text("Unlimited credits")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.green)
+                    } else {
+                        Text("Credits: \(credits.balance)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(credits.hasCredits ? Color.primary : Color.red)
+                    }
+                }
+            } else if usage.rateLimitReachedType != nil {
+                // rate_limit null but limit reached
+                HStack(spacing: 5) {
+                    Image(systemName: "exclamationmark.octagon.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                    Text("限额已达")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                }
+            } else {
+                // Both rate_limit and credits are null — show debug info
+                HStack(spacing: 5) {
+                    Image(systemName: "questionmark.circle")
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
-                    Text(usage.rateLimitReachedType != nil ? "限额已达" : "无用量数据")
+                    Text("plan: \(usage.planType) — 无用量数据")
                         .font(.system(size: 11))
-                        .foregroundStyle(usage.rateLimitReachedType != nil ? .red : .secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -538,6 +596,16 @@ struct AccountManagementView: View {
                                         Text("\(percent)%")
                                             .font(.system(size: 12, weight: .semibold).monospacedDigit())
                                             .foregroundStyle(percent >= 80 ? .orange : .green)
+                                    } else if let credits = usage.credits {
+                                        if credits.unlimited {
+                                            Text("∞")
+                                                .font(.system(size: 12, weight: .semibold))
+                                                .foregroundStyle(.green)
+                                        } else {
+                                            Text(credits.balance)
+                                                .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                                                .foregroundStyle(credits.hasCredits ? .green : .red)
+                                        }
                                     } else if usage.rateLimitReachedType != nil {
                                         Text("限额已达")
                                             .font(.system(size: 12, weight: .semibold))

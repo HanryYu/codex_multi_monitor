@@ -38,7 +38,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "CodexMonitor")
+            let icon = NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "CodexMonitor")
+            icon?.isTemplate = true
+            button.image = icon
             button.action = #selector(togglePopover)
             button.target = self
         }
@@ -155,33 +157,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func updateStatusBarIcon() {
         guard let button = statusItem.button else { return }
 
-        let status = accountStore.overallStatus
         let symbolName = "gauge.medium"
-        let tintColor: NSColor
-
-        switch status {
-        case .healthy:
-            tintColor = NSColor(red: 1.0, green: 0.42, blue: 0.0, alpha: 1.0) // #FF6B00
-        case .warning:
-            tintColor = NSColor(red: 1.0, green: 0.58, blue: 0.0, alpha: 1.0) // #FF9400
-        case .critical:
-            tintColor = .systemRed
-        case .noAccounts:
-            tintColor = .secondaryLabelColor
-        }
-
         let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
         if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "CodexMonitor")?
             .withSymbolConfiguration(config) {
             image.isTemplate = true
             button.image = image
-            button.contentTintColor = tintColor
-        } else {
-            // Fallback: use app icon if SF Symbol unavailable
-            let fallback = NSImage(named: NSImage.applicationIconName)
-            fallback?.isTemplate = true
-            button.image = fallback
-            button.contentTintColor = tintColor
         }
 
         // Update title with usage summary

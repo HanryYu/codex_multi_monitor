@@ -137,16 +137,20 @@ class AccountStore: ObservableObject {
         guard !accounts.isEmpty else { return }
         
         isLoading = true
+        print("[CodexMonitor] refreshAll: refreshing \(accounts.count) accounts")
         
         await withTaskGroup(of: (UUID, Result<UsageResponse, APIError>).self) { group in
             for account in accounts {
                 group.addTask {
                     do {
                         let usage = try await APIService.shared.fetchUsage(authToken: account.authToken)
+                        print("[CodexMonitor] refreshAll: [\(account.name)] success — plan=\(usage.planType), rateLimit=\(usage.rateLimit != nil ? "yes" : "nil"), credits=\(usage.credits != nil ? "yes" : "nil")")
                         return (account.id, .success(usage))
                     } catch let error as APIError {
+                        print("[CodexMonitor] refreshAll: [\(account.name)] APIError: \(error.localizedDescription)")
                         return (account.id, .failure(error))
                     } catch {
+                        print("[CodexMonitor] refreshAll: [\(account.name)] unexpected error: \(error)")
                         return (account.id, .failure(.invalidResponse))
                     }
                 }
