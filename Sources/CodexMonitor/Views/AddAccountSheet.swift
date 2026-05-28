@@ -3,65 +3,85 @@ import SwiftUI
 struct AddAccountSheet: View {
     @ObservedObject var accountStore: AccountStore
     @Binding var isPresented: Bool
-    
+
     var editingAccount: Account?
-    
+
     @State private var name: String = ""
     @State private var authToken: String = ""
     @State private var showError = false
     @State private var errorMessage = ""
-    
+    @FocusState private var focusedField: Field?
+
+    enum Field {
+        case name, token
+    }
+
     var isEditing: Bool {
         editingAccount != nil
     }
-    
+
     var body: some View {
         VStack(spacing: 20) {
-            Text(isEditing ? "Edit Account" : "Add Account")
-                .font(.headline)
-            
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Account Name")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
+            // Icon + Title
+            VStack(spacing: 8) {
+                Image(systemName: isEditing ? "pencil.circle.fill" : "person.badge.plus")
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundStyle(.secondary)
+
+                Text(isEditing ? "Edit Account" : "Add Account")
+                    .font(.system(size: 16, weight: .semibold))
+            }
+            .padding(.top, 4)
+
+            // Form fields
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Account Name", systemImage: "person")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
                     TextField("e.g., Work, Personal", text: $name)
                         .textFieldStyle(.roundedBorder)
+                        .focused($focusedField, equals: .name)
                 }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Authorization Token")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Authorization Token", systemImage: "key")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
                     SecureField("Bearer token from ChatGPT", text: $authToken)
                         .textFieldStyle(.roundedBorder)
-                    
+                        .focused($focusedField, equals: .token)
+
                     Text("Get token from browser developer tools")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
                 }
             }
-            
+
+            // Error
             if showError {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundColor(.red)
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
                     Text(errorMessage)
-                        .font(.caption)
-                        .foregroundColor(.red)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
                 }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            
+
+            // Buttons
             HStack {
                 Spacer()
-                
+
                 Button("Cancel") {
                     isPresented = false
                 }
                 .keyboardShortcut(.cancelAction)
-                
+
                 Button(isEditing ? "Save" : "Add") {
                     saveAccount()
                 }
@@ -71,23 +91,28 @@ struct AddAccountSheet: View {
         }
         .padding(24)
         .frame(width: 400)
+        .background(.ultraThinMaterial)
         .onAppear {
             if let account = editingAccount {
                 name = account.name
                 authToken = account.authToken
+            } else {
+                focusedField = .name
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: showError)
     }
-    
+
     func saveAccount() {
-        // Validate token format
         let trimmedToken = authToken.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedToken.isEmpty else {
-            showError = true
-            errorMessage = "Token cannot be empty"
+            withAnimation {
+                showError = true
+                errorMessage = "Token cannot be empty"
+            }
             return
         }
-        
+
         if isEditing, let existingAccount = editingAccount {
             var updatedAccount = existingAccount
             updatedAccount.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -100,10 +125,9 @@ struct AddAccountSheet: View {
             )
             accountStore.addAccount(newAccount)
         }
-        
+
         isPresented = false
-        
-        // Refresh data after adding
+
         Task {
             await accountStore.refreshAll()
         }

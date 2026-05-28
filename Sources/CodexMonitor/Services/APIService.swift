@@ -10,10 +10,20 @@ class APIService {
             throw APIError.invalidURL
         }
         
+        // Ensure token doesn't have duplicate "Bearer " prefix
+        var token = authToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        if token.lowercased().hasPrefix("bearer ") {
+            token = String(token.dropFirst(7)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Mimic browser to avoid potential Origin/Referer checks
+        request.setValue("https://chatgpt.com", forHTTPHeaderField: "Origin")
+        request.setValue("https://chatgpt.com/", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 30
         
         let (data, response) = try await URLSession.shared.data(for: request)

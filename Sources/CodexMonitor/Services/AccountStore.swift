@@ -40,6 +40,20 @@ class AccountStore: ObservableObject {
         return .healthy
     }
     
+    /// Returns the top 2 primary_window.usedPercent values from all accounts, sorted descending
+    var topUsagePercentages: [Int] {
+        guard !accounts.isEmpty else { return [] }
+        
+        var percentages: [Int] = []
+        for account in accounts {
+            if case .success(let usage) = usageData[account.id] {
+                percentages.append(usage.rateLimit.primaryWindow.usedPercent)
+            }
+        }
+        
+        return percentages.sorted(by: >).prefix(2).map { $0 }
+    }
+    
     init() {
         loadAccounts()
     }

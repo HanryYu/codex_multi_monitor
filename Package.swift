@@ -1,15 +1,19 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
     name: "CodexMonitor",
     platforms: [
-        .macOS(.v14)
+        .macOS(.v15)
     ],
     targets: [
         .executableTarget(
             name: "CodexMonitor",
-            path: "Sources/CodexMonitor"
+            path: "Sources/CodexMonitor",
+            exclude: ["Info.plist"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5)
+            ]
         )
     ]
 )

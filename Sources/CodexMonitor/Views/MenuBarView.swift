@@ -1,120 +1,129 @@
 import SwiftUI
 
+// MARK: - Shimmer Loading Animation
+
+struct ShimmerView: View {
+    @State private var phase: CGFloat = 0
+
+    var body: some View {
+        LinearGradient(
+            colors: [
+                Color.primary.opacity(0.04),
+                Color.primary.opacity(0.10),
+                Color.primary.opacity(0.04)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .mask(
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [.clear, .white, .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .offset(x: phase)
+        )
+        .onAppear {
+            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                phase = 200
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+// MARK: - Gradient Progress Bar
+
+struct GradientProgressBar: View {
+    let percentage: Int
+
+    private var gradientColors: [Color] {
+        if percentage >= 90 {
+            return [.red, .red.opacity(0.8)]
+        } else if percentage >= 70 {
+            return [.orange, .red.opacity(0.6)]
+        } else if percentage >= 50 {
+            return [.yellow, .orange]
+        } else {
+            return [.green, .green.opacity(0.7)]
+        }
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                // Track
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.primary.opacity(0.06))
+
+                // Fill
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(
+                        LinearGradient(
+                            colors: gradientColors,
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: geometry.size.width * CGFloat(percentage) / 100)
+                    .animation(.easeInOut(duration: 0.6), value: percentage)
+            }
+        }
+        .frame(height: 4)
+    }
+}
+
+// MARK: - Glass Card Modifier
+
+struct GlassCardModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
+    }
+}
+
+extension View {
+    func glassCard() -> some View {
+        modifier(GlassCardModifier())
+    }
+}
+
+// MARK: - MenuBarView
+
 struct MenuBarView: View {
     @ObservedObject var accountStore: AccountStore
     @State private var showingAddSheet = false
     @State private var editingAccount: Account?
-    
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header with refresh and add buttons
-            HStack {
-                Text("CodexMonitor")
-                    .font(.headline)
-                
-                Spacer()
-                
-                Button(action: {
-                    Task {
-                        await accountStore.refreshAll()
-                    }
-                }) {
-                    Image(systemName: "arrow.clockwise")
-                        .foregroundColor(.accentColor)
-                }
-                .buttonStyle(.plain)
-                .disabled(accountStore.isLoading)
-                .help("Refresh")
-                
-                Button(action: {
-                    showingAddSheet = true
-                }) {
-                    Image(systemName: "plus.circle")
-                        .foregroundColor(.accentColor)
-                }
-                .buttonStyle(.plain)
-                .help("Add Account")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            
-            Divider()
-            
-            // Loading indicator
-            if accountStore.isLoading {
-                HStack {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Refreshing...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 8)
-            }
-            
-            // Accounts list
-            if accountStore.accounts.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "person.badge.plus")
-                        .font(.system(size: 32))
-                        .foregroundColor(.secondary)
-                    
-                    Text("No accounts added")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Button("Add Account") {
-                        showingAddSheet = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                }
-                .padding(.vertical, 24)
+            // Header
+            headerView
+
+            Divider().opacity(0.5)
+
+            // Content
+            if accountStore.isLoading && accountStore.accounts.isEmpty {
+                loadingPlaceholder
+            } else if accountStore.accounts.isEmpty {
+                emptyStateView
             } else {
-                ScrollView {
-                    VStack(spacing: 16) {
-                        ForEach(accountStore.accounts) { account in
-                            AccountCard(
-                                account: account,
-                                usageResult: accountStore.usageData[account.id],
-                                onEdit: {
-                                    editingAccount = account
-                                },
-                                onDelete: {
-                                    accountStore.deleteAccount(id: account.id)
-                                }
-                            )
-                        }
-                    }
-                    .padding(16)
-                }
+                accountsScrollView
             }
-            
-            Divider()
-            
-            // Footer with preferences and quit buttons
-            HStack {
-                Button("Preferences...") {
-                    openPreferencesWindow()
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
-                .font(.caption)
-                
-                Spacer()
-                
-                Button("Quit") {
-                    NSApp.terminate(nil)
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
-                .font(.caption)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+
+            Divider().opacity(0.5)
+
+            // Footer
+            footerView
         }
-        .frame(width: 320)
-        .frame(maxHeight: 500)
+        .frame(width: 340)
+        .frame(maxHeight: 520)
+        .background(.ultraThinMaterial)
         .sheet(isPresented: $showingAddSheet) {
             AddAccountSheet(accountStore: accountStore, isPresented: $showingAddSheet)
         }
@@ -122,93 +131,252 @@ struct MenuBarView: View {
             AddAccountSheet(accountStore: accountStore, isPresented: .constant(true), editingAccount: account)
         }
     }
+
+    // MARK: - Header
+
+    private var headerView: some View {
+        HStack {
+            Label("CodexMonitor", systemImage: "gauge.with.dots.fill.60percent")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+
+            Spacer()
+
+            Button(action: {
+                Task { await accountStore.refreshAll() }
+            }) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(accountStore.isLoading ? 360 : 0))
+                    .animation(
+                        accountStore.isLoading
+                            ? .linear(duration: 1).repeatForever(autoreverses: false)
+                            : .default,
+                        value: accountStore.isLoading
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(accountStore.isLoading)
+            .help("Refresh all accounts")
+
+            Button(action: { showingAddSheet = true }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Add Account")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    // MARK: - Loading Placeholder
+
+    private var loadingPlaceholder: some View {
+        VStack(spacing: 12) {
+            ForEach(0..<2, id: \.self) { _ in
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        ShimmerView().frame(width: 100, height: 14)
+                        Spacer()
+                        ShimmerView().frame(width: 50, height: 14)
+                    }
+                    ShimmerView().frame(height: 4)
+                    ShimmerView().frame(width: 120, height: 10)
+                }
+                .padding(14)
+                .glassCard()
+            }
+        }
+        .padding(16)
+    }
+
+    // MARK: - Empty State
+
+    private var emptyStateView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "person.badge.plus")
+                .font(.system(size: 36, weight: .light))
+                .foregroundStyle(.tertiary)
+
+            VStack(spacing: 4) {
+                Text("No accounts added")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Text("Add a Codex account to monitor usage")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Button(action: { showingAddSheet = true }) {
+                Label("Add Account", systemImage: "plus")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(.vertical, 32)
+    }
+
+    // MARK: - Accounts Scroll View
+
+    private var accountsScrollView: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                // Loading indicator at top when refreshing
+                if accountStore.isLoading {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                        Text("Refreshing...")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
+                ForEach(accountStore.accounts) { account in
+                    AccountCard(
+                        account: account,
+                        usageResult: accountStore.usageData[account.id],
+                        onEdit: { editingAccount = account },
+                        onDelete: { accountStore.deleteAccount(id: account.id) }
+                    )
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                        removal: .opacity.combined(with: .scale(scale: 0.95))
+                    ))
+                }
+            }
+            .padding(16)
+            .animation(.easeInOut(duration: 0.3), value: accountStore.accounts.count)
+        }
+    }
+
+    // MARK: - Footer
+
+    private var footerView: some View {
+        HStack {
+            Button(action: { openPreferencesWindow() }) {
+                Label("Preferences", systemImage: "gear")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Button(action: { NSApp.terminate(nil) }) {
+                Text("Quit")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
 }
+
+// MARK: - AccountCard
 
 struct AccountCard: View {
     let account: Account
     let usageResult: Result<UsageResponse, APIError>?
     let onEdit: () -> Void
     let onDelete: () -> Void
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             // Header
-            HStack {
+            HStack(alignment: .center) {
+                // Account icon
+                Image(systemName: "person.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.secondary)
+
                 Text(account.name)
                     .font(.system(size: 13, weight: .semibold))
-                
+                    .foregroundStyle(.primary)
+
                 Spacer()
-                
+
                 if let usage = try? usageResult?.get() {
-                    Text(usage.planType.capitalized)
-                        .font(.caption)
-                        .padding(.horizontal, 8)
+                    Text(usage.planType.localizedCapitalized)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 7)
                         .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.2))
-                        .cornerRadius(4)
+                        .background(Color.accentColor.opacity(0.12))
+                        .clipShape(Capsule())
                 }
-                
+
                 Menu {
-                    Button("Edit") { onEdit() }
-                    Button("Delete", role: .destructive) { onDelete() }
+                    Button("Edit", systemImage: "pencil") { onEdit() }
+                    Button("Delete", systemImage: "trash", role: .destructive) { onDelete() }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .foregroundColor(.secondary)
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
                 .menuStyle(.borderlessButton)
                 .frame(width: 20)
             }
-            
-            Divider()
-            
+
+            Divider().opacity(0.4)
+
             // Usage content
             if let usageResult = usageResult {
                 switch usageResult {
                 case .success(let usage):
                     UsageContentView(usage: usage)
                 case .failure(let error):
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.red)
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red)
                         Text(error.localizedDescription)
-                            .font(.caption)
-                            .foregroundColor(.red)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red)
                     }
                 }
             } else {
-                HStack {
+                HStack(spacing: 6) {
                     Image(systemName: "questionmark.circle")
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
                     Text("No data")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
                 }
             }
         }
-        .padding(12)
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(8)
+        .padding(14)
+        .glassCard()
     }
 }
 
+// MARK: - UsageContentView
+
 struct UsageContentView: View {
     let usage: UsageResponse
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Primary window (5-hour limit)
+        VStack(alignment: .leading, spacing: 8) {
             WindowUsageRow(
-                icon: "⏱",
+                icon: "clock",
                 label: formatWindowLabel(seconds: usage.rateLimit.primaryWindow.limitWindowSeconds),
                 usedPercent: usage.rateLimit.primaryWindow.usedPercent,
                 resetAt: usage.rateLimit.primaryWindow.resetAt,
                 isLimitReached: usage.rateLimit.limitReached
             )
-            
-            // Secondary window (weekly limit)
+
             WindowUsageRow(
-                icon: "📅",
+                icon: "calendar",
                 label: formatWindowLabel(seconds: usage.rateLimit.secondaryWindow.limitWindowSeconds),
                 usedPercent: usage.rateLimit.secondaryWindow.usedPercent,
                 resetAt: usage.rateLimit.secondaryWindow.resetAt,
@@ -216,7 +384,7 @@ struct UsageContentView: View {
             )
         }
     }
-    
+
     func formatWindowLabel(seconds: Int) -> String {
         let hours = seconds / 3600
         if hours >= 168 {
@@ -229,86 +397,74 @@ struct UsageContentView: View {
     }
 }
 
+// MARK: - WindowUsageRow
+
 struct WindowUsageRow: View {
     let icon: String
     let label: String
     let usedPercent: Int
     let resetAt: Int
     let isLimitReached: Bool
-    
-    var remainingPercent: Int {
-        100 - usedPercent
-    }
-    
+
+    var remainingPercent: Int { 100 - usedPercent }
+
     var statusColor: Color {
-        if isLimitReached {
-            return .red
-        } else if usedPercent >= 80 {
-            return .orange
-        } else if usedPercent >= 60 {
-            return .yellow
-        } else {
-            return .green
-        }
+        if isLimitReached { return .red }
+        if usedPercent >= 80 { return .orange }
+        if usedPercent >= 60 { return .yellow }
+        return .green
     }
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(icon)
-                    .font(.system(size: 11))
-                Text(label + ":")
+        VStack(alignment: .leading, spacing: 6) {
+            // Label row
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(statusColor)
+                    .frame(width: 12)
+
+                Text(label)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.primary)
-                
-                Text("Used \(usedPercent)%")
-                    .font(.system(size: 11))
-                    .foregroundColor(statusColor)
-                
+                    .foregroundStyle(.primary)
+
                 Text("·")
-                    .foregroundColor(.secondary)
-                
-                Text("Remaining \(remainingPercent)%")
-                    .font(.system(size: 11))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.tertiary)
+
+                Text("\(usedPercent)%")
+                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(statusColor)
+
+                Spacer()
+
+                Text("Resets \(formatResetTime(resetAt: resetAt))")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
             }
-            
-            HStack {
-                Text(" ")
-                    .font(.system(size: 11))
-                Text(" ")
-                    .font(.system(size: 11))
-                Text("Resets:")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                
-                Text(formatResetTime(resetAt: resetAt))
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-            }
+
+            // Gradient progress bar
+            GradientProgressBar(percentage: usedPercent)
         }
+        .padding(.vertical, 2)
     }
-    
+
     func formatResetTime(resetAt: Int) -> String {
         let resetDate = Date(timeIntervalSince1970: TimeInterval(resetAt))
         let calendar = Calendar.current
         let now = Date()
-        
+
         if calendar.isDate(resetDate, inSameDayAs: now) {
-            // Today - show time only
             let formatter = DateFormatter()
             formatter.dateFormat = "HH:mm"
             return formatter.string(from: resetDate)
         } else if calendar.isDate(resetDate, inSameDayAs: calendar.date(byAdding: .day, value: 1, to: now)!) {
-            // Tomorrow
             let formatter = DateFormatter()
             formatter.dateFormat = "HH:mm"
-            return "Tomorrow \(formatter.string(from: resetDate))"
+            return "tmr \(formatter.string(from: resetDate))"
         } else {
-            // Other days - show weekday and time
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: "zh_CN")
-            formatter.dateFormat = "EEEE HH:mm"
+            formatter.dateFormat = "E HH:mm"
             return formatter.string(from: resetDate)
         }
     }

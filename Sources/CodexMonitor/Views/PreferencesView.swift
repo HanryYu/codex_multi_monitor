@@ -21,6 +21,16 @@ enum RefreshInterval: Int, CaseIterable, Identifiable {
         case .thirtyMinutes: return "30 Minutes"
         }
     }
+
+    var icon: String {
+        switch self {
+        case .off: return "pause.circle"
+        case .oneMinute: return "clock.arrow.1"
+        case .fiveMinutes: return "clock"
+        case .fifteenMinutes: return "clock.badge"
+        case .thirtyMinutes: return "clock.badge.2"
+        }
+    }
 }
 
 // MARK: - Preferences Keys
@@ -66,7 +76,6 @@ private func writeLaunchAgentPlist(bundleID: String, binaryPath: String, enable:
     let dir = url.deletingLastPathComponent()
 
     if enable {
-        // Ensure directory exists
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
         let plist: [String: Any] = [
@@ -85,7 +94,6 @@ private func writeLaunchAgentPlist(bundleID: String, binaryPath: String, enable:
             return false
         }
     } else {
-        // Remove plist file
         try? FileManager.default.removeItem(at: url)
         return true
     }
@@ -100,54 +108,75 @@ struct PreferencesView: View {
     @State private var binaryPath: String = ""
 
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Preferences")
-                .font(.headline)
+        VStack(spacing: 24) {
+            // Title
+            Label("Preferences", systemImage: "gear")
+                .font(.system(size: 16, weight: .semibold))
+                .padding(.top, 4)
 
-            // Refresh Interval
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Auto Refresh Interval")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+            // Sections
+            VStack(spacing: 20) {
+                // Refresh Interval
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Auto Refresh", systemImage: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
 
-                Picker("", selection: $refreshInterval) {
-                    ForEach(RefreshInterval.allCases) { interval in
-                        Text(interval.label).tag(interval)
+                    Picker("", selection: $refreshInterval) {
+                        ForEach(RefreshInterval.allCases) { interval in
+                            Label(interval.label, systemImage: interval.icon)
+                                .tag(interval)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: refreshInterval) { _, newValue in
+                        UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.refreshInterval)
+                        NotificationCenter.default.post(name: .refreshIntervalChanged, object: nil)
                     }
                 }
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .onChange(of: refreshInterval) { _, newValue in
-                    UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.refreshInterval)
-                    NotificationCenter.default.post(name: .refreshIntervalChanged, object: nil)
-                }
-            }
 
-            Divider()
+                Divider().opacity(0.4)
 
-            // Launch at Login
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle("Launch at Login", isOn: $launchAtLogin)
+                // Launch at Login
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle(isOn: $launchAtLogin) {
+                        Label("Launch at Login", systemImage: "power")
+                            .font(.system(size: 12, weight: .medium))
+                    }
                     .onChange(of: launchAtLogin) { _, newValue in
                         toggleLaunchAtLogin(enable: newValue)
                     }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Bundle ID: \(bundleIdentifier)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Text("Binary: \(binaryPath)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 4) {
+                            Text("Bundle ID:")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                            Text(bundleIdentifier)
+                                .font(.system(size: 10).monospaced())
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        HStack(spacing: 4) {
+                            Text("Binary:")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                            Text(binaryPath)
+                                .font(.system(size: 10).monospaced())
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                    .padding(.leading, 2)
                 }
             }
 
             Spacer()
 
+            // Done button
             HStack {
                 Spacer()
                 Button("Done") {
@@ -158,16 +187,15 @@ struct PreferencesView: View {
         }
         .padding(24)
         .frame(width: 380)
+        .background(.ultraThinMaterial)
         .onAppear {
             loadPreferences()
         }
     }
 
     private func loadPreferences() {
-        // Refresh interval
         let saved = UserDefaults.standard.integer(forKey: PreferencesKeys.refreshInterval)
         if saved == 0 && !UserDefaults.standard.bool(forKey: "has_set_refresh_interval") {
-            // Default to 5 minutes
             refreshInterval = .fiveMinutes
             UserDefaults.standard.set(RefreshInterval.fiveMinutes.rawValue, forKey: PreferencesKeys.refreshInterval)
             UserDefaults.standard.set(true, forKey: "has_set_refresh_interval")
@@ -175,11 +203,9 @@ struct PreferencesView: View {
             refreshInterval = RefreshInterval(rawValue: saved) ?? .fiveMinutes
         }
 
-        // Bundle ID & binary path
         bundleIdentifier = defaultBundleIdentifier()
         binaryPath = defaultBinaryPath()
 
-        // Launch at login — check if plist exists
         let plist = readLaunchAgentPlist(bundleID: bundleIdentifier)
         launchAtLogin = plist != nil
     }
@@ -199,7 +225,6 @@ struct PreferencesView: View {
 // MARK: - Open Preferences Window
 
 func openPreferencesWindow() {
-    // Reuse existing window if present
     if let existing = NSApp.windows.first(where: { $0.title == "CodexMonitor Preferences" }) {
         existing.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
