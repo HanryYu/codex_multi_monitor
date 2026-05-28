@@ -393,56 +393,6 @@ struct MenuBarView: View {
         return false
     }
 
-    private func estimatedResetTime(from usage: UsageResponse) -> String? {
-        var earliest: Int?
-        if let rl = usage.rateLimit {
-            if let p = rl.primaryWindow, p.resetAfterSeconds > 0 {
-                earliest = min(earliest ?? p.resetAfterSeconds, p.resetAfterSeconds)
-            }
-            if let s = rl.secondaryWindow, s.resetAfterSeconds > 0 {
-                earliest = min(earliest ?? s.resetAfterSeconds, s.resetAfterSeconds)
-            }
-        }
-        guard let seconds = earliest, seconds > 0 else { return nil }
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        if hours > 0 {
-            return "约 \(hours)h\(minutes > 0 ? " \(minutes)m" : "") 后重置"
-        }
-        return "约 \(minutes)m 后重置"
-    }
-
-    private func limitBanner(usage: UsageResponse) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "exclamationmark.circle.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(Color.red)
-                .opacity(0.8)
-                .symbolEffect(.pulse, options: .repeating)
-
-            Text("限额已达 — 不可使用")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Color.red)
-
-            Spacer()
-
-            if let resetText = estimatedResetTime(from: usage) {
-                Text(resetText)
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.red.opacity(0.6))
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(
-            LinearGradient(
-                colors: [Color.red.opacity(0.08), Color.red.opacity(0.03)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        )
-    }
-
     // MARK: - Loading Placeholder
 
     private var loadingPlaceholder: some View {
