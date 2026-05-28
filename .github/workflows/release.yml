@@ -31,29 +31,29 @@ jobs:
           # Import Developer ID certificate (with private key)
           CERT_PATH="$RUNNER_TEMP/certificate.p12"
           echo "$CERTIFICATE" | base64 --decode > "$CERT_PATH"
-          security import "$CERT_PATH" -P "$CERTIFICATE_PASSWORD" -A -t agg -f pkcs12 -k "$KEYCHAIN_PATH" || true
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" || true
+          security import "$CERT_PATH" -P "$CERTIFICATE_PASSWORD" -A -t agg -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
           # List identities for debugging
           echo "--- Available identities ---"
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
           echo "--- End identities ---"
 
           # Sign the binary
           BINARY=".build/release/CodexMonitor"
           IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>/dev/null | grep -E "Developer ID Application|Apple Development" | head -1 | awk -F'"' '{print $2}')
           if [ -z "$IDENTITY" ]; then
-            echo "::warning::No Developer ID identity found — skipping signing"
+            echo "::warning::No signing identity found — skipping signing"
             rm -f "$CERT_PATH"
             exit 0
           fi
           echo "Signing with identity: $IDENTITY"
-          codesign --force --options runtime --sign "$IDENTITY" "$BINARY"
+          codesign --force --options runtime --sign "$IDENTITY" --keychain "$KEYCHAIN_PATH" "$BINARY"
           codesign --verify --verbose "$BINARY"
 
           # Cleanup
           rm -f "$CERT_PATH"
-          security delete-keychain "$RUNNER_TEMP/signing.keychain-db"
+          security delete-keychain "$KEYCHAIN_PATH"
 
       - name: Create DMG
         run: |
