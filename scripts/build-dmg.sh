@@ -57,8 +57,14 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
 </plist>
 PLIST
 
-# Create a simple app icon (optional - uses system icon as placeholder)
-# To add a real icon, place AppIcon.icns in the Resources folder
+# Copy app icon
+ICON_SRC="$PROJECT_DIR/Sources/CodexMonitor/Resources/AppIcon.icns"
+if [ -f "$ICON_SRC" ]; then
+    cp "$ICON_SRC" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+    echo "   ✅ App icon copied"
+else
+    echo "   ⚠️  AppIcon.icns not found at $ICON_SRC"
+fi
 
 echo "💿 Creating DMG..."
 rm -f "$DMG_OUTPUT"
