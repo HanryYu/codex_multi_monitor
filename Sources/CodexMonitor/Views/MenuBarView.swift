@@ -88,34 +88,6 @@ extension View {
     func glassCard() -> some View {
         modifier(GlassCardModifier())
     }
-
-    func dimmedRateLimited(_ isLimited: Bool) -> some View {
-        modifier(DimmedRateLimitedModifier(isLimited: isLimited))
-    }
-}
-
-struct DimmedRateLimitedModifier: ViewModifier {
-    let isLimited: Bool
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(isLimited ? 0.45 : 1.0)
-            .saturation(isLimited ? 0.3 : 1.0)
-            .background(
-                isLimited
-                    ? Color.red.opacity(0.03)
-                    : Color.primary.opacity(0.03)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(
-                        isLimited
-                            ? Color.red.opacity(0.15)
-                            : Color.primary.opacity(0.06),
-                        lineWidth: 0.5
-                    )
-            )
-    }
 }
 
 // MARK: - QuotaCardView (single quota card — Gemini Canvas style)
