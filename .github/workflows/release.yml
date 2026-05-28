@@ -12,48 +12,31 @@ jobs:
     env:
       CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION }}
       CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_PASSWORD }}
-      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Build release binary
         run: swift build -c release
 
-      - name: Code sign with Developer ID
+      - name: Import Code-Signing Certs
+        if: env.CERTIFICATE != ''
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+          p12-password: ${{ secrets.DEVELOPER_ID_APPLICATION_PASSWORD }}
+
+      - name: Code sign binary
         if: env.CERTIFICATE != ''
         run: |
-          # Create temporary keychain
-          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Import Developer ID certificate (with private key)
-          CERT_PATH="$RUNNER_TEMP/certificate.p12"
-          echo "$CERTIFICATE" | base64 --decode > "$CERT_PATH"
-          security import "$CERT_PATH" -P "$CERTIFICATE_PASSWORD" -A -t agg -f pkcs12 -k "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # List identities for debugging
-          echo "--- Available identities ---"
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
-          echo "--- End identities ---"
-
-          # Sign the binary
           BINARY=".build/release/CodexMonitor"
-          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>/dev/null | grep -E "Developer ID Application|Apple Development" | head -1 | awk -F'"' '{print $2}')
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain 2>/dev/null | grep -E "Developer ID Application|Apple Development" | head -1 | awk -F'"' '{print $2}')
           if [ -z "$IDENTITY" ]; then
             echo "::warning::No signing identity found — skipping signing"
-            rm -f "$CERT_PATH"
             exit 0
           fi
           echo "Signing with identity: $IDENTITY"
-          codesign --force --options runtime --sign "$IDENTITY" --keychain "$KEYCHAIN_PATH" "$BINARY"
+          codesign --force --options runtime --sign "$IDENTITY" "$BINARY"
           codesign --verify --verbose "$BINARY"
-
-          # Cleanup
-          rm -f "$CERT_PATH"
-          security delete-keychain "$KEYCHAIN_PATH"
 
       - name: Create DMG
         run: |
