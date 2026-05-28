@@ -35,33 +35,29 @@ struct ShimmerView: View {
     }
 }
 
-// MARK: - Gradient Progress Bar
+// MARK: - Compact Progress Bar (3px, Gemini Canvas style)
 
-struct GradientProgressBar: View {
-    let percentage: Int
+struct CompactProgressBar: View {
+    let percentage: Int  // used percentage (0-100)
     var reversed: Bool = false
 
     private var gradientColors: [Color] {
         if percentage >= 90 {
-            return [.red, .red.opacity(0.8)]
-        } else if percentage >= 70 {
-            return [.orange, .red.opacity(0.6)]
-        } else if percentage >= 50 {
-            return [.yellow, .orange]
+            return [Color(hex: "ff3b30"), Color(hex: "ff453a")]
+        } else if percentage >= 60 {
+            return [Color(hex: "FF6B00"), Color(hex: "FF8A33")]
         } else {
-            return [.green, .green.opacity(0.7)]
+            return [Color(hex: "34c759"), Color(hex: "30d158")]
         }
     }
 
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: reversed ? .trailing : .leading) {
-                // Track
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.primary.opacity(0.08))
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.primary.opacity(0.06))
 
-                // Fill
-                RoundedRectangle(cornerRadius: 3)
+                RoundedRectangle(cornerRadius: 2)
                     .fill(
                         LinearGradient(
                             colors: gradientColors,
@@ -70,10 +66,10 @@ struct GradientProgressBar: View {
                         )
                     )
                     .frame(width: geometry.size.width * CGFloat(percentage) / 100)
-                    .animation(.easeInOut(duration: 0.6), value: percentage)
+                    .animation(.easeInOut(duration: 0.7), value: percentage)
             }
         }
-        .frame(height: 4)
+        .frame(height: 3)
     }
 }
 
@@ -94,7 +90,191 @@ extension View {
     }
 }
 
-// MARK: - MenuBarView (Popover — read-only display only)
+// MARK: - QuotaCardView (single quota card — Gemini Canvas style)
+
+struct QuotaCardView: View {
+    let label: String
+    let displayPercent: Int   // what to show (remaining or used, depending on displayMode)
+    let usedPercent: Int      // raw used percentage (for progress bar)
+    let displayMode: DisplayMode
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Label
+            Text(label)
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(Color.secondary)
+                .tracking(0.4)
+
+            Spacer(minLength: 4)
+
+            // Big percentage
+            Text("\(displayPercent)%")
+                .font(.system(size: 34, weight: .bold))
+                .foregroundStyle(Color.primary)
+                .tracking(-0.7)
+                .lineLimit(1)
+                .monospacedDigit()
+
+            // Sublabel
+            Text(displayMode == .remaining ? "剩余" : "已用")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(Color.secondary.opacity(0.7))
+                .tracking(0.2)
+                .padding(.top, 2)
+
+            Spacer(minLength: 6)
+
+            // Progress bar at bottom
+            CompactProgressBar(percentage: usedPercent)
+        }
+        .padding(12)
+        .frame(height: 108)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.03))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+// MARK: - QuotaCardsGridView (two cards side by side)
+
+struct QuotaCardsGridView: View {
+    let usage: UsageResponse
+    let displayMode: DisplayMode
+
+    var body: some View {
+        if let rateLimit = usage.rateLimit {
+            HStack(spacing: 10) {
+                if let primary = rateLimit.primaryWindow {
+                    QuotaCardView(
+                        label: formatWindowLabel(seconds: primary.limitWindowSeconds),
+                        displayPercent: displayMode == .remaining
+                            ? (100 - primary.usedPercent)
+                            : primary.usedPercent,
+                        usedPercent: primary.usedPercent,
+                        displayMode: displayMode
+                    )
+                }
+
+                if let secondary = rateLimit.secondaryWindow {
+                    QuotaCardView(
+                        label: formatWindowLabel(seconds: secondary.limitWindowSeconds),
+                        displayPercent: displayMode == .remaining
+                            ? (100 - secondary.usedPercent)
+                            : secondary.usedPercent,
+                        usedPercent: secondary.usedPercent,
+                        displayMode: displayMode
+                    )
+                }
+            }
+        } else if let credits = usage.credits {
+            // Team plan — show single card with credits info
+            HStack(spacing: 10) {
+                CreditsCardView(credits: credits)
+            }
+        } else if usage.rateLimitReachedType != nil {
+            // Rate limit reached, no data
+            HStack(spacing: 5) {
+                Image(systemName: "exclamationmark.octagon.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+                Text("限额已达")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.red)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 20)
+        } else {
+            HStack(spacing: 5) {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                Text("plan: \(usage.planType) — 无用量数据")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 20)
+        }
+    }
+
+    func formatWindowLabel(seconds: Int) -> String {
+        let hours = seconds / 3600
+        if hours >= 168 {
+            return "每周限额"
+        } else if hours >= 24 {
+            return "\(hours)小时限额"
+        } else {
+            return "\(hours)小时限额"
+        }
+    }
+}
+
+// MARK: - CreditsCardView (for Team plan accounts)
+
+struct CreditsCardView: View {
+    let credits: Credits
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Credits")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(Color.secondary)
+                .tracking(0.4)
+
+            Spacer(minLength: 4)
+
+            if credits.unlimited {
+                Image(systemName: "infinity")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(.green)
+            } else if let balance = credits.balance {
+                Text(balance)
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
+                    .monospacedDigit()
+            } else {
+                Text("—")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(Color.secondary)
+            }
+
+            Text(credits.unlimited ? "无限" : "余额")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(Color.secondary.opacity(0.7))
+                .tracking(0.2)
+                .padding(.top, 2)
+
+            Spacer(minLength: 6)
+
+            // Status indicator
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(credits.hasCredits ? Color.green : Color.red)
+                    .frame(width: 5, height: 5)
+                Text(credits.hasCredits ? "可用" : "已耗尽")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(credits.hasCredits ? .green : .red)
+            }
+        }
+        .padding(12)
+        .frame(height: 108)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.03))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+// MARK: - MenuBarView (Popover — Gemini Canvas style)
 
 struct MenuBarView: View {
     @ObservedObject var accountStore: AccountStore
@@ -102,7 +282,7 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // Header — account name + refresh time
             headerView
 
             Divider().opacity(0.5)
@@ -113,7 +293,7 @@ struct MenuBarView: View {
             } else if accountStore.accounts.isEmpty {
                 emptyStateView
             } else {
-                accountsScrollView
+                accountsQuotaView
             }
 
             Divider().opacity(0.5)
@@ -122,7 +302,6 @@ struct MenuBarView: View {
             footerView
         }
         .frame(width: 340)
-        .frame(maxHeight: 520)
         .background(.ultraThinMaterial)
         .onAppear { loadDisplayMode() }
         .onReceive(NotificationCenter.default.publisher(for: .displayModeChanged)) { _ in
@@ -135,54 +314,74 @@ struct MenuBarView: View {
         displayMode = DisplayMode(rawValue: modeString) ?? .remaining
     }
 
-    // MARK: - Header
+    // MARK: - Header (Gemini Canvas style: account name left, refresh time + icon right)
 
     private var headerView: some View {
-        HStack {
-            Label("CodexMonitor", systemImage: "gauge.with.dots.fill.60percent")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
+        HStack(alignment: .center) {
+            // Account name — small, gray
+            if let firstAccount = accountStore.accounts.first {
+                Text(firstAccount.name)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.secondary)
+                    .tracking(0.2)
+            } else {
+                Text("CodexMonitor")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.secondary)
+                    .tracking(0.2)
+            }
 
             Spacer()
 
+            // Refresh time + icon
             Button(action: {
                 Task { await accountStore.refreshAll() }
             }) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(accountStore.isLoading ? 360 : 0))
-                    .animation(
-                        accountStore.isLoading
-                            ? .linear(duration: 1).repeatForever(autoreverses: false)
-                            : .default,
-                        value: accountStore.isLoading
-                    )
+                HStack(spacing: 5) {
+                    Text(refreshTimeText)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.secondary.opacity(0.7))
+                        .monospacedDigit()
+
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.secondary.opacity(0.7))
+                        .rotationEffect(.degrees(accountStore.isLoading ? 360 : 0))
+                        .animation(
+                            accountStore.isLoading
+                                ? .linear(duration: 0.6).repeatForever(autoreverses: false)
+                                : .default,
+                            value: accountStore.isLoading
+                        )
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
             }
             .buttonStyle(.plain)
             .disabled(accountStore.isLoading)
             .help("Refresh all accounts")
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+    }
+
+    private var refreshTimeText: String {
+        if let time = accountStore.lastRefreshTime {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm"
+            return formatter.string(from: time) + " 更新"
+        }
+        return "--:-- 更新"
     }
 
     // MARK: - Loading Placeholder
 
     private var loadingPlaceholder: some View {
-        VStack(spacing: 12) {
-            ForEach(0..<2, id: \.self) { _ in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        ShimmerView().frame(width: 100, height: 14)
-                        Spacer()
-                        ShimmerView().frame(width: 50, height: 14)
-                    }
-                    ShimmerView().frame(height: 4)
-                    ShimmerView().frame(width: 120, height: 10)
-                }
-                .padding(14)
-                .glassCard()
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                ShimmerView().frame(height: 108)
+                ShimmerView().frame(height: 108)
             }
         }
         .padding(16)
@@ -217,49 +416,66 @@ struct MenuBarView: View {
         .padding(.vertical, 32)
     }
 
-    // MARK: - Accounts Scroll View (read-only display)
+    // MARK: - Accounts Quota View (Gemini Canvas style — cards grid)
 
-    private var accountsScrollView: some View {
-        ScrollView {
-            VStack(spacing: 10) {
-                // Loading indicator at top when refreshing
-                if accountStore.isLoading {
-                    HStack(spacing: 6) {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                        Text("Refreshing...")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+    private var accountsQuotaView: some View {
+        VStack(spacing: 12) {
+            // Loading indicator when refreshing
+            if accountStore.isLoading {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                    Text("Refreshing...")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
                 }
+                .padding(.vertical, 2)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
 
-                ForEach(accountStore.accounts) { account in
-                    AccountCardReadOnly(
-                        account: account,
-                        usageResult: accountStore.usageData[account.id],
-                        displayMode: displayMode
-                    )
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.95)),
-                        removal: .opacity.combined(with: .scale(scale: 0.95))
-                    ))
+            ForEach(accountStore.accounts) { account in
+                if let usageResult = accountStore.usageData[account.id] {
+                    switch usageResult {
+                    case .success(let usage):
+                        QuotaCardsGridView(usage: usage, displayMode: displayMode)
+                    case .failure(let error):
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.red)
+                            Text(error.localizedDescription)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.red)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                    }
+                } else {
+                    HStack(spacing: 6) {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                        Text("No data")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
                 }
             }
-            .padding(16)
-            .animation(.easeInOut(duration: 0.3), value: accountStore.accounts.count)
         }
+        .padding(16)
+        .animation(.easeInOut(duration: 0.3), value: accountStore.accounts.count)
     }
 
-    // MARK: - Footer
+    // MARK: - Footer (Gemini Canvas style)
 
     private var footerView: some View {
         HStack {
             Button(action: { openPreferencesWindow() }) {
-                Label("Preferences", systemImage: "gear")
+                Text("偏好设置…")
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.secondary)
             }
             .buttonStyle(.plain)
 
@@ -268,27 +484,19 @@ struct MenuBarView: View {
             Button(action: {
                 openAccountManagementWindow(accountStore: accountStore)
             }) {
-                Label("Manage Accounts...", systemImage: "person.2")
+                Text("管理账户…")
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-
-            Spacer()
-
-            Button(action: { NSApp.terminate(nil) }) {
-                Text("Quit")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.secondary)
             }
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        .background(Color.primary.opacity(0.01))
     }
 }
 
-// MARK: - AccountCardReadOnly (popover display — no edit/delete buttons)
+// MARK: - AccountCardReadOnly (legacy — kept for potential reuse)
 
 struct AccountCardReadOnly: View {
     let account: Account
@@ -299,7 +507,6 @@ struct AccountCardReadOnly: View {
         VStack(alignment: .leading, spacing: 10) {
             // Header
             HStack(alignment: .center) {
-                // Account icon
                 Image(systemName: "person.circle.fill")
                     .font(.system(size: 16))
                     .foregroundStyle(.secondary)
@@ -327,7 +534,7 @@ struct AccountCardReadOnly: View {
             if let usageResult = usageResult {
                 switch usageResult {
                 case .success(let usage):
-                    UsageContentView(usage: usage, displayMode: displayMode)
+                    QuotaCardsGridView(usage: usage, displayMode: displayMode)
                 case .failure(let error):
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -351,180 +558,6 @@ struct AccountCardReadOnly: View {
         }
         .padding(14)
         .glassCard()
-    }
-}
-
-// MARK: - UsageContentView
-
-struct UsageContentView: View {
-    let usage: UsageResponse
-    let displayMode: DisplayMode
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let rateLimit = usage.rateLimit {
-                if let primary = rateLimit.primaryWindow {
-                    WindowUsageRow(
-                        icon: "clock",
-                        label: formatWindowLabel(seconds: primary.limitWindowSeconds),
-                        usedPercent: primary.usedPercent,
-                        resetAt: primary.resetAt,
-                        isLimitReached: rateLimit.limitReached,
-                        displayMode: displayMode
-                    )
-                }
-
-                if let secondary = rateLimit.secondaryWindow {
-                    WindowUsageRow(
-                        icon: "calendar",
-                        label: formatWindowLabel(seconds: secondary.limitWindowSeconds),
-                        usedPercent: secondary.usedPercent,
-                        resetAt: secondary.resetAt,
-                        isLimitReached: rateLimit.limitReached,
-                        displayMode: displayMode
-                    )
-                }
-            } else if let credits = usage.credits {
-                // Team plan with credits data
-                HStack(spacing: 5) {
-                    Image(systemName: credits.unlimited ? "infinity" : "creditcard")
-                        .font(.system(size: 10))
-                        .foregroundStyle(credits.hasCredits ? .green : .red)
-                    if credits.unlimited {
-                        Text("Unlimited credits")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.green)
-                    } else if let balance = credits.balance {
-                        Text("Credits: \(balance)")
-                            .font(.system(size: 11))
-                            .foregroundStyle(credits.hasCredits ? Color.primary : Color.red)
-                    } else if credits.overageLimitReached {
-                        Text("Overage limit reached")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.red)
-                    } else {
-                        Text("Credits: —")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } else if usage.rateLimitReachedType != nil {
-                // rate_limit null but limit reached
-                HStack(spacing: 5) {
-                    Image(systemName: "exclamationmark.octagon.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.red)
-                    Text("限额已达")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.red)
-                }
-            } else {
-                // Both rate_limit and credits are null — show debug info
-                HStack(spacing: 5) {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                    Text("plan: \(usage.planType) — 无用量数据")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    func formatWindowLabel(seconds: Int) -> String {
-        let hours = seconds / 3600
-        if hours >= 168 {
-            return "Weekly"
-        } else if hours >= 24 {
-            return "\(hours / 24) days"
-        } else {
-            return "\(hours) hours"
-        }
-    }
-}
-
-// MARK: - WindowUsageRow
-
-struct WindowUsageRow: View {
-    let icon: String
-    let label: String
-    let usedPercent: Int
-    let resetAt: Int
-    let isLimitReached: Bool
-    let displayMode: DisplayMode
-
-    var remainingPercent: Int { 100 - usedPercent }
-
-    var displayPercent: Int {
-        displayMode == .remaining ? remainingPercent : usedPercent
-    }
-
-    var statusColor: Color {
-        if isLimitReached { return .red }
-        if usedPercent >= 80 { return .orange }
-        if usedPercent >= 60 { return .yellow }
-        return .green
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Label row
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(statusColor)
-                    .frame(width: 12)
-
-                Text(label)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.primary)
-
-                Text("·")
-                    .foregroundStyle(.tertiary)
-
-                if displayMode == .remaining {
-                    Text("\(displayPercent)% left")
-                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(statusColor)
-                } else {
-                    Text("\(displayPercent)% used")
-                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(statusColor)
-                }
-
-                Spacer()
-
-                Text("Resets \(formatResetTime(resetAt: resetAt))")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-            }
-
-            // Progress bar — reversed in remaining mode (right-to-left)
-            GradientProgressBar(percentage: usedPercent, reversed: displayMode == .remaining)
-        }
-        .padding(.vertical, 2)
-    }
-
-    func formatResetTime(resetAt: Int) -> String {
-        let resetDate = Date(timeIntervalSince1970: TimeInterval(resetAt))
-        let calendar = Calendar.current
-        let now = Date()
-
-        if calendar.isDate(resetDate, inSameDayAs: now) {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "HH:mm"
-            return formatter.string(from: resetDate)
-        } else if calendar.isDate(resetDate, inSameDayAs: calendar.date(byAdding: .day, value: 1, to: now)!) {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "HH:mm"
-            return "tmr \(formatter.string(from: resetDate))"
-        } else {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "zh_CN")
-            formatter.dateFormat = "E HH:mm"
-            return formatter.string(from: resetDate)
-        }
     }
 }
 
@@ -566,7 +599,7 @@ struct AccountManagementView: View {
                     Text("No accounts yet")
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
-                    Button("Add Account") { showingAddForm = true }  // keep functional
+                    Button("Add Account") { showingAddForm = true }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
                 }
@@ -598,7 +631,7 @@ struct AccountManagementView: View {
                                     if let percent = usage.rateLimit?.primaryWindow?.usedPercent {
                                         Text("\(percent)%")
                                             .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                            .foregroundStyle(percent >= 80 ? .orange : .green)  // keep functional color
+                                            .foregroundStyle(percent >= 80 ? .orange : .green)
                                     } else if let credits = usage.credits {
                                         if credits.unlimited {
                                             Text("∞")
@@ -713,4 +746,32 @@ func openAccountManagementWindow(accountStore: AccountStore) {
 
 func closeAccountManagementWindow() {
     WindowManager.shared.closeAccountManagementWindow()
+}
+
+// MARK: - Color Hex Extension
+
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3:
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8:
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
 }

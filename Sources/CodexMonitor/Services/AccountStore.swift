@@ -8,6 +8,7 @@ class AccountStore: ObservableObject {
     @Published var accounts: [Account] = []
     @Published var usageData: [UUID: Result<UsageResponse, APIError>] = [:]
     @Published var isLoading = false
+    @Published var lastRefreshTime: Date?
     
     private let userDefaults = UserDefaults.standard
     private let accountsKey = "saved_accounts"
@@ -162,6 +163,7 @@ class AccountStore: ObservableObject {
         }
         
         isLoading = false
+        lastRefreshTime = Date()
         
         // Check for usage alerts
         checkUsageAlerts()
