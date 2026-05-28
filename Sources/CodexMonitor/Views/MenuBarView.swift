@@ -503,27 +503,28 @@ struct MenuBarView: View {
                 }
 
                 ForEach(accountStore.accounts) { account in
+                    let usageResult = accountStore.usageData[account.id]
+                    let limited = usageResult.flatMap { result -> Bool? in
+                        if case .success(let u) = result { return isRateLimited(u) }
+                        return nil
+                    } ?? false
+
                     VStack(spacing: 0) {
                         // Account header: name + plan badge
-                        let usageResult = accountStore.usageData[account.id]
-                        let limited = usageResult.flatMap { result -> Bool? in
-                            if case .success(let u) = result { return isRateLimited(u) }
-                            return nil
-                        } ?? false
-
                         HStack(alignment: .center) {
                             Text(account.name)
                                 .font(.system(size: 11, weight: limited ? .semibold : .medium))
-                                .foregroundStyle(limited ? Color.red : Color.secondary)
+                                .foregroundStyle(limited ? Color.secondary.opacity(0.5) : Color.secondary)
+                                .strikethrough(limited, color: Color.secondary.opacity(0.5))
                                 .lineLimit(1)
 
                             if let usageResult, case .success(let usage) = usageResult {
                                 Text(usage.planType.localizedCapitalized)
                                     .font(.system(size: 11.5, weight: .medium))
-                                    .foregroundStyle(limited ? Color.red : Color.orange)
+                                    .foregroundStyle(limited ? Color.secondary.opacity(0.4) : Color.orange)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
-                                    .background((limited ? Color.red : Color.orange).opacity(0.12))
+                                    .background((limited ? Color.secondary : Color.orange).opacity(limited ? 0.06 : 0.12))
                                     .clipShape(Capsule())
                             }
 
@@ -540,10 +541,6 @@ struct MenuBarView: View {
                         if let usageResult {
                             switch usageResult {
                             case .success(let usage):
-                                // Limit banner (方案 B)
-                                if limited {
-                                    limitBanner(usage: usage)
-                                }
                                 QuotaCardsGridView(usage: usage, displayMode: displayMode, isLimited: limited, resetTimeFormat: resetTimeFormat)
                             case .failure(let error):
                                 HStack(spacing: 6) {
@@ -573,6 +570,29 @@ struct MenuBarView: View {
                     .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
+                    .overlay {
+                        if limited {
+                            ZStack {
+                                // Semi-transparent overlay
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(.ultraThinMaterial.opacity(0.7))
+
+                                // Centered badge
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.circle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color(hex: "ff3b30"))
+                                    Text("限额已达")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(Color(hex: "ff3b30"))
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                                .background(Color(hex: "ff3b30").opacity(0.1))
+                                .clipShape(Capsule())
+                            }
+                        }
+                    }
                 }
             }
             .padding(12)
