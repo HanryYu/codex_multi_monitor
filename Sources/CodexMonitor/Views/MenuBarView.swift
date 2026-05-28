@@ -88,6 +88,34 @@ extension View {
     func glassCard() -> some View {
         modifier(GlassCardModifier())
     }
+
+    func dimmedRateLimited(_ isLimited: Bool) -> some View {
+        modifier(DimmedRateLimitedModifier(isLimited: isLimited))
+    }
+}
+
+struct DimmedRateLimitedModifier: ViewModifier {
+    let isLimited: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isLimited ? 0.45 : 1.0)
+            .saturation(isLimited ? 0.3 : 1.0)
+            .background(
+                isLimited
+                    ? Color.red.opacity(0.03)
+                    : Color.primary.opacity(0.03)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(
+                        isLimited
+                            ? Color.red.opacity(0.15)
+                            : Color.primary.opacity(0.06),
+                        lineWidth: 0.5
+                    )
+            )
+    }
 }
 
 // MARK: - QuotaCardView (single quota card — Gemini Canvas style)
@@ -97,6 +125,7 @@ struct QuotaCardView: View {
     let displayPercent: Int   // what to show (remaining or used, depending on displayMode)
     let usedPercent: Int      // raw used percentage (for progress bar)
     let displayMode: DisplayMode
+    var isLimited: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -104,14 +133,13 @@ struct QuotaCardView: View {
             Text(label)
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(Color.secondary)
-                .tracking(0.4)
 
             Spacer(minLength: 4)
 
             // Percentage + sublabel on one line
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text("\(displayPercent)%")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: isLimited ? 15 : 17, weight: .semibold))
                     .foregroundStyle(Color.primary)
                     .lineLimit(1)
                     .monospacedDigit()
@@ -128,14 +156,17 @@ struct QuotaCardView: View {
 
             // Progress bar at bottom
             CompactProgressBar(percentage: usedPercent)
+                .opacity(isLimited ? 0.4 : 1.0)
         }
         .padding(12)
         .frame(height: 108)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.primary.opacity(0.03))
+        .opacity(isLimited ? 0.55 : 1.0)
+        .saturation(isLimited ? 0.2 : 1.0)
+        .background(isLimited ? Color.red.opacity(0.03) : Color.primary.opacity(0.03))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 0.5)
+                .stroke(isLimited ? Color.red.opacity(0.12) : Color.primary.opacity(0.06), lineWidth: 0.5)
         )
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
@@ -146,6 +177,7 @@ struct QuotaCardView: View {
 struct QuotaCardsGridView: View {
     let usage: UsageResponse
     let displayMode: DisplayMode
+    var isLimited: Bool = false
 
     var body: some View {
         if let rateLimit = usage.rateLimit {
@@ -157,7 +189,8 @@ struct QuotaCardsGridView: View {
                             ? (100 - primary.usedPercent)
                             : primary.usedPercent,
                         usedPercent: primary.usedPercent,
-                        displayMode: displayMode
+                        displayMode: displayMode,
+                        isLimited: isLimited
                     )
                 }
 
@@ -168,27 +201,34 @@ struct QuotaCardsGridView: View {
                             ? (100 - secondary.usedPercent)
                             : secondary.usedPercent,
                         usedPercent: secondary.usedPercent,
-                        displayMode: displayMode
+                        displayMode: displayMode,
+                        isLimited: isLimited
                     )
                 }
             }
         } else if let credits = usage.credits {
             // Team plan — show single card with credits info
             HStack(spacing: 10) {
-                CreditsCardView(credits: credits)
+                CreditsCardView(credits: credits, isLimited: isLimited)
             }
         } else if usage.rateLimitReachedType != nil {
-            // Rate limit reached, no data
-            HStack(spacing: 5) {
-                Image(systemName: "exclamationmark.octagon.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.red)
-                Text("限额已达")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.red)
+            // Rate limit reached with no detailed data — show placeholder cards
+            HStack(spacing: 10) {
+                QuotaCardView(
+                    label: "限额已达",
+                    displayPercent: 0,
+                    usedPercent: 100,
+                    displayMode: displayMode,
+                    isLimited: true
+                )
+                QuotaCardView(
+                    label: "不可使用",
+                    displayPercent: 0,
+                    usedPercent: 100,
+                    displayMode: displayMode,
+                    isLimited: true
+                )
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 20)
         } else {
             HStack(spacing: 5) {
                 Image(systemName: "questionmark.circle")
@@ -219,13 +259,13 @@ struct QuotaCardsGridView: View {
 
 struct CreditsCardView: View {
     let credits: Credits
+    var isLimited: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Credits")
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(Color.secondary)
-                .tracking(0.4)
 
             Spacer(minLength: 4)
 
@@ -266,10 +306,12 @@ struct CreditsCardView: View {
         .padding(12)
         .frame(height: 108)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.primary.opacity(0.03))
+        .opacity(isLimited ? 0.55 : 1.0)
+        .saturation(isLimited ? 0.2 : 1.0)
+        .background(isLimited ? Color.red.opacity(0.03) : Color.primary.opacity(0.03))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 0.5)
+                .stroke(isLimited ? Color.red.opacity(0.12) : Color.primary.opacity(0.06), lineWidth: 0.5)
         )
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
@@ -309,6 +351,63 @@ struct MenuBarView: View {
     private func loadDisplayMode() {
         let modeString = UserDefaults.standard.string(forKey: PreferencesKeys.displayMode) ?? DisplayMode.remaining.rawValue
         displayMode = DisplayMode(rawValue: modeString) ?? .remaining
+    }
+
+    private func isRateLimited(_ usage: UsageResponse) -> Bool {
+        if usage.rateLimitReachedType != nil { return true }
+        if let rl = usage.rateLimit, rl.limitReached { return true }
+        if let credits = usage.credits, credits.overageLimitReached { return true }
+        return false
+    }
+
+    private func estimatedResetTime(from usage: UsageResponse) -> String? {
+        var earliest: Int?
+        if let rl = usage.rateLimit {
+            if let p = rl.primaryWindow, p.resetAfterSeconds > 0 {
+                earliest = min(earliest ?? p.resetAfterSeconds, p.resetAfterSeconds)
+            }
+            if let s = rl.secondaryWindow, s.resetAfterSeconds > 0 {
+                earliest = min(earliest ?? s.resetAfterSeconds, s.resetAfterSeconds)
+            }
+        }
+        guard let seconds = earliest, seconds > 0 else { return nil }
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        if hours > 0 {
+            return "约 \(hours)h\(minutes > 0 ? " \(minutes)m" : "") 后重置"
+        }
+        return "约 \(minutes)m 后重置"
+    }
+
+    private func limitBanner(usage: UsageResponse) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.red)
+                .opacity(0.8)
+                .symbolEffect(.pulse, options: .repeating)
+
+            Text("限额已达 — 不可使用")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.red)
+
+            Spacer()
+
+            if let resetText = estimatedResetTime(from: usage) {
+                Text(resetText)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.red.opacity(0.6))
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(
+            LinearGradient(
+                colors: [Color.red.opacity(0.08), Color.red.opacity(0.03)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
     }
 
     // MARK: - Loading Placeholder
@@ -373,20 +472,25 @@ struct MenuBarView: View {
                 ForEach(accountStore.accounts) { account in
                     VStack(spacing: 0) {
                         // Account header: name + plan badge
+                        let usageResult = accountStore.usageData[account.id]
+                        let limited = usageResult.flatMap { result -> Bool? in
+                            if case .success(let u) = result { return isRateLimited(u) }
+                            return nil
+                        } ?? false
+
                         HStack(alignment: .center) {
                             Text(account.name)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Color.secondary)
+                                .font(.system(size: 11, weight: limited ? .semibold : .medium))
+                                .foregroundStyle(limited ? Color.red : Color.secondary)
                                 .lineLimit(1)
 
-                            if let usageResult = accountStore.usageData[account.id],
-                               case .success(let usage) = usageResult {
+                            if let usageResult, case .success(let usage) = usageResult {
                                 Text(usage.planType.localizedCapitalized)
                                     .font(.system(size: 11.5, weight: .medium))
-                                    .foregroundStyle(Color.orange)
+                                    .foregroundStyle(limited ? Color.red : Color.orange)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
-                                    .background(Color.orange.opacity(0.12))
+                                    .background((limited ? Color.red : Color.orange).opacity(0.12))
                                     .clipShape(Capsule())
                             }
 
@@ -400,10 +504,14 @@ struct MenuBarView: View {
                             .padding(.horizontal, 14)
 
                         // Quota cards content
-                        if let usageResult = accountStore.usageData[account.id] {
+                        if let usageResult {
                             switch usageResult {
                             case .success(let usage):
-                                QuotaCardsGridView(usage: usage, displayMode: displayMode)
+                                // Limit banner (方案 B)
+                                if limited {
+                                    limitBanner(usage: usage)
+                                }
+                                QuotaCardsGridView(usage: usage, displayMode: displayMode, isLimited: limited)
                             case .failure(let error):
                                 HStack(spacing: 6) {
                                     Image(systemName: "exclamationmark.triangle.fill")
@@ -451,49 +559,61 @@ struct MenuBarView: View {
     // MARK: - Footer (Gemini Canvas style)
 
     private var footerView: some View {
-        HStack {
-            Button(action: { openPreferencesWindow() }) {
-                Text("偏好设置…")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.secondary)
-            }
-            .buttonStyle(.plain)
-
-            Spacer()
-
-            Button(action: {
-                Task { await accountStore.refreshAll() }
-            }) {
-                HStack(spacing: 4) {
-                    Text(formattedRefreshTime)
-                        .font(.system(size: 10).monospacedDigit())
-                        .foregroundStyle(Color.secondary.opacity(0.7))
-
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Color.secondary.opacity(0.7))
-                        .rotationEffect(.degrees(accountStore.isLoading ? 360 : 0))
-                        .animation(
-                            accountStore.isLoading
-                                ? .linear(duration: 0.6).repeatForever(autoreverses: false)
-                                : .default,
-                            value: accountStore.isLoading
-                        )
+        VStack(spacing: 0) {
+            HStack {
+                Button(action: { openPreferencesWindow() }) {
+                    Text("偏好设置…")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.secondary)
                 }
-            }
-            .buttonStyle(.plain)
-            .disabled(accountStore.isLoading)
+                .buttonStyle(.plain)
 
-            Spacer()
+                Spacer()
+
+                Button(action: {
+                    Task { await accountStore.refreshAll() }
+                }) {
+                    HStack(spacing: 4) {
+                        Text(formattedRefreshTime)
+                            .font(.system(size: 10).monospacedDigit())
+                            .foregroundStyle(Color.secondary.opacity(0.7))
+
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Color.secondary.opacity(0.7))
+                            .rotationEffect(.degrees(accountStore.isLoading ? 360 : 0))
+                            .animation(
+                                accountStore.isLoading
+                                    ? .linear(duration: 0.6).repeatForever(autoreverses: false)
+                                    : .default,
+                                value: accountStore.isLoading
+                            )
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(accountStore.isLoading)
+
+                Spacer()
+
+                Button(action: {
+                    openAccountManagementWindow(accountStore: accountStore)
+                }) {
+                    Text("管理账户…")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.secondary)
+                }
+                .buttonStyle(.plain)
+            }
 
             Button(action: {
-                openAccountManagementWindow(accountStore: accountStore)
+                NSApp.terminate(nil)
             }) {
-                Text("管理账户…")
+                Text("退出 Codex Monitor")
                     .font(.system(size: 11))
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(Color.secondary.opacity(0.7))
             }
             .buttonStyle(.plain)
+            .padding(.top, 6)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

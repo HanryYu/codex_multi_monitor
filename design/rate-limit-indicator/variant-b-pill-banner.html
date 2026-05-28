@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>方案 B — 限额已达横幅 + 暗化卡片 + 红色脉冲</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
+            padding: 40px 20px;
+        }
+
+        h1 { color: #fff; font-size: 18px; font-weight: 600; }
+        .subtitle { color: rgba(255,255,255,0.5); font-size: 13px; margin-top: 6px; }
+
+        /* ── Popover ── */
+        .popover {
+            width: 340px;
+            border-radius: 12px;
+            overflow: visible;
+            position: relative;
+            background: rgba(255,255,255,0.72);
+            backdrop-filter: blur(30px) saturate(180%);
+            -webkit-backdrop-filter: blur(30px) saturate(180%);
+            box-shadow:
+                0 0 0 0.5px rgba(0,0,0,0.08),
+                0 12px 40px rgba(0,0,0,0.18),
+                0 2px 8px rgba(0,0,0,0.06);
+            color: #1d1d1f;
+        }
+        .popover-arrow {
+            position: absolute; top: -7px; left: 50%;
+            width: 14px; height: 14px;
+            background: rgba(255,255,255,0.72);
+            backdrop-filter: blur(30px);
+            border-radius: 3px;
+            transform: translateX(-50%) rotate(45deg);
+            box-shadow: -1px -1px 0 0 rgba(0,0,0,0.05);
+            z-index: -1;
+        }
+
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 16px 8px;
+        }
+        .account-name { font-size: 11px; font-weight: 500; color: #86868b; }
+        .plan-badge {
+            font-size: 9px; font-weight: 600;
+            color: #FF6B00;
+            background: rgba(255,107,0,0.12);
+            padding: 2px 6px; border-radius: 10px; margin-left: 6px;
+        }
+        .refresh-area {
+            display: flex; align-items: center; gap: 5px;
+            cursor: pointer; border: none; background: none;
+            padding: 2px 6px; border-radius: 4px; font-family: inherit;
+        }
+        .refresh-time { font-size: 10px; color: #aeaeb2; font-variant-numeric: tabular-nums; }
+        .refresh-icon { display: inline-flex; align-items: center; color: #aeaeb2; }
+        .divider { height: 0.5px; background: rgba(0,0,0,0.08); margin: 0 16px; }
+
+        .cards-grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 10px; padding: 12px 16px;
+        }
+
+        .quota-card {
+            background: rgba(255,255,255,0.55);
+            border: 0.5px solid rgba(0,0,0,0.06);
+            border-radius: 10px;
+            padding: 12px 14px 10px;
+            display: flex; flex-direction: column;
+            justify-content: space-between; height: 108px;
+            position: relative;
+        }
+        .card-label { font-size: 10.5px; font-weight: 500; color: #86868b; letter-spacing: 0.04em; }
+        .card-percentage {
+            font-size: 34px; font-weight: 700;
+            letter-spacing: -0.02em; line-height: 1;
+            color: #1d1d1f; font-variant-numeric: tabular-nums;
+        }
+        .card-sublabel { font-size: 9.5px; font-weight: 500; color: #aeaeb2; margin-top: 3px; }
+        .progress-track {
+            width: 100%; height: 3px;
+            background: rgba(0,0,0,0.06); border-radius: 2px; overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; border-radius: 2px;
+            transition: width 0.7s cubic-bezier(0.4,0,0.2,1);
+        }
+        .progress-fill.green  { background: linear-gradient(90deg, #34c759, #30d158); }
+        .progress-fill.orange { background: linear-gradient(90deg, #FF6B00, #FF8A33); }
+
+        /* ── 方案 B: 暗化 + 横幅 ── */
+        .quota-card.limited {
+            background: rgba(0,0,0,0.04);
+            border-color: rgba(255,59,48,0.15);
+        }
+        .quota-card.limited .card-label { color: rgba(0,0,0,0.25); }
+        .quota-card.limited .card-percentage {
+            color: rgba(0,0,0,0.2);
+            font-size: 28px;
+        }
+        .quota-card.limited .card-sublabel { color: rgba(0,0,0,0.15); }
+        .quota-card.limited .progress-fill {
+            background: rgba(0,0,0,0.08) !important;
+            width: 100% !important;
+        }
+
+        /* 账户头部红色状态 */
+        .account-header-limited .account-name {
+            color: #ff3b30;
+            font-weight: 600;
+        }
+        .account-header-limited .plan-badge {
+            background: rgba(255,59,48,0.12);
+            color: #ff3b30;
+        }
+
+        /* 限额已达横幅 */
+        .limit-banner {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: linear-gradient(90deg, rgba(255,59,48,0.08), rgba(255,59,48,0.03));
+            border-top: 0.5px solid rgba(255,59,48,0.1);
+            border-bottom: 0.5px solid rgba(255,59,48,0.1);
+        }
+        .limit-banner-icon {
+            width: 14px; height: 14px;
+            color: #ff3b30;
+            flex-shrink: 0;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .limit-banner-text {
+            font-size: 11px;
+            font-weight: 600;
+            color: #ff3b30;
+            letter-spacing: 0.02em;
+        }
+        .limit-banner-time {
+            font-size: 10px;
+            color: rgba(255,59,48,0.6);
+            margin-left: auto;
+        }
+
+        /* ── Footer ── */
+        .footer {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 16px 10px;
+            border-top: 0.5px solid rgba(0,0,0,0.06);
+            background: rgba(0,0,0,0.01);
+            border-radius: 0 0 12px 12px;
+        }
+        .footer-link { font-size: 11px; color: #86868b; text-decoration: none; cursor: pointer; }
+
+        /* ── Demo Controls ── */
+        .demo-controls {
+            display: flex; gap: 12px;
+            background: rgba(255,255,255,0.12);
+            backdrop-filter: blur(20px);
+            padding: 10px 20px; border-radius: 10px;
+            border: 0.5px solid rgba(255,255,255,0.15);
+        }
+        .demo-btn {
+            font-size: 12px; color: #fff;
+            background: rgba(255,255,255,0.12);
+            border: 0.5px solid rgba(255,255,255,0.2);
+            padding: 6px 14px; border-radius: 6px;
+            cursor: pointer; font-family: inherit;
+        }
+        .demo-btn.active { background: #FF6B00; border-color: #FF6B00; }
+
+        .annotations {
+            max-width: 340px; color: rgba(255,255,255,0.7);
+            font-size: 12px; line-height: 1.8; margin-top: 16px;
+        }
+        .annotations strong { color: #FF6B00; }
+    </style>
+</head>
+<body>
+
+    <div>
+        <h1>方案 B — 限额已达横幅 + 暗化卡片</h1>
+        <p class="subtitle">信息密度高 · 不遮挡数据 · 带重置时间预估</p>
+    </div>
+
+    <div class="popover">
+        <div class="popover-arrow"></div>
+
+        <!-- Account 1: LIMITED -->
+        <div class="header account-header-limited">
+            <div style="display:flex;align-items:center;">
+                <span class="account-name">Henry Pro</span>
+                <span class="plan-badge">Pro</span>
+            </div>
+            <button class="refresh-area">
+                <span class="refresh-time">14:32 更新</span>
+                <span class="refresh-icon">
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                        <path d="M13.65 2.35A7.96 7.96 0 0 0 8 0a8 8 0 1 0 8 8h-2A6 6 0 1 1 8 2c1.66 0 3.14.69 4.22 1.78L9 7h7V0l-2.35 2.35Z" fill="currentColor"/>
+                    </svg>
+                </span>
+            </button>
+        </div>
+
+        <!-- 限额横幅 -->
+        <div class="limit-banner">
+            <svg class="limit-banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span class="limit-banner-text">限额已达 — 不可使用</span>
+            <span class="limit-banner-time">约 3h 后重置</span>
+        </div>
+
+        <div class="cards-grid">
+            <div class="quota-card limited">
+                <span class="card-label">5小时限额</span>
+                <div>
+                    <div class="card-percentage">0%</div>
+                    <div class="card-sublabel">剩余</div>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" style="width:100%"></div>
+                </div>
+            </div>
+            <div class="quota-card limited">
+                <span class="card-label">每周限额</span>
+                <div>
+                    <div class="card-percentage">0%</div>
+                    <div class="card-sublabel">剩余</div>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" style="width:100%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Account 2: Normal -->
+        <div class="header">
+            <div style="display:flex;align-items:center;">
+                <span class="account-name">Henry Team</span>
+                <span class="plan-badge">Team</span>
+            </div>
+            <button class="refresh-area">
+                <span class="refresh-time">14:32 更新</span>
+                <span class="refresh-icon">
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                        <path d="M13.65 2.35A7.96 7.96 0 0 0 8 0a8 8 0 1 0 8 8h-2A6 6 0 1 1 8 2c1.66 0 3.14.69 4.22 1.78L9 7h7V0l-2.35 2.35Z" fill="currentColor"/>
+                    </svg>
+                </span>
+            </button>
+        </div>
+        <div class="divider"></div>
+        <div class="cards-grid">
+            <div class="quota-card">
+                <span class="card-label">5小时限额</span>
+                <div>
+                    <div class="card-percentage">67%</div>
+                    <div class="card-sublabel">剩余</div>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill green" style="width:33%"></div>
+                </div>
+            </div>
+            <div class="quota-card">
+                <span class="card-label">每周限额</span>
+                <div>
+                    <div class="card-percentage">42%</div>
+                    <div class="card-sublabel">剩余</div>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill orange" style="width:58%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <a class="footer-link">偏好设置…</a>
+            <a class="footer-link">管理账户…</a>
+        </div>
+    </div>
+
+    <div class="annotations">
+        <strong>设计要点：</strong><br>
+        • 账户名变红加粗，计划标签同步变红<br>
+        • 限额横幅：红色信息条 + 脉冲圆点图标 + 重置倒计时<br>
+        • 卡片数据变灰变小（不删除，降低视觉权重）<br>
+        • 进度条变灰（非红色），表达"已锁定"<br>
+        • 横幅提供实用信息：限额状态 + 预计重置时间
+    </div>
+
+</body>
+</html>
