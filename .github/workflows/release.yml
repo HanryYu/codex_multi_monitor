@@ -41,7 +41,7 @@ jobs:
 
           # Sign the binary
           BINARY=".build/release/CodexMonitor"
-          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>/dev/null | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>/dev/null | grep -E "Developer ID Application|Apple Development" | head -1 | awk -F'"' '{print $2}')
           if [ -z "$IDENTITY" ]; then
             echo "::warning::No Developer ID identity found — skipping signing"
             rm -f "$CERT_PATH"
