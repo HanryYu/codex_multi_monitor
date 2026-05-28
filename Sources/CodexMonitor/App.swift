@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UserNotifications
 
 @main
 struct CodexMonitorApp: App {
@@ -12,7 +13,7 @@ struct CodexMonitorApp: App {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var accountStore: AccountStore!
@@ -22,10 +23,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
+        // Set orange accent color for the app
+        NSApp.appearance = nil // follow system, but tint controls orange
+
         accountStore = AccountStore()
 
         // Setup WindowManager
         WindowManager.shared.accountStore = accountStore
+
+        // Request notification permissions
+        requestNotificationPermission()
 
         // Setup status item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -63,6 +70,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
 
+        // Listen for display mode changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(displayModeDidChange),
+            name: .displayModeChanged,
+            object: nil
+        )
+
         scheduleRefreshTimer()
 
         Task { @MainActor in
@@ -91,6 +106,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         scheduleRefreshTimer()
     }
 
+    @objc func displayModeDidChange() {
+        Task { @MainActor in
+            updateStatusBarTitle()
+        }
+    }
+
     func scheduleRefreshTimer() {
         timer?.invalidate()
         timer = nil
@@ -107,30 +128,49 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // MARK: - Notification Permission
+
+    func requestNotificationPermission() {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+            if let error = error {
+                print("Notification permission error: \(error)")
+            }
+        }
+    }
+
+    // Show notifications even when app is in foreground
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
+
+    // MARK: - Status Bar Icon
+
     @MainActor
     func updateStatusBarIcon() {
         guard let button = statusItem.button else { return }
 
         let status = accountStore.overallStatus
-        let symbolName: String
+        let symbolName = "gauge.medium"
         let tintColor: NSColor
 
         switch status {
         case .healthy:
-            symbolName = "gauge.medium"
-            tintColor = .systemGreen
+            tintColor = NSColor(red: 1.0, green: 0.42, blue: 0.0, alpha: 1.0) // #FF6B00
         case .warning:
-            symbolName = "gauge.medium"
-            tintColor = .systemYellow
+            tintColor = NSColor(red: 1.0, green: 0.58, blue: 0.0, alpha: 1.0) // #FF9400
         case .critical:
-            symbolName = "gauge.medium"
             tintColor = .systemRed
         case .noAccounts:
-            symbolName = "gauge.medium"
             tintColor = .secondaryLabelColor
         }
 
-        let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
         if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "CodexMonitor")?
             .withSymbolConfiguration(config) {
             image.isTemplate = true
@@ -152,14 +192,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func updateStatusBarTitle() {
         guard let button = statusItem.button else { return }
 
+        let modeString = UserDefaults.standard.string(forKey: PreferencesKeys.displayMode) ?? DisplayMode.remaining.rawValue
+        let displayMode = DisplayMode(rawValue: modeString) ?? .remaining
+
         let percentages = accountStore.topUsagePercentages
         if percentages.isEmpty {
             button.title = ""
         } else if percentages.count == 1 {
-            button.title = " \(percentages[0])%"
+            let p = percentages[0]
+            if displayMode == .remaining {
+                button.title = " \(100 - p)% left"
+            } else {
+                button.title = " \(p)% used"
+            }
         } else {
-            let labels = percentages.map { "\($0)%" }.joined(separator: " / ")
-            button.title = " \(labels)"
+            if displayMode == .remaining {
+                let labels = percentages.map { "\(100 - $0)% left" }.joined(separator: " / ")
+                button.title = " \(labels)"
+            } else {
+                let labels = percentages.map { "\($0)% used" }.joined(separator: " / ")
+                button.title = " \(labels)"
+            }
         }
     }
 }

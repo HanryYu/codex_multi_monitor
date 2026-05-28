@@ -1,6 +1,13 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Display Mode
+
+enum DisplayMode: String {
+    case remaining
+    case used
+}
+
 // MARK: - Refresh Interval
 
 enum RefreshInterval: Int, CaseIterable, Identifiable {
@@ -39,6 +46,8 @@ enum PreferencesKeys {
     static let refreshInterval = "refresh_interval_seconds"
     static let launchAtLogin = "launch_at_login"
     static let bundleIdentifier = "CodexMonitor.bundle_identifier"
+    static let displayMode = "displayMode"
+    static let alertThreshold = "alertThreshold"
 }
 
 // MARK: - Default Binary Path
@@ -106,6 +115,8 @@ struct PreferencesView: View {
     @State private var launchAtLogin: Bool = false
     @State private var bundleIdentifier: String = ""
     @State private var binaryPath: String = ""
+    @State private var displayMode: DisplayMode = .remaining
+    @State private var alertThreshold: Double = 80
 
     var body: some View {
         VStack(spacing: 24) {
@@ -138,12 +149,58 @@ struct PreferencesView: View {
 
                 Divider().opacity(0.4)
 
+                // Display Mode Toggle
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Display Mode", systemImage: "eye")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Picker("", selection: $displayMode) {
+                        Text("Show Remaining").tag(DisplayMode.remaining)
+                        Text("Show Used").tag(DisplayMode.used)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .onChange(of: displayMode) { _, newValue in
+                        UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.displayMode)
+                        NotificationCenter.default.post(name: .displayModeChanged, object: nil)
+                    }
+                }
+
+                Divider().opacity(0.4)
+
+                // Alert Threshold
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label("Usage Alert", systemImage: "bell.fill")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(Int(alertThreshold))%")
+                            .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(.orange)
+                    }
+
+                    Slider(value: $alertThreshold, in: 50...95, step: 5)
+                        .tint(.orange)
+                        .onChange(of: alertThreshold) { _, newValue in
+                            UserDefaults.standard.set(Int(newValue), forKey: PreferencesKeys.alertThreshold)
+                        }
+
+                    Text("Notify when any account exceeds this threshold")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+
+                Divider().opacity(0.4)
+
                 // Launch at Login
                 VStack(alignment: .leading, spacing: 10) {
                     Toggle(isOn: $launchAtLogin) {
                         Label("Launch at Login", systemImage: "power")
                             .font(.system(size: 12, weight: .medium))
                     }
+                    .tint(.orange)
                     .onChange(of: launchAtLogin) { _, newValue in
                         toggleLaunchAtLogin(enable: newValue)
                     }
@@ -182,12 +239,13 @@ struct PreferencesView: View {
                 Button("Done") {
                     closeWindow()
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
                 .keyboardShortcut(.defaultAction)
             }
         }
         .padding(24)
         .frame(width: 380)
-        .background(.ultraThinMaterial)
         .onAppear {
             loadPreferences()
         }
@@ -208,6 +266,14 @@ struct PreferencesView: View {
 
         let plist = readLaunchAgentPlist(bundleID: bundleIdentifier)
         launchAtLogin = plist != nil
+
+        // Load display mode
+        let modeString = UserDefaults.standard.string(forKey: PreferencesKeys.displayMode) ?? DisplayMode.remaining.rawValue
+        displayMode = DisplayMode(rawValue: modeString) ?? .remaining
+
+        // Load alert threshold
+        let savedThreshold = UserDefaults.standard.integer(forKey: PreferencesKeys.alertThreshold)
+        alertThreshold = savedThreshold > 0 ? Double(savedThreshold) : 80
     }
 
     private func toggleLaunchAtLogin(enable: Bool) {
@@ -228,8 +294,9 @@ func openPreferencesWindow() {
     WindowManager.shared.openPreferencesWindow()
 }
 
-// MARK: - Notification Name
+// MARK: - Notification Names
 
 extension Notification.Name {
     static let refreshIntervalChanged = Notification.Name("CodexMonitor.refreshIntervalChanged")
+    static let displayModeChanged = Notification.Name("CodexMonitor.displayModeChanged")
 }

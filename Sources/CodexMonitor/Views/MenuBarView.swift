@@ -1,44 +1,10 @@
 import SwiftUI
 
-// MARK: - Shimmer Loading Animation
-
-struct ShimmerView: View {
-    @State private var phase: CGFloat = 0
-
-    var body: some View {
-        LinearGradient(
-            colors: [
-                Color.primary.opacity(0.04),
-                Color.primary.opacity(0.10),
-                Color.primary.opacity(0.04)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .mask(
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [.clear, .white, .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .offset(x: phase)
-        )
-        .onAppear {
-            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                phase = 200
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-}
-
 // MARK: - Gradient Progress Bar
 
 struct GradientProgressBar: View {
     let percentage: Int
+    var reversed: Bool = false
 
     private var gradientColors: [Color] {
         if percentage >= 90 {
@@ -54,18 +20,18 @@ struct GradientProgressBar: View {
 
     var body: some View {
         GeometryReader { geometry in
-            ZStack(alignment: .leading) {
+            ZStack(alignment: reversed ? .trailing : .leading) {
                 // Track
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.primary.opacity(0.06))
+                    .fill(Color.primary.opacity(0.08))
 
                 // Fill
                 RoundedRectangle(cornerRadius: 3)
                     .fill(
                         LinearGradient(
                             colors: gradientColors,
-                            startPoint: .leading,
-                            endPoint: .trailing
+                            startPoint: reversed ? .trailing : .leading,
+                            endPoint: reversed ? .leading : .trailing
                         )
                     )
                     .frame(width: geometry.size.width * CGFloat(percentage) / 100)
@@ -76,20 +42,23 @@ struct GradientProgressBar: View {
     }
 }
 
-// MARK: - Glass Card Modifier
+// MARK: - Flat Card Modifier (no glass, just subtle border)
 
-struct GlassCardModifier: ViewModifier {
+struct FlatCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
+            .background(Color.primary.opacity(0.03))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08))
+            )
     }
 }
 
 extension View {
-    func glassCard() -> some View {
-        modifier(GlassCardModifier())
+    func flatCard() -> some View {
+        modifier(FlatCardModifier())
     }
 }
 
@@ -97,6 +66,7 @@ extension View {
 
 struct MenuBarView: View {
     @ObservedObject var accountStore: AccountStore
+    @State private var displayMode: DisplayMode = .remaining
 
     var body: some View {
         VStack(spacing: 0) {
@@ -121,7 +91,15 @@ struct MenuBarView: View {
         }
         .frame(width: 340)
         .frame(maxHeight: 520)
-        .background(.ultraThinMaterial)
+        .onAppear { loadDisplayMode() }
+        .onReceive(NotificationCenter.default.publisher(for: .displayModeChanged)) { _ in
+            loadDisplayMode()
+        }
+    }
+
+    private func loadDisplayMode() {
+        let modeString = UserDefaults.standard.string(forKey: PreferencesKeys.displayMode) ?? DisplayMode.remaining.rawValue
+        displayMode = DisplayMode(rawValue: modeString) ?? .remaining
     }
 
     // MARK: - Header
@@ -130,7 +108,7 @@ struct MenuBarView: View {
         HStack {
             Label("CodexMonitor", systemImage: "gauge.medium")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(.orange)
 
             Spacer()
 
@@ -139,7 +117,7 @@ struct MenuBarView: View {
             }) {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.orange)
                     .rotationEffect(.degrees(accountStore.isLoading ? 360 : 0))
                     .animation(
                         accountStore.isLoading
@@ -161,17 +139,16 @@ struct MenuBarView: View {
     private var loadingPlaceholder: some View {
         VStack(spacing: 12) {
             ForEach(0..<2, id: \.self) { _ in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        ShimmerView().frame(width: 100, height: 14)
-                        Spacer()
-                        ShimmerView().frame(width: 50, height: 14)
-                    }
-                    ShimmerView().frame(height: 4)
-                    ShimmerView().frame(width: 120, height: 10)
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                    Text("Loading...")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Spacer()
                 }
                 .padding(14)
-                .glassCard()
+                .flatCard()
             }
         }
         .padding(16)
@@ -201,6 +178,7 @@ struct MenuBarView: View {
                     .font(.system(size: 12, weight: .medium))
             }
             .buttonStyle(.borderedProminent)
+            .tint(.orange)
             .controlSize(.small)
         }
         .padding(.vertical, 32)
@@ -227,7 +205,8 @@ struct MenuBarView: View {
                 ForEach(accountStore.accounts) { account in
                     AccountCardReadOnly(
                         account: account,
-                        usageResult: accountStore.usageData[account.id]
+                        usageResult: accountStore.usageData[account.id],
+                        displayMode: displayMode
                     )
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .scale(scale: 0.95)),
@@ -281,6 +260,7 @@ struct MenuBarView: View {
 struct AccountCardReadOnly: View {
     let account: Account
     let usageResult: Result<UsageResponse, APIError>?
+    let displayMode: DisplayMode
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -289,7 +269,7 @@ struct AccountCardReadOnly: View {
                 // Account icon
                 Image(systemName: "person.circle.fill")
                     .font(.system(size: 16))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.orange.opacity(0.7))
 
                 Text(account.name)
                     .font(.system(size: 13, weight: .semibold))
@@ -300,10 +280,10 @@ struct AccountCardReadOnly: View {
                 if let usage = try? usageResult?.get() {
                     Text(usage.planType.localizedCapitalized)
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.orange)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.12))
+                        .background(Color.orange.opacity(0.12))
                         .clipShape(Capsule())
                 }
             }
@@ -314,7 +294,7 @@ struct AccountCardReadOnly: View {
             if let usageResult = usageResult {
                 switch usageResult {
                 case .success(let usage):
-                    UsageContentView(usage: usage)
+                    UsageContentView(usage: usage, displayMode: displayMode)
                 case .failure(let error):
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -337,7 +317,7 @@ struct AccountCardReadOnly: View {
             }
         }
         .padding(14)
-        .glassCard()
+        .flatCard()
     }
 }
 
@@ -345,6 +325,7 @@ struct AccountCardReadOnly: View {
 
 struct UsageContentView: View {
     let usage: UsageResponse
+    let displayMode: DisplayMode
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -355,7 +336,8 @@ struct UsageContentView: View {
                         label: formatWindowLabel(seconds: primary.limitWindowSeconds),
                         usedPercent: primary.usedPercent,
                         resetAt: primary.resetAt,
-                        isLimitReached: rateLimit.limitReached
+                        isLimitReached: rateLimit.limitReached,
+                        displayMode: displayMode
                     )
                 }
 
@@ -365,7 +347,8 @@ struct UsageContentView: View {
                         label: formatWindowLabel(seconds: secondary.limitWindowSeconds),
                         usedPercent: secondary.usedPercent,
                         resetAt: secondary.resetAt,
-                        isLimitReached: rateLimit.limitReached
+                        isLimitReached: rateLimit.limitReached,
+                        displayMode: displayMode
                     )
                 }
             } else {
@@ -402,8 +385,13 @@ struct WindowUsageRow: View {
     let usedPercent: Int
     let resetAt: Int
     let isLimitReached: Bool
+    let displayMode: DisplayMode
 
     var remainingPercent: Int { 100 - usedPercent }
+
+    var displayPercent: Int {
+        displayMode == .remaining ? remainingPercent : usedPercent
+    }
 
     var statusColor: Color {
         if isLimitReached { return .red }
@@ -428,9 +416,15 @@ struct WindowUsageRow: View {
                 Text("·")
                     .foregroundStyle(.tertiary)
 
-                Text("\(usedPercent)%")
-                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(statusColor)
+                if displayMode == .remaining {
+                    Text("\(displayPercent)% left")
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(statusColor)
+                } else {
+                    Text("\(displayPercent)% used")
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(statusColor)
+                }
 
                 Spacer()
 
@@ -439,8 +433,8 @@ struct WindowUsageRow: View {
                     .foregroundStyle(.tertiary)
             }
 
-            // Gradient progress bar
-            GradientProgressBar(percentage: usedPercent)
+            // Progress bar — reversed in remaining mode (right-to-left)
+            GradientProgressBar(percentage: usedPercent, reversed: displayMode == .remaining)
         }
         .padding(.vertical, 2)
     }
@@ -489,6 +483,7 @@ struct AccountManagementView: View {
                         .font(.system(size: 12, weight: .medium))
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(.orange)
                 .controlSize(.small)
             }
             .padding(.horizontal, 16)
@@ -511,6 +506,7 @@ struct AccountManagementView: View {
                         .foregroundStyle(.secondary)
                     Button("Add Account") { showingAddForm = true }
                         .buttonStyle(.borderedProminent)
+                        .tint(.orange)
                         .controlSize(.small)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -520,7 +516,7 @@ struct AccountManagementView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "person.circle.fill")
                                 .font(.system(size: 20))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.orange.opacity(0.7))
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(account.name)
@@ -592,13 +588,14 @@ struct AccountManagementView: View {
                 Button("Done") {
                     WindowManager.shared.closeAccountManagementWindow()
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
                 .keyboardShortcut(.defaultAction)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
         .frame(width: 420, height: 380)
-        .background(.ultraThinMaterial)
     }
 }
 

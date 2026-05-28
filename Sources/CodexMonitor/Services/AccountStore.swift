@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import AppKit
+import UserNotifications
 
 @MainActor
 class AccountStore: ObservableObject {
@@ -10,6 +11,10 @@ class AccountStore: ObservableObject {
     
     private let userDefaults = UserDefaults.standard
     private let accountsKey = "saved_accounts"
+    
+    // Track which accounts have been notified in the current window
+    // Key: account UUID + window seconds, Value: true if notified
+    private var notifiedAccounts: [String: Bool] = [:]
     
     enum OverallStatus {
         case healthy, warning, critical, noAccounts
@@ -154,9 +159,103 @@ class AccountStore: ObservableObject {
         
         isLoading = false
         
+        // Check for usage alerts
+        checkUsageAlerts()
+        
         // Update status bar icon
         if let appDelegate = NSApp.delegate as? AppDelegate {
             appDelegate.updateStatusBarIcon()
         }
+    }
+    
+    // MARK: - Usage Alerts
+    
+    private func checkUsageAlerts() {
+        let threshold = UserDefaults.standard.integer(forKey: PreferencesKeys.alertThreshold)
+        let alertThreshold = threshold > 0 ? threshold : 80
+        
+        for account in accounts {
+            guard case .success(let usage) = usageData[account.id] else { continue }
+            
+            var shouldNotify = false
+            var usedPercent = 0
+            var windowSeconds = 0
+            var resetAt = 0
+            
+            if let rateLimit = usage.rateLimit {
+                // Check primary window
+                if let primary = rateLimit.primaryWindow, primary.usedPercent >= alertThreshold {
+                    let key = "\(account.id.uuidString)_\(primary.limitWindowSeconds)"
+                    if notifiedAccounts[key] != true {
+                        shouldNotify = true
+                        usedPercent = primary.usedPercent
+                        windowSeconds = primary.limitWindowSeconds
+                        resetAt = primary.resetAt
+                        notifiedAccounts[key] = true
+                    }
+                }
+                
+                // Check secondary window
+                if let secondary = rateLimit.secondaryWindow, secondary.usedPercent >= alertThreshold {
+                    let key = "\(account.id.uuidString)_\(secondary.limitWindowSeconds)"
+                    if notifiedAccounts[key] != true {
+                        shouldNotify = true
+                        usedPercent = secondary.usedPercent
+                        windowSeconds = secondary.limitWindowSeconds
+                        resetAt = secondary.resetAt
+                        notifiedAccounts[key] = true
+                    }
+                }
+            }
+            
+            if shouldNotify {
+                sendUsageAlert(
+                    accountName: account.name,
+                    usedPercent: usedPercent,
+                    windowSeconds: windowSeconds,
+                    resetAt: resetAt
+                )
+            }
+        }
+    }
+    
+    private func sendUsageAlert(accountName: String, usedPercent: Int, windowSeconds: Int, resetAt: Int) {
+        let hours = windowSeconds / 3600
+        let windowLabel: String
+        if hours >= 168 {
+            windowLabel = "Weekly"
+        } else if hours >= 24 {
+            windowLabel = "\(hours / 24)-day"
+        } else {
+            windowLabel = "\(hours)-hour"
+        }
+        
+        let resetDate = Date(timeIntervalSince1970: TimeInterval(resetAt))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let resetTimeStr = formatter.string(from: resetDate)
+        
+        let content = UNMutableNotificationContent()
+        content.title = "CodexMonitor"
+        content.body = "[\(accountName)] \(windowLabel) quota used \(usedPercent)%, resets at \(resetTimeStr)"
+        content.sound = .default
+        
+        let request = UNNotificationRequest(
+            identifier: "usage_alert_\(accountName)_\(windowSeconds)",
+            content: content,
+            trigger: nil // deliver immediately
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Failed to send notification: \(error)")
+            }
+        }
+    }
+    
+    /// Reset notification tracking (call when a new window cycle begins)
+    func resetNotificationTracking(for accountID: UUID, windowSeconds: Int) {
+        let key = "\(accountID.uuidString)_\(windowSeconds)"
+        notifiedAccounts.removeValue(forKey: key)
     }
 }
