@@ -100,23 +100,41 @@ struct QuotaCardView: View {
     var isLimited: Bool = false
     var resetAfterSeconds: Int = 0
     var resetAt: Int = 0
+    var resetTimeFormat: ResetTimeFormat = .relative
 
     private var resetTimeText: String {
-        if resetAfterSeconds > 0 {
-            let hours = resetAfterSeconds / 3600
-            let minutes = (resetAfterSeconds % 3600) / 60
+        if resetTimeFormat == .relative {
+            // Relative: countdown format "61h 46m 后重置"
+            let seconds: Int
+            if resetAfterSeconds > 0 {
+                seconds = resetAfterSeconds
+            } else if resetAt > 0 {
+                seconds = max(0, resetAt - Int(Date().timeIntervalSince1970))
+            } else {
+                return ""
+            }
+            guard seconds > 0 else { return "" }
+            let hours = seconds / 3600
+            let minutes = (seconds % 3600) / 60
             if hours > 0 {
                 return "重置: \(hours)h\(minutes > 0 ? " \(minutes)m" : "")"
             }
             return "重置: \(minutes)m"
-        } else if resetAt > 0 {
-            let date = Date(timeIntervalSince1970: TimeInterval(resetAt))
+        } else {
+            // Absolute: date+time format "5月30日 13:00 重置"
+            let targetDate: Date
+            if resetAt > 0 {
+                targetDate = Date(timeIntervalSince1970: TimeInterval(resetAt))
+            } else if resetAfterSeconds > 0 {
+                targetDate = Date().addingTimeInterval(TimeInterval(resetAfterSeconds))
+            } else {
+                return ""
+            }
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: "zh_CN")
-            formatter.dateFormat = "E HH:mm"
-            return "重置: \(formatter.string(from: date))"
+            formatter.dateFormat = "M月d日 HH:mm"
+            return "\(formatter.string(from: targetDate)) 重置"
         }
-        return ""
     }
 
     var body: some View {
@@ -177,6 +195,7 @@ struct QuotaCardsGridView: View {
     let usage: UsageResponse
     let displayMode: DisplayMode
     var isLimited: Bool = false
+    var resetTimeFormat: ResetTimeFormat = .relative
 
     var body: some View {
         if let rateLimit = usage.rateLimit {
@@ -191,7 +210,8 @@ struct QuotaCardsGridView: View {
                         displayMode: displayMode,
                         isLimited: isLimited,
                         resetAfterSeconds: primary.resetAfterSeconds,
-                        resetAt: primary.resetAt
+                        resetAt: primary.resetAt,
+                        resetTimeFormat: resetTimeFormat
                     )
                 }
 
@@ -205,7 +225,8 @@ struct QuotaCardsGridView: View {
                         displayMode: displayMode,
                         isLimited: isLimited,
                         resetAfterSeconds: secondary.resetAfterSeconds,
-                        resetAt: secondary.resetAt
+                        resetAt: secondary.resetAt,
+                        resetTimeFormat: resetTimeFormat
                     )
                 }
             }
@@ -325,6 +346,7 @@ struct CreditsCardView: View {
 struct MenuBarView: View {
     @ObservedObject var accountStore: AccountStore
     @State private var displayMode: DisplayMode = .remaining
+    @State private var resetTimeFormat: ResetTimeFormat = .relative
 
     var body: some View {
         VStack(spacing: 0) {
@@ -345,15 +367,23 @@ struct MenuBarView: View {
         .frame(width: 300)
         .frame(maxHeight: 600)
         .background(.ultraThinMaterial)
-        .onAppear { loadDisplayMode() }
+        .onAppear { loadDisplayMode(); loadResetTimeFormat() }
         .onReceive(NotificationCenter.default.publisher(for: .displayModeChanged)) { _ in
             loadDisplayMode()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .resetTimeFormatChanged)) { _ in
+            loadResetTimeFormat()
         }
     }
 
     private func loadDisplayMode() {
         let modeString = UserDefaults.standard.string(forKey: PreferencesKeys.displayMode) ?? DisplayMode.remaining.rawValue
         displayMode = DisplayMode(rawValue: modeString) ?? .remaining
+    }
+
+    private func loadResetTimeFormat() {
+        let formatString = UserDefaults.standard.string(forKey: PreferencesKeys.resetTimeFormat) ?? ResetTimeFormat.relative.rawValue
+        resetTimeFormat = ResetTimeFormat(rawValue: formatString) ?? .relative
     }
 
     private func isRateLimited(_ usage: UsageResponse) -> Bool {
@@ -514,7 +544,7 @@ struct MenuBarView: View {
                                 if limited {
                                     limitBanner(usage: usage)
                                 }
-                                QuotaCardsGridView(usage: usage, displayMode: displayMode, isLimited: limited)
+                                QuotaCardsGridView(usage: usage, displayMode: displayMode, isLimited: limited, resetTimeFormat: resetTimeFormat)
                             case .failure(let error):
                                 HStack(spacing: 6) {
                                     Image(systemName: "exclamationmark.triangle.fill")

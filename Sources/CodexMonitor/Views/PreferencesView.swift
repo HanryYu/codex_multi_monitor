@@ -7,6 +7,13 @@ enum DisplayMode: String {
     case remaining
     case used
 }
+// MARK: - Reset Time Format
+
+enum ResetTimeFormat: String {
+    case relative
+    case absolute
+}
+
 
 // MARK: - Refresh Interval
 
@@ -49,6 +56,7 @@ enum PreferencesKeys {
     static let displayMode = "displayMode"
     static let alertThreshold = "alertThreshold"
     static let showMenuBarText = "showMenuBarText"
+    static let resetTimeFormat = "resetTimeFormat"
 }
 
 // MARK: - Default Binary Path
@@ -119,6 +127,7 @@ struct PreferencesView: View {
     @State private var displayMode: DisplayMode = .remaining
     @State private var alertThreshold: Double = 80
     @State private var showMenuBarText: Bool = false
+    @State private var resetTimeFormat: ResetTimeFormat = .relative
 
     var body: some View {
         VStack(spacing: 24) {
@@ -166,6 +175,30 @@ struct PreferencesView: View {
                     .onChange(of: displayMode) { _, newValue in
                         UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.displayMode)
                         NotificationCenter.default.post(name: .displayModeChanged, object: nil)
+                    }
+                }
+
+                Divider().opacity(0.4)
+
+                // Reset Time Format
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("重置时间格式", systemImage: "clock.arrow.circlepath")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Text("卡片底部重置时间的显示维度")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+
+                    Picker("", selection: $resetTimeFormat) {
+                        Text("相对时间").tag(ResetTimeFormat.relative)
+                        Text("绝对时间").tag(ResetTimeFormat.absolute)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .onChange(of: resetTimeFormat) { _, newValue in
+                        UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.resetTimeFormat)
+                        NotificationCenter.default.post(name: .resetTimeFormatChanged, object: nil)
                     }
                 }
 
@@ -295,6 +328,10 @@ struct PreferencesView: View {
 
         // Load menu bar text toggle
         showMenuBarText = UserDefaults.standard.bool(forKey: PreferencesKeys.showMenuBarText)
+
+        // Load reset time format
+        let formatString = UserDefaults.standard.string(forKey: PreferencesKeys.resetTimeFormat) ?? ResetTimeFormat.relative.rawValue
+        resetTimeFormat = ResetTimeFormat(rawValue: formatString) ?? .relative
     }
 
     private func toggleLaunchAtLogin(enable: Bool) {
@@ -321,4 +358,5 @@ extension Notification.Name {
     static let refreshIntervalChanged = Notification.Name("CodexMonitor.refreshIntervalChanged")
     static let displayModeChanged = Notification.Name("CodexMonitor.displayModeChanged")
     static let menuBarTextChanged = Notification.Name("CodexMonitor.menuBarTextChanged")
+    static let resetTimeFormatChanged = Notification.Name("CodexMonitor.resetTimeFormatChanged")
 }
