@@ -36,7 +36,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         if let button = statusItem.button {
             let icon = NSImage(systemSymbolName: "gauge.with.dots.fill.60percent", accessibilityDescription: "CodexMonitor")
-            icon?.isTemplate = true
+                ?? NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "CodexMonitor")
+                ?? NSImage(systemSymbolName: "circle.fill", accessibilityDescription: "CodexMonitor")
+            icon.isTemplate = true
             button.image = icon
             button.action = #selector(togglePopover)
             button.target = self
@@ -155,7 +157,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard let button = statusItem.button else { return }
 
         let status = accountStore.overallStatus
-        let symbolName = "gauge.with.dots.fill.60percent"
         let tintColor: NSColor
 
         switch status {
@@ -169,13 +170,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             tintColor = .secondaryLabelColor
         }
 
-        let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
-        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "CodexMonitor")?
-            .withSymbolConfiguration(config) {
-            image.isTemplate = true
-            button.image = image
-            button.contentTintColor = tintColor
-        }
+        let image = NSImage(systemSymbolName: "gauge.with.dots.fill.60percent", accessibilityDescription: "CodexMonitor")
+            ?? NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "CodexMonitor")
+            ?? NSImage(systemSymbolName: "circle.fill", accessibilityDescription: "CodexMonitor")
+        image.isTemplate = true
+        button.image = image
+        button.contentTintColor = tintColor
 
         // Update title with usage summary
         updateStatusBarTitle()
