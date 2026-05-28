@@ -49,7 +49,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Setup popover
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 340, height: 520)
+        popover.contentSize = NSSize(width: 300, height: 520)
         popover.behavior = .transient
         popover.animates = true
 

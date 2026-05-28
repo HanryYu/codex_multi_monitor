@@ -98,6 +98,26 @@ struct QuotaCardView: View {
     let usedPercent: Int      // raw used percentage (for progress bar)
     let displayMode: DisplayMode
     var isLimited: Bool = false
+    var resetAfterSeconds: Int = 0
+    var resetAt: Int = 0
+
+    private var resetTimeText: String {
+        if resetAfterSeconds > 0 {
+            let hours = resetAfterSeconds / 3600
+            let minutes = (resetAfterSeconds % 3600) / 60
+            if hours > 0 {
+                return "重置: \(hours)h\(minutes > 0 ? " \(minutes)m" : "")"
+            }
+            return "重置: \(minutes)m"
+        } else if resetAt > 0 {
+            let date = Date(timeIntervalSince1970: TimeInterval(resetAt))
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "zh_CN")
+            formatter.dateFormat = "E HH:mm"
+            return "重置: \(formatter.string(from: date))"
+        }
+        return ""
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -124,11 +144,18 @@ struct QuotaCardView: View {
 
             Spacer(minLength: 0)
 
-            Spacer(minLength: 4)
-
-            // Progress bar at bottom
+            // Progress bar
             CompactProgressBar(percentage: usedPercent)
                 .opacity(isLimited ? 0.4 : 1.0)
+
+            // Reset time
+            if !resetTimeText.isEmpty {
+                Spacer(minLength: 3)
+                Text(resetTimeText)
+                    .font(.system(size: 9, weight: .regular).monospacedDigit())
+                    .foregroundStyle(Color.secondary.opacity(0.55))
+                    .lineLimit(1)
+            }
         }
         .padding(10)
         .frame(height: 82)
@@ -162,7 +189,9 @@ struct QuotaCardsGridView: View {
                             : primary.usedPercent,
                         usedPercent: primary.usedPercent,
                         displayMode: displayMode,
-                        isLimited: isLimited
+                        isLimited: isLimited,
+                        resetAfterSeconds: primary.resetAfterSeconds,
+                        resetAt: primary.resetAt
                     )
                 }
 
@@ -174,7 +203,9 @@ struct QuotaCardsGridView: View {
                             : secondary.usedPercent,
                         usedPercent: secondary.usedPercent,
                         displayMode: displayMode,
-                        isLimited: isLimited
+                        isLimited: isLimited,
+                        resetAfterSeconds: secondary.resetAfterSeconds,
+                        resetAt: secondary.resetAt
                     )
                 }
             }
@@ -311,7 +342,7 @@ struct MenuBarView: View {
             // Footer
             footerView
         }
-        .frame(width: 340)
+        .frame(width: 300)
         .frame(maxHeight: 600)
         .background(.ultraThinMaterial)
         .onAppear { loadDisplayMode() }
@@ -577,12 +608,14 @@ struct MenuBarView: View {
                 .buttonStyle(.plain)
             }
 
+            Divider().opacity(0.3).padding(.top, 6)
+
             Button(action: {
                 NSApp.terminate(nil)
             }) {
                 Text("退出 Codex Monitor")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.secondary.opacity(0.7))
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color.secondary.opacity(0.5))
             }
             .buttonStyle(.plain)
             .padding(.top, 4)
