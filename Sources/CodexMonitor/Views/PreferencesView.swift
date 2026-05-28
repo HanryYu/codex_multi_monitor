@@ -48,6 +48,7 @@ enum PreferencesKeys {
     static let bundleIdentifier = "CodexMonitor.bundle_identifier"
     static let displayMode = "displayMode"
     static let alertThreshold = "alertThreshold"
+    static let showMenuBarText = "showMenuBarText"
 }
 
 // MARK: - Default Binary Path
@@ -117,6 +118,7 @@ struct PreferencesView: View {
     @State private var binaryPath: String = ""
     @State private var displayMode: DisplayMode = .remaining
     @State private var alertThreshold: Double = 80
+    @State private var showMenuBarText: Bool = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -165,6 +167,24 @@ struct PreferencesView: View {
                         UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.displayMode)
                         NotificationCenter.default.post(name: .displayModeChanged, object: nil)
                     }
+                }
+
+                Divider().opacity(0.4)
+
+                // Menu Bar Text Toggle
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(isOn: $showMenuBarText) {
+                        Label("Show Quota in Menu Bar", systemImage: "text.alignleft")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .onChange(of: showMenuBarText) { _, newValue in
+                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showMenuBarText)
+                        NotificationCenter.default.post(name: .menuBarTextChanged, object: nil)
+                    }
+
+                    Text("Show usage summary text next to the menu bar icon")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
                 }
 
                 Divider().opacity(0.4)
@@ -272,6 +292,9 @@ struct PreferencesView: View {
         // Load alert threshold
         let savedThreshold = UserDefaults.standard.integer(forKey: PreferencesKeys.alertThreshold)
         alertThreshold = savedThreshold > 0 ? Double(savedThreshold) : 80
+
+        // Load menu bar text toggle
+        showMenuBarText = UserDefaults.standard.bool(forKey: PreferencesKeys.showMenuBarText)
     }
 
     private func toggleLaunchAtLogin(enable: Bool) {
@@ -297,4 +320,5 @@ func openPreferencesWindow() {
 extension Notification.Name {
     static let refreshIntervalChanged = Notification.Name("CodexMonitor.refreshIntervalChanged")
     static let displayModeChanged = Notification.Name("CodexMonitor.displayModeChanged")
+    static let menuBarTextChanged = Notification.Name("CodexMonitor.menuBarTextChanged")
 }

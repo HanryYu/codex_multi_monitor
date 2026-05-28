@@ -79,6 +79,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             object: nil
         )
 
+        // Listen for menu bar text toggle changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(menuBarTextChanged),
+            name: .menuBarTextChanged,
+            object: nil
+        )
+
         scheduleRefreshTimer()
 
         Task { @MainActor in
@@ -108,6 +116,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     @objc func displayModeDidChange() {
+        Task { @MainActor in
+            updateStatusBarTitle()
+        }
+    }
+
+    @objc func menuBarTextChanged() {
         Task { @MainActor in
             updateStatusBarTitle()
         }
@@ -156,26 +170,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func updateStatusBarIcon() {
         guard let button = statusItem.button else { return }
 
-        let status = accountStore.overallStatus
-        let tintColor: NSColor
-
-        switch status {
-        case .healthy:
-            tintColor = .systemGreen
-        case .warning:
-            tintColor = .systemYellow
-        case .critical:
-            tintColor = .systemRed
-        case .noAccounts:
-            tintColor = .secondaryLabelColor
-        }
-
         let image = NSImage(systemSymbolName: "gauge.with.dots.fill.60percent", accessibilityDescription: "CodexMonitor")
             ?? NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "CodexMonitor")
             ?? NSImage(named: NSImage.Name("NSApplicationIcon"))
         image?.isTemplate = true
         button.image = image
-        button.contentTintColor = tintColor
 
         // Update title with usage summary
         updateStatusBarTitle()
@@ -184,6 +183,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @MainActor
     func updateStatusBarTitle() {
         guard let button = statusItem.button else { return }
+
+        let showText = UserDefaults.standard.bool(forKey: PreferencesKeys.showMenuBarText)
+        guard showText else {
+            button.title = ""
+            return
+        }
 
         let modeString = UserDefaults.standard.string(forKey: PreferencesKeys.displayMode) ?? DisplayMode.remaining.rawValue
         let displayMode = DisplayMode(rawValue: modeString) ?? .remaining
