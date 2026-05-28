@@ -394,10 +394,18 @@ struct UsageContentView: View {
                         Text("Unlimited credits")
                             .font(.system(size: 11))
                             .foregroundStyle(.green)
-                    } else {
-                        Text("Credits: \(credits.balance)")
+                    } else if let balance = credits.balance {
+                        Text("Credits: \(balance)")
                             .font(.system(size: 11))
                             .foregroundStyle(credits.hasCredits ? Color.primary : Color.red)
+                    } else if credits.overageLimitReached {
+                        Text("Overage limit reached")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red)
+                    } else {
+                        Text("Credits: —")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
                     }
                 }
             } else if usage.rateLimitReachedType != nil {
@@ -596,10 +604,14 @@ struct AccountManagementView: View {
                                             Text("∞")
                                                 .font(.system(size: 12, weight: .semibold))
                                                 .foregroundStyle(.green)
-                                        } else {
-                                            Text(credits.balance)
+                                        } else if let balance = credits.balance {
+                                            Text(balance)
                                                 .font(.system(size: 12, weight: .semibold).monospacedDigit())
                                                 .foregroundStyle(credits.hasCredits ? .green : .red)
+                                        } else {
+                                            Text("—")
+                                                .font(.system(size: 12))
+                                                .foregroundStyle(.secondary)
                                         }
                                     } else if usage.rateLimitReachedType != nil {
                                         Text("限额已达")

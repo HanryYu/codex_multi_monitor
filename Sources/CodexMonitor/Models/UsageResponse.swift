@@ -5,23 +5,27 @@ struct UsageResponse: Codable {
     let rateLimit: RateLimit?
     let credits: Credits?
     let rateLimitReachedType: RateLimitReached?
+    let spendControl: SpendControl?
+    let rateLimitResetCredits: RateLimitResetCredits?
     
     enum CodingKeys: String, CodingKey {
         case planType = "plan_type"
         case rateLimit = "rate_limit"
         case credits
         case rateLimitReachedType = "rate_limit_reached_type"
+        case spendControl = "spend_control"
+        case rateLimitResetCredits = "rate_limit_reset_credits"
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        // Team plans may return plan_type as null or different casing
         planType = (try? container.decode(String.self, forKey: .planType)) ?? "unknown"
         rateLimit = try? container.decodeIfPresent(RateLimit.self, forKey: .rateLimit)
         credits = try? container.decodeIfPresent(Credits.self, forKey: .credits)
         rateLimitReachedType = try? container.decodeIfPresent(RateLimitReached.self, forKey: .rateLimitReachedType)
+        spendControl = try? container.decodeIfPresent(SpendControl.self, forKey: .spendControl)
+        rateLimitResetCredits = try? container.decodeIfPresent(RateLimitResetCredits.self, forKey: .rateLimitResetCredits)
         
-        // Debug: log what we decoded
         print("[CodexMonitor] Decoded UsageResponse: planType=\(planType), rateLimit=\(rateLimit != nil ? "present" : "nil"), credits=\(credits != nil ? "present" : "nil"), rateLimitReachedType=\(rateLimitReachedType != nil ? "present" : "nil")")
     }
 }
@@ -82,18 +86,56 @@ struct WindowUsage: Codable {
 struct Credits: Codable {
     let hasCredits: Bool
     let unlimited: Bool
-    let balance: String
+    let overageLimitReached: Bool
+    let balance: String?          // Team plan returns null
+    let approxLocalMessages: Int?
+    let approxCloudMessages: Int?
     
     enum CodingKeys: String, CodingKey {
         case hasCredits = "has_credits"
         case unlimited
+        case overageLimitReached = "overage_limit_reached"
         case balance
+        case approxLocalMessages = "approx_local_messages"
+        case approxCloudMessages = "approx_cloud_messages"
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         hasCredits = (try? container.decode(Bool.self, forKey: .hasCredits)) ?? false
         unlimited = (try? container.decode(Bool.self, forKey: .unlimited)) ?? false
-        balance = (try? container.decode(String.self, forKey: .balance)) ?? "unknown"
+        overageLimitReached = (try? container.decode(Bool.self, forKey: .overageLimitReached)) ?? false
+        balance = try? container.decodeIfPresent(String.self, forKey: .balance)
+        approxLocalMessages = try? container.decodeIfPresent(Int.self, forKey: .approxLocalMessages)
+        approxCloudMessages = try? container.decodeIfPresent(Int.self, forKey: .approxCloudMessages)
+    }
+}
+
+struct SpendControl: Codable {
+    let reached: Bool
+    let individualLimit: Double?
+    
+    enum CodingKeys: String, CodingKey {
+        case reached
+        case individualLimit = "individual_limit"
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        reached = (try? container.decode(Bool.self, forKey: .reached)) ?? false
+        individualLimit = try? container.decodeIfPresent(Double.self, forKey: .individualLimit)
+    }
+}
+
+struct RateLimitResetCredits: Codable {
+    let availableCount: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case availableCount = "available_count"
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        availableCount = (try? container.decode(Int.self, forKey: .availableCount)) ?? 0
     }
 }
