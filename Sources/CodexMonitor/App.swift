@@ -37,8 +37,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         if let button = statusItem.button {
             let icon = NSImage(systemSymbolName: "gauge.with.dots.fill.60percent", accessibilityDescription: "CodexMonitor")
                 ?? NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "CodexMonitor")
-                ?? NSImage(systemSymbolName: "circle.fill", accessibilityDescription: "CodexMonitor")
-            icon.isTemplate = true
+                ?? NSImage(named: NSImage.Name("NSApplicationIcon"))
+            icon?.isTemplate = true
             button.image = icon
             button.action = #selector(togglePopover)
             button.target = self
@@ -172,8 +172,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         let image = NSImage(systemSymbolName: "gauge.with.dots.fill.60percent", accessibilityDescription: "CodexMonitor")
             ?? NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "CodexMonitor")
-            ?? NSImage(systemSymbolName: "circle.fill", accessibilityDescription: "CodexMonitor")
-        image.isTemplate = true
+            ?? NSImage(named: NSImage.Name("NSApplicationIcon"))
+        image?.isTemplate = true
         button.image = image
         button.contentTintColor = tintColor
 
