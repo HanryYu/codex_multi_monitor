@@ -108,13 +108,20 @@ struct QuotaCardView: View {
 
             Spacer(minLength: 4)
 
-            // Percentage (compact — readable but not oversized)
+            // Big percentage
             Text("\(displayPercent)%")
-                .font(.system(size: 26, weight: .bold))
+                .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(Color.primary)
-                .tracking(-0.5)
+                .tracking(-0.7)
                 .lineLimit(1)
                 .monospacedDigit()
+
+            // Sublabel
+            Text(displayMode == .remaining ? "剩余" : "已用")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(Color.secondary.opacity(0.7))
+                .tracking(0.2)
+                .padding(.top, 2)
 
             // Spacer placeholder (no label text)
             Spacer(minLength: 0)
@@ -226,22 +233,25 @@ struct CreditsCardView: View {
 
             if credits.unlimited {
                 Image(systemName: "infinity")
-                    .font(.system(size: 26, weight: .bold))
+                    .font(.system(size: 34, weight: .bold))
                     .foregroundStyle(.green)
             } else if let balance = credits.balance {
                 Text(balance)
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.system(size: 28, weight: .bold))
                     .foregroundStyle(Color.primary)
                     .lineLimit(1)
                     .monospacedDigit()
             } else {
                 Text("—")
-                    .font(.system(size: 26, weight: .bold))
+                    .font(.system(size: 34, weight: .bold))
                     .foregroundStyle(Color.secondary)
             }
 
-            // Spacer placeholder (no label text)
-            Spacer(minLength: 0)
+            Text(credits.unlimited ? "无限" : "余额")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(Color.secondary.opacity(0.7))
+                .tracking(0.2)
+                .padding(.top, 2)
 
             Spacer(minLength: 6)
 
