@@ -108,22 +108,20 @@ struct QuotaCardView: View {
 
             Spacer(minLength: 4)
 
-            // Big percentage
-            Text("\(displayPercent)%")
-                .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(Color.primary)
-                .tracking(-0.7)
-                .lineLimit(1)
-                .monospacedDigit()
+            // Percentage + sublabel on one line
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text("\(displayPercent)%")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
+                    .monospacedDigit()
 
-            // Sublabel
-            Text(displayMode == .remaining ? "剩余" : "已用")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(Color.secondary.opacity(0.7))
-                .tracking(0.2)
-                .padding(.top, 2)
+                Text(displayMode == .remaining ? "剩余" : "已用")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(Color.secondary.opacity(0.7))
+                    .tracking(0.2)
+            }
 
-            // Spacer placeholder (no label text)
             Spacer(minLength: 0)
 
             Spacer(minLength: 6)
@@ -374,7 +372,7 @@ struct MenuBarView: View {
 
                 ForEach(accountStore.accounts) { account in
                     VStack(spacing: 0) {
-                        // Account header: name + plan badge + refresh time
+                        // Account header: name + plan badge
                         HStack(alignment: .center) {
                             Text(account.name)
                                 .font(.system(size: 11, weight: .medium))
@@ -384,38 +382,15 @@ struct MenuBarView: View {
                             if let usageResult = accountStore.usageData[account.id],
                                case .success(let usage) = usageResult {
                                 Text(usage.planType.localizedCapitalized)
-                                    .font(.system(size: 9, weight: .medium))
+                                    .font(.system(size: 11.5, weight: .medium))
                                     .foregroundStyle(Color.orange)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 1)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
                                     .background(Color.orange.opacity(0.12))
                                     .clipShape(Capsule())
                             }
 
                             Spacer()
-
-                            Button(action: {
-                                Task { await accountStore.refreshAll() }
-                            }) {
-                                HStack(spacing: 4) {
-                                    Text(formattedRefreshTime)
-                                        .font(.system(size: 10).monospacedDigit())
-                                        .foregroundStyle(Color.secondary.opacity(0.7))
-
-                                    Image(systemName: "arrow.clockwise")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(Color.secondary.opacity(0.7))
-                                        .rotationEffect(.degrees(accountStore.isLoading ? 360 : 0))
-                                        .animation(
-                                            accountStore.isLoading
-                                                ? .linear(duration: 0.6).repeatForever(autoreverses: false)
-                                                : .default,
-                                            value: accountStore.isLoading
-                                        )
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(accountStore.isLoading)
                         }
                         .padding(.horizontal, 14)
                         .padding(.top, 10)
@@ -483,6 +458,31 @@ struct MenuBarView: View {
                     .foregroundStyle(Color.secondary)
             }
             .buttonStyle(.plain)
+
+            Spacer()
+
+            Button(action: {
+                Task { await accountStore.refreshAll() }
+            }) {
+                HStack(spacing: 4) {
+                    Text(formattedRefreshTime)
+                        .font(.system(size: 10).monospacedDigit())
+                        .foregroundStyle(Color.secondary.opacity(0.7))
+
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.secondary.opacity(0.7))
+                        .rotationEffect(.degrees(accountStore.isLoading ? 360 : 0))
+                        .animation(
+                            accountStore.isLoading
+                                ? .linear(duration: 0.6).repeatForever(autoreverses: false)
+                                : .default,
+                            value: accountStore.isLoading
+                        )
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(accountStore.isLoading)
 
             Spacer()
 
