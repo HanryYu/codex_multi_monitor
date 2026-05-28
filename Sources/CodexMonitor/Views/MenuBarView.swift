@@ -93,12 +93,10 @@ extension View {
     }
 }
 
-// MARK: - MenuBarView
+// MARK: - MenuBarView (Popover — read-only display only)
 
 struct MenuBarView: View {
     @ObservedObject var accountStore: AccountStore
-    @State private var showingAddSheet = false
-    @State private var editingAccount: Account?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -124,12 +122,6 @@ struct MenuBarView: View {
         .frame(width: 340)
         .frame(maxHeight: 520)
         .background(.ultraThinMaterial)
-        .sheet(isPresented: $showingAddSheet) {
-            AddAccountSheet(accountStore: accountStore, isPresented: $showingAddSheet)
-        }
-        .sheet(item: $editingAccount) { account in
-            AddAccountSheet(accountStore: accountStore, isPresented: .constant(true), editingAccount: account)
-        }
     }
 
     // MARK: - Header
@@ -159,14 +151,6 @@ struct MenuBarView: View {
             .buttonStyle(.plain)
             .disabled(accountStore.isLoading)
             .help("Refresh all accounts")
-
-            Button(action: { showingAddSheet = true }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Add Account")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -210,7 +194,9 @@ struct MenuBarView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            Button(action: { showingAddSheet = true }) {
+            Button(action: {
+                openAccountManagementWindow(accountStore: accountStore)
+            }) {
                 Label("Add Account", systemImage: "plus")
                     .font(.system(size: 12, weight: .medium))
             }
@@ -220,7 +206,7 @@ struct MenuBarView: View {
         .padding(.vertical, 32)
     }
 
-    // MARK: - Accounts Scroll View
+    // MARK: - Accounts Scroll View (read-only display)
 
     private var accountsScrollView: some View {
         ScrollView {
@@ -239,11 +225,9 @@ struct MenuBarView: View {
                 }
 
                 ForEach(accountStore.accounts) { account in
-                    AccountCard(
+                    AccountCardReadOnly(
                         account: account,
-                        usageResult: accountStore.usageData[account.id],
-                        onEdit: { editingAccount = account },
-                        onDelete: { accountStore.deleteAccount(id: account.id) }
+                        usageResult: accountStore.usageData[account.id]
                     )
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .scale(scale: 0.95)),
@@ -269,6 +253,17 @@ struct MenuBarView: View {
 
             Spacer()
 
+            Button(action: {
+                openAccountManagementWindow(accountStore: accountStore)
+            }) {
+                Label("Manage Accounts...", systemImage: "person.2")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
             Button(action: { NSApp.terminate(nil) }) {
                 Text("Quit")
                     .font(.system(size: 11))
@@ -281,13 +276,11 @@ struct MenuBarView: View {
     }
 }
 
-// MARK: - AccountCard
+// MARK: - AccountCardReadOnly (popover display — no edit/delete buttons)
 
-struct AccountCard: View {
+struct AccountCardReadOnly: View {
     let account: Account
     let usageResult: Result<UsageResponse, APIError>?
-    let onEdit: () -> Void
-    let onDelete: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -313,18 +306,6 @@ struct AccountCard: View {
                         .background(Color.accentColor.opacity(0.12))
                         .clipShape(Capsule())
                 }
-
-                Menu {
-                    Button("Edit", systemImage: "pencil") { onEdit() }
-                    Button("Delete", systemImage: "trash", role: .destructive) { onDelete() }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-                .menuStyle(.borderlessButton)
-                .frame(width: 20)
             }
 
             Divider().opacity(0.4)
@@ -468,4 +449,188 @@ struct WindowUsageRow: View {
             return formatter.string(from: resetDate)
         }
     }
+}
+
+// MARK: - Account Management Window
+
+struct AccountManagementView: View {
+    @ObservedObject var accountStore: AccountStore
+    @State private var showingAddSheet = false
+    @State private var editingAccount: Account?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("Manage Accounts", systemImage: "person.2")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                Button(action: { showingAddSheet = true }) {
+                    Label("Add", systemImage: "plus")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider().opacity(0.5)
+
+            // Account list
+            if accountStore.accounts.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "person.badge.plus")
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundStyle(.tertiary)
+                    Text("No accounts yet")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                    Button("Add Account") { showingAddSheet = true }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(accountStore.accounts) { account in
+                        HStack(spacing: 12) {
+                            Image(systemName: "person.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.secondary)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(account.name)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(.primary)
+                                Text(maskedToken(account.authToken))
+                                    .font(.system(size: 11).monospaced())
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
+
+                            Spacer()
+
+                            // Status indicator
+                            if let result = accountStore.usageData[account.id] {
+                                switch result {
+                                case .success(let usage):
+                                    let percent = usage.rateLimit.primaryWindow.usedPercent
+                                    Text("\(percent)%")
+                                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                                        .foregroundStyle(percent >= 80 ? .orange : .green)
+                                case .failure:
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.red)
+                                }
+                            }
+
+                            Button(action: {
+                                editingAccount = account
+                            }) {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Edit account")
+
+                            Button(action: {
+                                accountStore.deleteAccount(id: account.id)
+                            }) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.red.opacity(0.7))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Delete account")
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                .listStyle(.inset)
+            }
+
+            Divider().opacity(0.5)
+
+            // Footer
+            HStack {
+                Spacer()
+                Button("Done") {
+                    closeAccountManagementWindow()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
+        .frame(width: 420, height: 380)
+        .background(.ultraThinMaterial)
+        .sheet(isPresented: $showingAddSheet) {
+            AddAccountSheet(accountStore: accountStore, isPresented: $showingAddSheet)
+        }
+        .sheet(item: $editingAccount) { account in
+            EditAccountSheetWrapper(accountStore: accountStore, account: account, editingAccount: $editingAccount)
+        }
+    }
+
+    func maskedToken(_ token: String) -> String {
+        guard token.count > 12 else { return "••••••••" }
+        let prefix = token.prefix(8)
+        let suffix = token.suffix(4)
+        return "\(prefix)••••\(suffix)"
+    }
+}
+
+// MARK: - Edit Account Sheet Wrapper (fixes Cancel binding issue)
+
+struct EditAccountSheetWrapper: View {
+    @ObservedObject var accountStore: AccountStore
+    let account: Account
+    @Binding var editingAccount: Account?
+    @State private var isPresented: Bool = true
+
+    var body: some View {
+        AddAccountSheet(accountStore: accountStore, isPresented: $isPresented, editingAccount: account)
+            .onChange(of: isPresented) { _, newValue in
+                if !newValue {
+                    editingAccount = nil
+                }
+            }
+    }
+}
+
+// MARK: - Account Management Window Functions
+
+private var accountManagementWindow: NSWindow?
+
+func openAccountManagementWindow(accountStore: AccountStore) {
+    if let existing = accountManagementWindow, existing.isVisible {
+        existing.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        return
+    }
+
+    let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 420, height: 380),
+        styleMask: [.titled, .closable],
+        backing: .buffered,
+        defer: false
+    )
+    window.title = "CodexMonitor - Manage Accounts"
+    window.contentView = NSHostingView(rootView: AccountManagementView(accountStore: accountStore))
+    window.center()
+    window.isReleasedWhenClosed = false
+    window.level = .floating
+    window.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
+    accountManagementWindow = window
+}
+
+func closeAccountManagementWindow() {
+    accountManagementWindow?.close()
 }

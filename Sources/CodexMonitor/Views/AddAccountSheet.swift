@@ -50,7 +50,7 @@ struct AddAccountSheet: View {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    SecureField("Bearer token from ChatGPT", text: $authToken)
+                    TextField("Bearer token from ChatGPT", text: $authToken)
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .token)
 

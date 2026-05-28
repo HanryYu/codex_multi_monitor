@@ -33,7 +33,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.target = self
         }
 
-        // Setup popover with glass-like appearance
+        // Set initial icon template mode
+        updateStatusBarIcon()
+
+        // Setup popover
         popover = NSPopover()
         popover.contentSize = NSSize(width: 340, height: 520)
         popover.behavior = .transient
@@ -127,7 +130,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
         if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "CodexMonitor")?
             .withSymbolConfiguration(config) {
-            image.isTemplate = false
+            image.isTemplate = true
             button.image = image
             button.contentTintColor = tintColor
         }
