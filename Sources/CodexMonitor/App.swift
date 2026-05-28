@@ -43,12 +43,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let contentView = MenuBarView(accountStore: accountStore)
         popover.contentViewController = NSHostingController(rootView: contentView)
         
-        // Start auto-refresh timer (every 5 minutes)
-        timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                await self?.accountStore.refreshAll()
-            }
-        }
+        // Listen for refresh interval changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(refreshIntervalDidChange),
+            name: .refreshIntervalChanged,
+            object: nil
+        )
+        
+        // Start timer with saved interval
+        scheduleRefreshTimer()
         
         // Initial refresh
         Task { @MainActor in
@@ -64,6 +68,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
                 // Activate app to bring popover to front
                 NSApp.activate(ignoringOtherApps: true)
+            }
+        }
+    }
+    
+    @objc func refreshIntervalDidChange() {
+        scheduleRefreshTimer()
+    }
+    
+    func scheduleRefreshTimer() {
+        timer?.invalidate()
+        timer = nil
+        
+        let seconds = UserDefaults.standard.integer(forKey: PreferencesKeys.refreshInterval)
+        let interval = RefreshInterval(rawValue: seconds) ?? .fiveMinutes
+        
+        guard interval != .off else { return }
+        
+        timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(interval.rawValue), repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                await self?.accountStore.refreshAll()
             }
         }
     }

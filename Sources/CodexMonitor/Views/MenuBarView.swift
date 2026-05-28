@@ -92,8 +92,15 @@ struct MenuBarView: View {
             
             Divider()
             
-            // Footer with quit button
+            // Footer with preferences and quit buttons
             HStack {
+                Button("Preferences...") {
+                    openPreferencesWindow()
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+                .font(.caption)
+                
                 Spacer()
                 
                 Button("Quit") {
@@ -102,9 +109,8 @@ struct MenuBarView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.secondary)
                 .font(.caption)
-                
-                Spacer()
             }
+            .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
         .frame(width: 320)
