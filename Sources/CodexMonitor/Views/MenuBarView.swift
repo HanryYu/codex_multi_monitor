@@ -348,21 +348,37 @@ struct UsageContentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            WindowUsageRow(
-                icon: "clock",
-                label: formatWindowLabel(seconds: usage.rateLimit.primaryWindow.limitWindowSeconds),
-                usedPercent: usage.rateLimit.primaryWindow.usedPercent,
-                resetAt: usage.rateLimit.primaryWindow.resetAt,
-                isLimitReached: usage.rateLimit.limitReached
-            )
+            if let rateLimit = usage.rateLimit {
+                if let primary = rateLimit.primaryWindow {
+                    WindowUsageRow(
+                        icon: "clock",
+                        label: formatWindowLabel(seconds: primary.limitWindowSeconds),
+                        usedPercent: primary.usedPercent,
+                        resetAt: primary.resetAt,
+                        isLimitReached: rateLimit.limitReached
+                    )
+                }
 
-            WindowUsageRow(
-                icon: "calendar",
-                label: formatWindowLabel(seconds: usage.rateLimit.secondaryWindow.limitWindowSeconds),
-                usedPercent: usage.rateLimit.secondaryWindow.usedPercent,
-                resetAt: usage.rateLimit.secondaryWindow.resetAt,
-                isLimitReached: usage.rateLimit.limitReached
-            )
+                if let secondary = rateLimit.secondaryWindow {
+                    WindowUsageRow(
+                        icon: "calendar",
+                        label: formatWindowLabel(seconds: secondary.limitWindowSeconds),
+                        usedPercent: secondary.usedPercent,
+                        resetAt: secondary.resetAt,
+                        isLimitReached: rateLimit.limitReached
+                    )
+                }
+            } else {
+                // rate_limit 为 null — 无用量数据
+                HStack(spacing: 5) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                    Text(usage.rateLimitReachedType != nil ? "限额已达" : "无用量数据")
+                        .font(.system(size: 11))
+                        .foregroundStyle(usage.rateLimitReachedType != nil ? .red : .secondary)
+                }
+            }
         }
     }
 
@@ -522,10 +538,19 @@ struct AccountManagementView: View {
                             if let result = accountStore.usageData[account.id] {
                                 switch result {
                                 case .success(let usage):
-                                    let percent = usage.rateLimit.primaryWindow.usedPercent
-                                    Text("\(percent)%")
-                                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                        .foregroundStyle(percent >= 80 ? .orange : .green)
+                                    if let percent = usage.rateLimit?.primaryWindow?.usedPercent {
+                                        Text("\(percent)%")
+                                            .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                                            .foregroundStyle(percent >= 80 ? .orange : .green)
+                                    } else if usage.rateLimitReachedType != nil {
+                                        Text("限额已达")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(.red)
+                                    } else {
+                                        Text("—")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(.tertiary)
+                                    }
                                 case .failure:
                                     Image(systemName: "exclamationmark.triangle.fill")
                                         .font(.system(size: 12))

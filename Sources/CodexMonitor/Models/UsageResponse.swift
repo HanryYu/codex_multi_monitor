@@ -2,9 +2,9 @@ import Foundation
 
 struct UsageResponse: Codable {
     let planType: String
-    let rateLimit: RateLimit
-    let credits: Credits
-    let rateLimitReachedType: String?
+    let rateLimit: RateLimit?
+    let credits: Credits?
+    let rateLimitReachedType: RateLimitReached?
     
     enum CodingKeys: String, CodingKey {
         case planType = "plan_type"
@@ -14,11 +14,15 @@ struct UsageResponse: Codable {
     }
 }
 
+struct RateLimitReached: Codable {
+    let type: String
+}
+
 struct RateLimit: Codable {
     let allowed: Bool
     let limitReached: Bool
-    let primaryWindow: WindowUsage
-    let secondaryWindow: WindowUsage
+    let primaryWindow: WindowUsage?
+    let secondaryWindow: WindowUsage?
     
     enum CodingKeys: String, CodingKey {
         case allowed

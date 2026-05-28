@@ -23,14 +23,19 @@ class AccountStore: ObservableObject {
         
         for account in accounts {
             if case .success(let usage) = usageData[account.id] {
-                let primaryUsed = usage.rateLimit.primaryWindow.usedPercent
-                let secondaryUsed = usage.rateLimit.secondaryWindow.usedPercent
-                let maxUsed = max(primaryUsed, secondaryUsed)
-                
-                if usage.rateLimit.limitReached {
+                if let rateLimit = usage.rateLimit {
+                    let primaryUsed = rateLimit.primaryWindow?.usedPercent ?? 0
+                    let secondaryUsed = rateLimit.secondaryWindow?.usedPercent ?? 0
+                    let maxUsed = max(primaryUsed, secondaryUsed)
+                    
+                    if rateLimit.limitReached {
+                        hasCritical = true
+                    } else if maxUsed >= 80 {
+                        hasWarning = true
+                    }
+                } else if usage.rateLimitReachedType != nil {
+                    // rate_limit 为 null 但 rate_limit_reached_type 有值，视为限额已达
                     hasCritical = true
-                } else if maxUsed >= 80 {
-                    hasWarning = true
                 }
             }
         }
@@ -46,8 +51,9 @@ class AccountStore: ObservableObject {
         
         var percentages: [Int] = []
         for account in accounts {
-            if case .success(let usage) = usageData[account.id] {
-                percentages.append(usage.rateLimit.primaryWindow.usedPercent)
+            if case .success(let usage) = usageData[account.id],
+               let primaryPercent = usage.rateLimit?.primaryWindow?.usedPercent {
+                percentages.append(primaryPercent)
             }
         }
         
