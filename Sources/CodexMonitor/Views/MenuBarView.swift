@@ -473,7 +473,7 @@ struct MenuBarView: View {
             }
 
             Button(action: {
-                openAccountManagementWindow(accountStore: accountStore)
+                WindowManager.shared.openSettingsWindow()
             }) {
                 Label("Add Account", systemImage: "plus")
                     .font(.system(size: 12, weight: .medium))
@@ -614,8 +614,10 @@ struct MenuBarView: View {
     private var footerView: some View {
         VStack(spacing: 0) {
             HStack {
-                Button(action: { openPreferencesWindow() }) {
-                    Text("偏好设置…")
+                Button(action: {
+                    WindowManager.shared.openSettingsWindow()
+                }) {
+                    Text("设置…")
                         .font(.system(size: 11))
                         .foregroundStyle(Color.secondary)
                 }
@@ -649,9 +651,9 @@ struct MenuBarView: View {
                 Spacer()
 
                 Button(action: {
-                    openAccountManagementWindow(accountStore: accountStore)
+                    WindowManager.shared.openSettingsWindow()
                 }) {
-                    Text("管理账户…")
+                    Image(systemName: "gear")
                         .font(.system(size: 11))
                         .foregroundStyle(Color.secondary)
                 }
@@ -676,164 +678,6 @@ struct MenuBarView: View {
     }
 }
 
-// MARK: - Account Management Window
-
-struct AccountManagementView: View {
-    @ObservedObject var accountStore: AccountStore
-    @State private var showingAddForm = false
-    @State private var editingAccount: Account?
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Label("Manage Accounts", systemImage: "person.2")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.primary)
-
-                Spacer()
-
-                Button(action: { showingAddForm = true }) {
-                    Label("Add", systemImage: "plus")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-
-            Divider().opacity(0.5)
-
-            // Account list
-            if accountStore.accounts.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "person.badge.plus")
-                        .font(.system(size: 28, weight: .light))
-                        .foregroundStyle(.tertiary)
-                    Text("No accounts yet")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                    Button("Add Account") { showingAddForm = true }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    ForEach(accountStore.accounts) { account in
-                        HStack(spacing: 12) {
-                            Image(systemName: "person.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(.secondary)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(account.name)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(.primary)
-                                Text(maskedToken(account.authToken))
-                                    .font(.system(size: 11).monospaced())
-                                    .foregroundStyle(.tertiary)
-                                    .lineLimit(1)
-                            }
-
-                            Spacer()
-
-                            // Status indicator
-                            if let result = accountStore.usageData[account.id] {
-                                switch result {
-                                case .success(let usage):
-                                    if let percent = usage.rateLimit?.primaryWindow?.usedPercent {
-                                        Text("\(percent)%")
-                                            .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                            .foregroundStyle(percent >= 80 ? .orange : .green)
-                                    } else if let credits = usage.credits {
-                                        if credits.unlimited {
-                                            Text("∞")
-                                                .font(.system(size: 12, weight: .semibold))
-                                                .foregroundStyle(.green)
-                                        } else if let balance = credits.balance {
-                                            Text(balance)
-                                                .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                                .foregroundStyle(credits.hasCredits ? .green : .red)
-                                        } else {
-                                            Text("—")
-                                                .font(.system(size: 12))
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    } else if usage.rateLimitReachedType != nil {
-                                        Text("限额已达")
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(.red)
-                                    } else {
-                                        Text("—")
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(.tertiary)
-                                    }
-                                case .failure:
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.red)
-                                }
-                            }
-
-                            Button(action: {
-                                editingAccount = account
-                            }) {
-                                Image(systemName: "pencil")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Edit account")
-
-                            Button(action: {
-                                accountStore.deleteAccount(id: account.id)
-                            }) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.red.opacity(0.7))
-                            }
-                            .buttonStyle(.plain)
-                            .help("Delete account")
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
-                .listStyle(.inset)
-            }
-
-            Divider().opacity(0.5)
-
-            // Footer
-            HStack {
-                Spacer()
-                Button("Done") {
-                    WindowManager.shared.closeAccountManagementWindow()
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-        }
-        .frame(width: 420, height: 380)
-        .background(.ultraThinMaterial)
-        .sheet(isPresented: $showingAddForm) {
-            AddAccountSheet(accountStore: accountStore, isPresented: $showingAddForm)
-        }
-        .sheet(item: $editingAccount) { account in
-            EditAccountSheetWrapper(accountStore: accountStore, account: account, editingAccount: $editingAccount)
-        }
-    }
-    func maskedToken(_ token: String) -> String {
-        guard token.count > 12 else { return "••••••••" }
-        let prefix = token.prefix(8)
-        let suffix = token.suffix(4)
-        return "\(prefix)••••\(suffix)"
-    }
-}
-
 // MARK: - Edit Account Sheet Wrapper (fixes Cancel binding issue)
 
 struct EditAccountSheetWrapper: View {
@@ -850,17 +694,6 @@ struct EditAccountSheetWrapper: View {
                 }
             }
     }
-}
-
-// MARK: - Account Management Window (managed by WindowManager.shared)
-
-func openAccountManagementWindow(accountStore: AccountStore) {
-    WindowManager.shared.accountStore = accountStore
-    WindowManager.shared.openAccountManagementWindow()
-}
-
-func closeAccountManagementWindow() {
-    WindowManager.shared.closeAccountManagementWindow()
 }
 
 // MARK: - Color Hex Extension

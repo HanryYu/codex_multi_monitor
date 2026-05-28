@@ -61,27 +61,27 @@ enum PreferencesKeys {
 
 // MARK: - Default Binary Path
 
-private func defaultBinaryPath() -> String {
+func defaultBinaryPath() -> String {
     if Bundle.main.bundlePath.hasSuffix(".app") {
         return Bundle.main.bundlePath
     }
     return CommandLine.arguments[0]
 }
 
-private func defaultBundleIdentifier() -> String {
+func defaultBundleIdentifier() -> String {
     let saved = UserDefaults.standard.string(forKey: PreferencesKeys.bundleIdentifier)
     return saved ?? "com.henry.CodexMonitor"
 }
 
 // MARK: - LaunchAgent Plist
 
-private func launchAgentPlistURL(bundleID: String) -> URL {
+func launchAgentPlistURL(bundleID: String) -> URL {
     let fileName = "\(bundleID).plist"
     return FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/LaunchAgents/\(fileName)")
 }
 
-private func readLaunchAgentPlist(bundleID: String) -> [String: Any]? {
+func readLaunchAgentPlist(bundleID: String) -> [String: Any]? {
     let url = launchAgentPlistURL(bundleID: bundleID)
     guard let data = try? Data(contentsOf: url),
           let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
@@ -89,7 +89,7 @@ private func readLaunchAgentPlist(bundleID: String) -> [String: Any]? {
     return plist
 }
 
-private func writeLaunchAgentPlist(bundleID: String, binaryPath: String, enable: Bool) -> Bool {
+func writeLaunchAgentPlist(bundleID: String, binaryPath: String, enable: Bool) -> Bool {
     let url = launchAgentPlistURL(bundleID: bundleID)
     let dir = url.deletingLastPathComponent()
 
@@ -344,12 +344,6 @@ struct PreferencesView: View {
             window.close()
         }
     }
-}
-
-// MARK: - Open Preferences Window (managed by WindowManager.shared)
-
-func openPreferencesWindow() {
-    WindowManager.shared.openPreferencesWindow()
 }
 
 // MARK: - Notification Names

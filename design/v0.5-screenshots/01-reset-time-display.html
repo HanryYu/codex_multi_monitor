@@ -1,0 +1,193 @@
+💬 HTML
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codex Monitor - Reset Time Display Feature</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: '#FF6B00',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop') center/cover no-repeat;
+            -webkit-font-smoothing: antialiased;
+        }
+        .mac-popover {
+            background: rgba(246, 246, 246, 0.85);
+            backdrop-filter: blur(20px) saturate(190%);
+            -webkit-backdrop-filter: blur(20px) saturate(190%);
+            box-shadow: 
+                0 0 0 0.5px rgba(0, 0, 0, 0.15),
+                0 10px 25px rgba(0, 0, 0, 0.15),
+                0 2px 6px rgba(0, 0, 0, 0.05);
+        }
+        .popover-arrow {
+            border-bottom-color: rgba(246, 246, 246, 0.85);
+        }
+        .segmented-btn.active {
+            background-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08), 0 0 0 0.5px rgba(0,0,0,0.04);
+            color: #111827;
+        }
+        .time-display {
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 bg-slate-900">
+
+    <div class="relative pt-2.5 select-none">
+        
+        <div class="absolute top-0 left-1/2 transform -translate-x-1/2 w-0 h-0 border-[7px] border-transparent popover-arrow z-30"></div>
+
+        <div class="mac-popover w-[300px] rounded-[10px] overflow-hidden text-slate-700 z-20 relative">
+            
+            <div class="flex justify-between items-center px-3.5 pt-3 pb-2 border-b border-black/[0.04]">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-xs font-semibold text-slate-800">Work</span>
+                    <span class="text-[9px] font-bold bg-brand/10 text-brand px-1 py-0.2 rounded-sm tracking-wide">PRO</span>
+                </div>
+                <div class="text-[10px] text-slate-400 font-medium">Codex Monitor</div>
+            </div>
+
+            <div class="px-3.5 pt-2.5 pb-1">
+                <div class="bg-black/[0.04] p-0.5 rounded-md flex text-[10px] font-medium text-slate-500">
+                    <button onclick="switchResetMode('relative')" id="btn-rel" class="segmented-btn active flex-1 py-1 rounded-[4px] text-center transition-all focus:outline-none">
+                        相对时间
+                    </button>
+                    <button onclick="switchResetMode('absolute')" id="btn-abs" class="segmented-btn flex-1 py-1 rounded-[4px] text-center transition-all focus:outline-none">
+                        绝对时间
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-3.5 space-y-2.5">
+                
+                <div class="bg-white/40 border border-white/40 rounded-lg p-3 flex flex-col justify-between">
+                    <div class="flex justify-between items-baseline mb-1.5">
+                        <span class="text-[11px] font-medium text-slate-500">5小时限额</span>
+                        <div class="text-right">
+                            <span class="text-lg font-bold tracking-tight text-slate-900">67%</span>
+                            <span class="text-[9px] text-slate-400 ml-0.5">剩余</span>
+                        </div>
+                    </div>
+                    
+                    <div class="w-full bg-black/5 h-[3px] rounded-full overflow-hidden mb-2">
+                        <div class="bg-emerald-500 h-full rounded-full" style="width: 33%"></div>
+                    </div>
+
+                    <div id="card1-time-wrapper" class="time-display flex items-center gap-1.5 text-[10px] text-slate-400 font-medium h-4">
+                        <i id="card1-icon" class="fa-regular fa-clock text-[9px] w-3"></i>
+                        <span id="card1-text" class="font-mono">61h 46m 后重置</span>
+                    </div>
+                </div>
+
+                <div class="bg-white/40 border border-white/40 rounded-lg p-3 flex flex-col justify-between">
+                    <div class="flex justify-between items-baseline mb-1.5">
+                        <span class="text-[11px] font-medium text-slate-500">每周限额</span>
+                        <div class="text-right">
+                            <span class="text-lg font-bold tracking-tight text-slate-900">23%</span>
+                            <span class="text-[9px] text-slate-400 ml-0.5">剩余</span>
+                        </div>
+                    </div>
+                    
+                    <div class="w-full bg-black/5 h-[3px] rounded-full overflow-hidden mb-2">
+                        <div class="bg-brand h-full rounded-full" style="width: 77%"></div>
+                    </div>
+
+                    <div id="card2-time-wrapper" class="time-display flex items-center gap-1.5 text-[10px] text-slate-400 font-medium h-4">
+                        <i id="card2-icon" class="fa-regular fa-clock text-[9px] w-3"></i>
+                        <span id="card2-text" class="font-mono">13h 12m 后重置</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="border-t border-black/[0.04] bg-black/[0.01] px-3.5 py-2 flex justify-between items-center text-[10px] text-slate-400">
+                <div class="flex items-center gap-1.5">
+                    <i class="fa-solid fa-arrow-rotate-right text-[9px]"></i>
+                    <span>14:39 更新</span>
+                </div>
+                <button class="hover:text-brand transition-colors flex items-center gap-0.5 focus:outline-none">
+                    <span>设置</span>
+                    <i class="fa-solid fa-chevron-right text-[8px]"></i>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let operationalMode = 'relative';
+
+        const TIMELINE_METRICS = {
+            relative: {
+                c1Text: "61h 46m 后重置",
+                c2Text: "13h 12m 后重置",
+                iconClass: "fa-regular fa-clock"
+            },
+            absolute: {
+                c1Text: "5月30日 13:00 重置",
+                c2Text: "5月29日 00:00 重置",
+                iconClass: "fa-regular fa-calendar"
+            }
+        };
+
+        function switchResetMode(targetMode) {
+            if (operationalMode === targetMode) return;
+            operationalMode = targetMode;
+
+            const btnRel = document.getElementById('btn-rel');
+            const btnAbs = document.getElementById('btn-abs');
+            
+            const w1 = document.getElementById('card1-time-wrapper');
+            const w2 = document.getElementById('card2-time-wrapper');
+            
+            const t1 = document.getElementById('card1-text');
+            const t2 = document.getElementById('card2-text');
+            const i1 = document.getElementById('card1-icon');
+            const i2 = document.getElementById('card2-icon');
+
+            // Toggle active styles on Segmented buttons
+            if (targetMode === 'relative') {
+                btnRel.classList.add('active');
+                btnAbs.classList.remove('active');
+            } else {
+                btnAbs.classList.add('active');
+                btnRel.classList.remove('active');
+            }
+
+            // Perform micro-animation content replacement
+            w1.style.opacity = '0';
+            w2.style.opacity = '0';
+            w1.style.transform = 'translateY(1px)';
+            w2.style.transform = 'translateY(1px)';
+
+            setTimeout(() => {
+                t1.textContent = TIMELINE_METRICS[targetMode].c1Text;
+                t2.textContent = TIMELINE_METRICS[targetMode].c2Text;
+                
+                i1.className = `${TIMELINE_METRICS[targetMode].iconClass} text-[9px] w-3`;
+                i2.className = `${TIMELINE_METRICS[targetMode].iconClass} text-[9px] w-3`;
+
+                w1.style.opacity = '1';
+                w2.style.opacity = '1';
+                w1.style.transform = 'translateY(0)';
+                w2.style.transform = 'translateY(0)';
+            }, 120);
+        }
+    </script>
+</body>
+</html>
