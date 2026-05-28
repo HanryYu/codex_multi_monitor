@@ -15,6 +15,36 @@ jobs:
       - name: Build release binary
         run: swift build -c release
 
+      - name: Code sign with Developer ID
+        env:
+          CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import Developer ID certificate
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          echo "$CERTIFICATE" | base64 --decode > "$CERT_PATH"
+          security import "$CERT_PATH" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          # Sign the binary
+          BINARY=".build/release/CodexMonitor"
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+          echo "Signing with identity: $IDENTITY"
+          codesign --force --options runtime --sign "$IDENTITY" "$BINARY"
+          codesign --verify --verbose "$BINARY"
+
+          # Cleanup
+          rm -f "$CERT_PATH"
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db"
+
       - name: Create DMG
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
