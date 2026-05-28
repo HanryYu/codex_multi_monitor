@@ -128,7 +128,7 @@ struct MenuBarView: View {
 
     private var headerView: some View {
         HStack {
-            Label("CodexMonitor", systemImage: "gauge.with.dots.fill.60percent")
+            Label("CodexMonitor", systemImage: "gauge.medium")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.primary)
 
@@ -455,7 +455,7 @@ struct WindowUsageRow: View {
 
 struct AccountManagementView: View {
     @ObservedObject var accountStore: AccountStore
-    @State private var showingAddSheet = false
+    @State private var showingAddForm = false
     @State private var editingAccount: Account?
 
     var body: some View {
@@ -468,7 +468,7 @@ struct AccountManagementView: View {
 
                 Spacer()
 
-                Button(action: { showingAddSheet = true }) {
+                Button(action: { showingAddForm = true }) {
                     Label("Add", systemImage: "plus")
                         .font(.system(size: 12, weight: .medium))
                 }
@@ -480,8 +480,12 @@ struct AccountManagementView: View {
 
             Divider().opacity(0.5)
 
-            // Account list
-            if accountStore.accounts.isEmpty {
+            // Content: inline form OR account list
+            if showingAddForm {
+                AddAccountSheet(accountStore: accountStore, isPresented: $showingAddForm)
+            } else if let editing = editingAccount {
+                EditAccountSheetWrapper(accountStore: accountStore, account: editing, editingAccount: $editingAccount)
+            } else if accountStore.accounts.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "person.badge.plus")
                         .font(.system(size: 28, weight: .light))
@@ -489,7 +493,7 @@ struct AccountManagementView: View {
                     Text("No accounts yet")
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
-                    Button("Add Account") { showingAddSheet = true }
+                    Button("Add Account") { showingAddForm = true }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
                 }
@@ -506,7 +510,7 @@ struct AccountManagementView: View {
                                 Text(account.name)
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundStyle(.primary)
-                                Text(maskedToken(account.authToken))
+                                Text(account.authToken)
                                     .font(.system(size: 11).monospaced())
                                     .foregroundStyle(.tertiary)
                                     .lineLimit(1)
@@ -561,7 +565,7 @@ struct AccountManagementView: View {
             HStack {
                 Spacer()
                 Button("Done") {
-                    closeAccountManagementWindow()
+                    WindowManager.shared.closeAccountManagementWindow()
                 }
                 .keyboardShortcut(.defaultAction)
             }
@@ -570,19 +574,6 @@ struct AccountManagementView: View {
         }
         .frame(width: 420, height: 380)
         .background(.ultraThinMaterial)
-        .sheet(isPresented: $showingAddSheet) {
-            AddAccountSheet(accountStore: accountStore, isPresented: $showingAddSheet)
-        }
-        .sheet(item: $editingAccount) { account in
-            EditAccountSheetWrapper(accountStore: accountStore, account: account, editingAccount: $editingAccount)
-        }
-    }
-
-    func maskedToken(_ token: String) -> String {
-        guard token.count > 12 else { return "••••••••" }
-        let prefix = token.prefix(8)
-        let suffix = token.suffix(4)
-        return "\(prefix)••••\(suffix)"
     }
 }
 
@@ -604,33 +595,13 @@ struct EditAccountSheetWrapper: View {
     }
 }
 
-// MARK: - Account Management Window Functions
-
-private var accountManagementWindow: NSWindow?
+// MARK: - Account Management Window (managed by WindowManager.shared)
 
 func openAccountManagementWindow(accountStore: AccountStore) {
-    if let existing = accountManagementWindow, existing.isVisible {
-        existing.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        return
-    }
-
-    let window = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 420, height: 380),
-        styleMask: [.titled, .closable],
-        backing: .buffered,
-        defer: false
-    )
-    window.title = "CodexMonitor - Manage Accounts"
-    window.contentView = NSHostingView(rootView: AccountManagementView(accountStore: accountStore))
-    window.center()
-    window.isReleasedWhenClosed = false
-    window.level = .floating
-    window.makeKeyAndOrderFront(nil)
-    NSApp.activate(ignoringOtherApps: true)
-    accountManagementWindow = window
+    WindowManager.shared.accountStore = accountStore
+    WindowManager.shared.openAccountManagementWindow()
 }
 
 func closeAccountManagementWindow() {
-    accountManagementWindow?.close()
+    WindowManager.shared.closeAccountManagementWindow()
 }

@@ -24,11 +24,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         accountStore = AccountStore()
 
+        // Setup WindowManager
+        WindowManager.shared.accountStore = accountStore
+
         // Setup status item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "gauge.with.dots.fill.60percent", accessibilityDescription: "CodexMonitor")
+            button.image = NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "CodexMonitor")
             button.action = #selector(togglePopover)
             button.target = self
         }
@@ -114,16 +117,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         switch status {
         case .healthy:
-            symbolName = "gauge.with.dots.fill.60percent"
+            symbolName = "gauge.medium"
             tintColor = .systemGreen
         case .warning:
-            symbolName = "gauge.with.dots.fill.60percent"
+            symbolName = "gauge.medium"
             tintColor = .systemYellow
         case .critical:
-            symbolName = "gauge.with.dots.fill.60percent"
+            symbolName = "gauge.medium"
             tintColor = .systemRed
         case .noAccounts:
-            symbolName = "gauge.with.dots.fill.60percent"
+            symbolName = "gauge.medium"
             tintColor = .secondaryLabelColor
         }
 
@@ -132,6 +135,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .withSymbolConfiguration(config) {
             image.isTemplate = true
             button.image = image
+            button.contentTintColor = tintColor
+        } else {
+            // Fallback: use app icon if SF Symbol unavailable
+            let fallback = NSImage(named: NSImage.applicationIconName)
+            fallback?.isTemplate = true
+            button.image = fallback
             button.contentTintColor = tintColor
         }
 

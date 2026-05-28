@@ -222,28 +222,10 @@ struct PreferencesView: View {
     }
 }
 
-// MARK: - Open Preferences Window
+// MARK: - Open Preferences Window (managed by WindowManager.shared)
 
 func openPreferencesWindow() {
-    if let existing = NSApp.windows.first(where: { $0.title == "CodexMonitor Preferences" }) {
-        existing.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        return
-    }
-
-    let window = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 380, height: 300),
-        styleMask: [.titled, .closable],
-        backing: .buffered,
-        defer: false
-    )
-    window.title = "CodexMonitor Preferences"
-    window.contentView = NSHostingView(rootView: PreferencesView())
-    window.center()
-    window.isReleasedWhenClosed = false
-    window.level = .floating
-    window.makeKeyAndOrderFront(nil)
-    NSApp.activate(ignoringOtherApps: true)
+    WindowManager.shared.openPreferencesWindow()
 }
 
 // MARK: - Notification Name
