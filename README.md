@@ -57,20 +57,25 @@ The binary will be at `.build/release/CodexMonitor`.
 
 ## Getting Your API Token
 
-1. Open [chatgpt.com](https://chatgpt.com) in your browser and **log in**
-2. Open Developer Tools Console:
-   - **Chrome**: `⌘⌥J`
-   - **Firefox**: `⌘⌥K`
-   - **Safari**: `⌘⌥C` (enable Developer menu first in Safari → Settings → Advanced)
-3. Paste this and press **Enter**:
+### Method 1: Codex CLI Auth File (Recommended)
 
-```javascript
-fetch('https://chatgpt.com/api/auth/session').then(r=>r.json()).then(d=>{if(d.accessToken){copy(d.accessToken);alert('✅ Token copied!')}else{alert('❌ Not found. Make sure you are logged in.')}})
+If you have the [Codex CLI](https://github.com/openai/codex) installed, the token is stored locally:
+
+```bash
+cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['tokens']['access_token'])"
 ```
 
-4. The token is now in your clipboard — paste it into CodexMonitor
+Copy the output and paste it into CodexMonitor.
 
-> **Note:** This must be run on `chatgpt.com` (same-origin). The token is the same one the web app uses for API requests.
+### Method 2: Browser Network Tab
+
+1. Open [chatgpt.com/codex](https://chatgpt.com/codex) in your browser and **log in**
+2. Open Developer Tools (`⌘⌥I` on Mac) → **Network** tab
+3. Navigate to any Codex page (e.g. Settings → Analytics)
+4. Filter by `wham` in the Network tab
+5. Find the request to `/backend-api/wham/usage`
+6. Click the request → **Headers** → copy the `Authorization: Bearer <token>` value
+7. Paste the token (without `Bearer ` prefix) into CodexMonitor
 
 ## Usage
 
