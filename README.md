@@ -69,13 +69,11 @@ Copy the output and paste it into CodexMonitor.
 
 ### Method 2: Browser Network Tab
 
-1. Open [chatgpt.com/codex](https://chatgpt.com/codex) in your browser and **log in**
+1. Open [chatgpt.com/codex/cloud/settings/analytics](https://chatgpt.com/codex/cloud/settings/analytics) in your browser and **log in**
 2. Open Developer Tools (`⌘⌥I` on Mac) → **Network** tab
-3. Navigate to any Codex page (e.g. Settings → Analytics)
-4. Filter by `wham` in the Network tab
-5. Find the request to `/backend-api/wham/usage`
-6. Click the request → **Headers** → copy the `Authorization: Bearer <token>` value
-7. Paste the token (without `Bearer ` prefix) into CodexMonitor
+3. The page will automatically load usage data — look for a request to `wham/usage`
+4. Click the request → **Headers** → copy the `Authorization: Bearer <token>` value
+5. Paste the token (without `Bearer ` prefix) into CodexMonitor
 
 ## Usage
 
