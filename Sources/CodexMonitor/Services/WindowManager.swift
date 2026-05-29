@@ -26,7 +26,7 @@ final class WindowManager {
             backing: .buffered,
             defer: false
         )
-        window.title = "Codex Monitor 设置"
+        window.title = L10n.codexMonitorSettings
         window.contentView = NSHostingView(rootView: UnifiedSettingsView(accountStore: accountStore))
         window.center()
         window.isReleasedWhenClosed = false

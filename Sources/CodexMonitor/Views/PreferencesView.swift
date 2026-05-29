@@ -28,11 +28,11 @@ enum RefreshInterval: Int, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .off: return "Off"
-        case .oneMinute: return "1 Minute"
-        case .fiveMinutes: return "5 Minutes"
-        case .fifteenMinutes: return "15 Minutes"
-        case .thirtyMinutes: return "30 Minutes"
+        case .off: return L10n.refreshOff
+        case .oneMinute: return L10n.refresh1Minute
+        case .fiveMinutes: return L10n.refresh5Minutes
+        case .fifteenMinutes: return L10n.refresh15Minutes
+        case .thirtyMinutes: return L10n.refresh30Minutes
         }
     }
 
@@ -132,7 +132,7 @@ struct PreferencesView: View {
     var body: some View {
         VStack(spacing: 24) {
             // Title
-            Label("Preferences", systemImage: "gear")
+            Label(L10n.preferences, systemImage: "gear")
                 .font(.system(size: 16, weight: .semibold))
                 .padding(.top, 4)
 
@@ -140,7 +140,7 @@ struct PreferencesView: View {
             VStack(spacing: 20) {
                 // Refresh Interval
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Auto Refresh", systemImage: "arrow.clockwise")
+                    Label(L10n.autoRefresh, systemImage: "arrow.clockwise")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
 
@@ -162,13 +162,13 @@ struct PreferencesView: View {
 
                 // Display Mode Toggle
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Display Mode", systemImage: "eye")
+                    Label(L10n.displayModeLabel, systemImage: "eye")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
 
                     Picker("", selection: $displayMode) {
-                        Text("Show Remaining").tag(DisplayMode.remaining)
-                        Text("Show Used").tag(DisplayMode.used)
+                        Text(L10n.showRemaining).tag(DisplayMode.remaining)
+                        Text(L10n.showUsed).tag(DisplayMode.used)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -182,17 +182,17 @@ struct PreferencesView: View {
 
                 // Reset Time Format
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("重置时间格式", systemImage: "clock.arrow.circlepath")
+                    Label(L10n.resetTimeFormat, systemImage: "clock.arrow.circlepath")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    Text("卡片底部重置时间的显示维度")
+                    Text(L10n.resetTimeFormatDesc)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
 
                     Picker("", selection: $resetTimeFormat) {
-                        Text("相对时间").tag(ResetTimeFormat.relative)
-                        Text("绝对时间").tag(ResetTimeFormat.absolute)
+                        Text(L10n.relativeTime).tag(ResetTimeFormat.relative)
+                        Text(L10n.absoluteTime).tag(ResetTimeFormat.absolute)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -207,7 +207,7 @@ struct PreferencesView: View {
                 // Menu Bar Text Toggle
                 VStack(alignment: .leading, spacing: 8) {
                     Toggle(isOn: $showMenuBarText) {
-                        Label("Show Quota in Menu Bar", systemImage: "text.alignleft")
+                        Label(L10n.showQuotaInMenuBar, systemImage: "text.alignleft")
                             .font(.system(size: 12, weight: .medium))
                     }
                     .onChange(of: showMenuBarText) { _, newValue in
@@ -215,7 +215,7 @@ struct PreferencesView: View {
                         NotificationCenter.default.post(name: .menuBarTextChanged, object: nil)
                     }
 
-                    Text("Show usage summary text next to the menu bar icon")
+                    Text(L10n.showUsageSummaryText)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
@@ -225,7 +225,7 @@ struct PreferencesView: View {
                 // Alert Threshold
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Label("Usage Alert", systemImage: "bell.fill")
+                        Label(L10n.usageAlert, systemImage: "bell.fill")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.secondary)
                         Spacer()
@@ -239,7 +239,7 @@ struct PreferencesView: View {
                             UserDefaults.standard.set(Int(newValue), forKey: PreferencesKeys.alertThreshold)
                         }
 
-                    Text("Notify when any account exceeds this threshold")
+                    Text(L10n.notifyWhenExceedsThreshold)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
@@ -249,7 +249,7 @@ struct PreferencesView: View {
                 // Launch at Login
                 VStack(alignment: .leading, spacing: 10) {
                     Toggle(isOn: $launchAtLogin) {
-                        Label("Launch at Login", systemImage: "power")
+                        Label(L10n.launchAtLogin, systemImage: "power")
                             .font(.system(size: 12, weight: .medium))
                     }
                     .onChange(of: launchAtLogin) { _, newValue in
@@ -258,7 +258,7 @@ struct PreferencesView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 4) {
-                            Text("Bundle ID:")
+                            Text(L10n.bundleIdLabel)
                                 .font(.system(size: 10))
                                 .foregroundStyle(.tertiary)
                             Text(bundleIdentifier)
@@ -268,7 +268,7 @@ struct PreferencesView: View {
                                 .truncationMode(.middle)
                         }
                         HStack(spacing: 4) {
-                            Text("Binary:")
+                            Text(L10n.binaryLabel)
                                 .font(.system(size: 10))
                                 .foregroundStyle(.tertiary)
                             Text(binaryPath)
@@ -287,7 +287,7 @@ struct PreferencesView: View {
             // Done button
             HStack {
                 Spacer()
-                Button("Done") {
+                Button(L10n.done) {
                     closeWindow()
                 }
                 .buttonStyle(.borderedProminent)
@@ -340,7 +340,7 @@ struct PreferencesView: View {
     }
 
     private func closeWindow() {
-        if let window = NSApp.windows.first(where: { $0.title == "CodexMonitor Preferences" }) {
+        if let window = NSApp.windows.first(where: { $0.title.contains("CodexMonitor") || $0.title.contains("Codex Monitor") }) {
             window.close()
         }
     }

@@ -7,8 +7,15 @@ struct UnifiedSettingsView: View {
     @State private var selectedTab: SettingsTab = .accounts
 
     enum SettingsTab: String, CaseIterable {
-        case accounts = "账户管理"
-        case preferences = "偏好设置"
+        case accounts
+        case preferences
+
+        var label: String {
+            switch self {
+            case .accounts: return L10n.accountManagement
+            case .preferences: return L10n.preferences
+            }
+        }
     }
 
     var body: some View {
@@ -16,7 +23,7 @@ struct UnifiedSettingsView: View {
             // Tab picker
             Picker("", selection: $selectedTab) {
                 ForEach(SettingsTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
+                    Text(tab.label).tag(tab)
                 }
             }
             .pickerStyle(.segmented)
@@ -53,14 +60,14 @@ struct AccountManagementContentView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Label("监控账户列表", systemImage: "person.2")
+                Label(L10n.monitoredAccountList, systemImage: "person.2")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
 
                 Spacer()
 
                 Button(action: { showingAddForm = true }) {
-                    Label("添加账户", systemImage: "plus")
+                    Label(L10n.addAccount, systemImage: "plus")
                         .font(.system(size: 12, weight: .medium))
                 }
                 .buttonStyle(.borderedProminent)
@@ -77,10 +84,10 @@ struct AccountManagementContentView: View {
                     Image(systemName: "person.badge.plus")
                         .font(.system(size: 28, weight: .light))
                         .foregroundStyle(.tertiary)
-                    Text("No accounts yet")
+                    Text(L10n.noAccountsYet)
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
-                    Button("Add Account") { showingAddForm = true }
+                    Button(L10n.addAccount) { showingAddForm = true }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
                 }
@@ -128,7 +135,7 @@ struct AccountManagementContentView: View {
                                                 .foregroundStyle(.secondary)
                                         }
                                     } else if usage.rateLimitReachedType != nil {
-                                        Text("限额已达")
+                                        Text(L10n.limitReached)
                                             .font(.system(size: 12, weight: .semibold))
                                             .foregroundStyle(.red)
                                     } else {
@@ -151,7 +158,7 @@ struct AccountManagementContentView: View {
                                     .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
-                            .help("Edit account")
+                            .help(L10n.editAccount)
 
                             Button(action: {
                                 accountStore.deleteAccount(id: account.id)
@@ -161,7 +168,7 @@ struct AccountManagementContentView: View {
                                     .foregroundStyle(.red.opacity(0.7))
                             }
                             .buttonStyle(.plain)
-                            .help("Delete account")
+                            .help(L10n.deleteAccount)
                         }
                         .padding(.vertical, 4)
                     }
@@ -202,11 +209,11 @@ struct PreferencesContentView: View {
             VStack(spacing: 20) {
                 // Data Refresh Interval
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("数据刷新间隔", systemImage: "arrow.clockwise")
+                    Label(L10n.dataRefreshInterval, systemImage: "arrow.clockwise")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    Text("定期静默拉取最新云端配额用量")
+                    Text(L10n.dataRefreshIntervalDesc)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
 
@@ -227,17 +234,17 @@ struct PreferencesContentView: View {
 
                 // Display Mode Toggle
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("数值显示模式", systemImage: "eye")
+                    Label(L10n.displayModeLabel, systemImage: "eye")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    Text("菜单栏及主卡片所呈现的主数值模式")
+                    Text(L10n.displayModeDesc)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
 
                     Picker("", selection: $displayMode) {
-                        Text("剩余").tag(DisplayMode.remaining)
-                        Text("已用").tag(DisplayMode.used)
+                        Text(L10n.remaining).tag(DisplayMode.remaining)
+                        Text(L10n.used).tag(DisplayMode.used)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -251,17 +258,17 @@ struct PreferencesContentView: View {
 
                 // Reset Time Format
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("重置时间格式", systemImage: "clock.arrow.circlepath")
+                    Label(L10n.resetTimeFormat, systemImage: "clock.arrow.circlepath")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    Text("卡片底部重置时间的显示维度")
+                    Text(L10n.resetTimeFormatDesc)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
 
                     Picker("", selection: $resetTimeFormat) {
-                        Text("相对时间").tag(ResetTimeFormat.relative)
-                        Text("绝对时间").tag(ResetTimeFormat.absolute)
+                        Text(L10n.relativeTime).tag(ResetTimeFormat.relative)
+                        Text(L10n.absoluteTime).tag(ResetTimeFormat.absolute)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -276,7 +283,7 @@ struct PreferencesContentView: View {
                 // Menu Bar Text Toggle
                 VStack(alignment: .leading, spacing: 8) {
                     Toggle(isOn: $showMenuBarText) {
-                        Label("在系统菜单栏显示文本", systemImage: "text.alignleft")
+                        Label(L10n.showTextInMenuBar, systemImage: "text.alignleft")
                             .font(.system(size: 12, weight: .medium))
                     }
                     .onChange(of: showMenuBarText) { _, newValue in
@@ -284,7 +291,7 @@ struct PreferencesContentView: View {
                         NotificationCenter.default.post(name: .menuBarTextChanged, object: nil)
                     }
 
-                    Text("关闭后将仅在菜单栏隐藏保留图标")
+                    Text(L10n.showTextInMenuBarDesc)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
@@ -294,7 +301,7 @@ struct PreferencesContentView: View {
                 // Alert Threshold
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Label("用量预警提醒阈值", systemImage: "bell.fill")
+                        Label(L10n.usageAlertThreshold, systemImage: "bell.fill")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.secondary)
                         Spacer()
@@ -303,7 +310,7 @@ struct PreferencesContentView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("当任一监控限额使用率超过该额度时发送横幅通知")
+                    Text(L10n.usageAlertThresholdDesc)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
 
@@ -318,7 +325,7 @@ struct PreferencesContentView: View {
                 // Launch at Login
                 VStack(alignment: .leading, spacing: 10) {
                     Toggle(isOn: $launchAtLogin) {
-                        Label("开机自启", systemImage: "power")
+                        Label(L10n.launchAtLogin, systemImage: "power")
                             .font(.system(size: 12, weight: .medium))
                     }
                     .onChange(of: launchAtLogin) { _, newValue in
@@ -327,7 +334,7 @@ struct PreferencesContentView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 4) {
-                            Text("Bundle ID:")
+                            Text(L10n.bundleIdLabel)
                                 .font(.system(size: 10))
                                 .foregroundStyle(.tertiary)
                             Text(bundleIdentifier)
@@ -337,7 +344,7 @@ struct PreferencesContentView: View {
                                 .truncationMode(.middle)
                         }
                         HStack(spacing: 4) {
-                            Text("Binary:")
+                            Text(L10n.binaryLabel)
                                 .font(.system(size: 10))
                                 .foregroundStyle(.tertiary)
                             Text(binaryPath)

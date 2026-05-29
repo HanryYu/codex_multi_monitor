@@ -104,7 +104,7 @@ struct QuotaCardView: View {
 
     private var resetTimeText: String {
         if resetTimeFormat == .relative {
-            // Relative: countdown format "61h 46m 后重置"
+            // Relative: countdown format
             let seconds: Int
             if resetAfterSeconds > 0 {
                 seconds = resetAfterSeconds
@@ -116,12 +116,9 @@ struct QuotaCardView: View {
             guard seconds > 0 else { return "" }
             let hours = seconds / 3600
             let minutes = (seconds % 3600) / 60
-            if hours > 0 {
-                return "重置: \(hours)h\(minutes > 0 ? " \(minutes)m" : "")"
-            }
-            return "重置: \(minutes)m"
+            return L10n.resetRelative(hours: hours, minutes: minutes)
         } else {
-            // Absolute: date+time format "5月30日 13:00 重置"
+            // Absolute: date+time format
             let targetDate: Date
             if resetAt > 0 {
                 targetDate = Date(timeIntervalSince1970: TimeInterval(resetAt))
@@ -130,10 +127,7 @@ struct QuotaCardView: View {
             } else {
                 return ""
             }
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "zh_CN")
-            formatter.dateFormat = "M月d日 HH:mm"
-            return "\(formatter.string(from: targetDate)) 重置"
+            return L10n.resetAbsoluteTime(targetDate)
         }
     }
 
@@ -154,7 +148,7 @@ struct QuotaCardView: View {
                     .lineLimit(1)
                     .monospacedDigit()
 
-                Text(displayMode == .remaining ? "剩余" : "已用")
+                Text(displayMode == .remaining ? L10n.remaining : L10n.used)
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(Color.secondary.opacity(0.7))
                     .tracking(0.2)
@@ -239,14 +233,14 @@ struct QuotaCardsGridView: View {
             // Rate limit reached with no detailed data — show placeholder cards
             HStack(spacing: 8) {
                 QuotaCardView(
-                    label: "限额已达",
+                    label: L10n.limitReached,
                     displayPercent: 0,
                     usedPercent: 100,
                     displayMode: displayMode,
                     isLimited: true
                 )
                 QuotaCardView(
-                    label: "不可使用",
+                    label: L10n.unavailable,
                     displayPercent: 0,
                     usedPercent: 100,
                     displayMode: displayMode,
@@ -258,7 +252,7 @@ struct QuotaCardsGridView: View {
                 Image(systemName: "questionmark.circle")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
-                Text("plan: \(usage.planType) — 无用量数据")
+                Text(L10n.noUsageData(planType: usage.planType))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
@@ -270,11 +264,11 @@ struct QuotaCardsGridView: View {
     func formatWindowLabel(seconds: Int) -> String {
         let hours = seconds / 3600
         if hours >= 168 {
-            return "每周限额"
+            return L10n.weeklyLimit()
         } else if hours >= 24 {
-            return "\(hours)小时限额"
+            return L10n.hourlyLimit(hours: hours)
         } else {
-            return "\(hours)小时限额"
+            return L10n.hourlyLimit(hours: hours)
         }
     }
 }
@@ -287,7 +281,7 @@ struct CreditsCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Credits")
+            Text(L10n.credits)
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(Color.secondary)
 
@@ -309,7 +303,7 @@ struct CreditsCardView: View {
                     .foregroundStyle(Color.secondary)
             }
 
-            Text(credits.unlimited ? "无限" : "余额")
+            Text(credits.unlimited ? L10n.unlimited : L10n.balance)
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(Color.secondary.opacity(0.7))
                 .tracking(0.2)
@@ -322,7 +316,7 @@ struct CreditsCardView: View {
                 Circle()
                     .fill(credits.hasCredits ? Color.green : Color.red)
                     .frame(width: 5, height: 5)
-                Text(credits.hasCredits ? "可用" : "已耗尽")
+                Text(credits.hasCredits ? L10n.available : L10n.exhausted)
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(credits.hasCredits ? .green : .red)
             }
@@ -414,10 +408,10 @@ struct MenuBarView: View {
                 .foregroundStyle(.tertiary)
 
             VStack(spacing: 4) {
-                Text("No accounts added")
+                Text(L10n.noAccountsAdded)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.secondary)
-                Text("Add a Codex account to monitor usage")
+                Text(L10n.addAccountToMonitor)
                     .font(.system(size: 12))
                     .foregroundStyle(.tertiary)
             }
@@ -425,7 +419,7 @@ struct MenuBarView: View {
             Button(action: {
                 WindowManager.shared.openSettingsWindow()
             }) {
-                Label("Add Account", systemImage: "plus")
+                Label(L10n.addAccount, systemImage: "plus")
                     .font(.system(size: 12, weight: .medium))
             }
             .buttonStyle(.borderedProminent)
@@ -444,7 +438,7 @@ struct MenuBarView: View {
                     HStack(spacing: 6) {
                         ProgressView()
                             .scaleEffect(0.6)
-                        Text("Refreshing...")
+                        Text(L10n.refreshing)
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
@@ -509,7 +503,7 @@ struct MenuBarView: View {
                                 Image(systemName: "questionmark.circle")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.tertiary)
-                                Text("No data")
+                                Text(L10n.noData)
                                     .font(.system(size: 11))
                                     .foregroundStyle(.tertiary)
                             }
@@ -532,7 +526,7 @@ struct MenuBarView: View {
                                     Image(systemName: "exclamationmark.circle.fill")
                                         .font(.system(size: 12))
                                         .foregroundStyle(Color(hex: "ff3b30"))
-                                    Text("限额已达")
+                                    Text(L10n.limitReached)
                                         .font(.system(size: 13, weight: .semibold))
                                         .foregroundStyle(Color(hex: "ff3b30"))
                                 }
@@ -554,9 +548,9 @@ struct MenuBarView: View {
         if let time = accountStore.lastRefreshTime {
             let formatter = DateFormatter()
             formatter.dateFormat = "HH:mm"
-            return formatter.string(from: time) + " 更新"
+            return L10n.updatedAt(time: formatter.string(from: time))
         }
-        return "--:-- 更新"
+        return L10n.notYetUpdated
     }
 
     // MARK: - Footer (Gemini Canvas style)
@@ -567,7 +561,7 @@ struct MenuBarView: View {
                 Button(action: {
                     WindowManager.shared.openSettingsWindow()
                 }) {
-                    Text("设置…")
+                    Text(L10n.settings)
                         .font(.system(size: 11))
                         .foregroundStyle(Color.secondary)
                 }
@@ -604,7 +598,7 @@ struct MenuBarView: View {
             Button(action: {
                 NSApp.terminate(nil)
             }) {
-                Text("退出 Codex Monitor")
+                Text(L10n.quitCodexMonitor)
                     .font(.system(size: 9))
                     .foregroundStyle(Color.secondary.opacity(0.5))
             }

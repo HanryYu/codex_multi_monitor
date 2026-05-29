@@ -199,16 +199,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         } else if percentages.count == 1 {
             let p = percentages[0]
             if displayMode == .remaining {
-                button.title = " \(100 - p)% left"
+                button.title = L10n.percentLeft(100 - p)
             } else {
-                button.title = " \(p)% used"
+                button.title = L10n.percentUsed(p)
             }
         } else {
             if displayMode == .remaining {
-                let labels = percentages.map { "\(100 - $0)% left" }.joined(separator: " / ")
+                let labels = percentages.map { L10n.percentLeft(100 - $0) }.joined(separator: " / ")
                 button.title = " \(labels)"
             } else {
-                let labels = percentages.map { "\($0)% used" }.joined(separator: " / ")
+                let labels = percentages.map { L10n.percentUsed($0) }.joined(separator: " / ")
                 button.title = " \(labels)"
             }
         }

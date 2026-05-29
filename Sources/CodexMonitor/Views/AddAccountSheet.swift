@@ -28,7 +28,7 @@ struct AddAccountSheet: View {
                     .font(.system(size: 32, weight: .light))
                     .foregroundStyle(.secondary)
 
-                Text(isEditing ? "Edit Account" : "Add Account")
+                Text(isEditing ? L10n.editAccount : L10n.addAccount)
                     .font(.system(size: 16, weight: .semibold))
             }
             .padding(.top, 4)
@@ -36,25 +36,25 @@ struct AddAccountSheet: View {
             // Form fields
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("Account Name", systemImage: "person")
+                    Label(L10n.accountName, systemImage: "person")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    TextField("e.g., Work, Personal", text: $name)
+                    TextField(L10n.accountNamePlaceholder, text: $name)
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .name)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("Authorization Token", systemImage: "key")
+                    Label(L10n.authToken, systemImage: "key")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    TextField("Bearer token from ChatGPT", text: $authToken)
+                    TextField(L10n.authTokenPlaceholder, text: $authToken)
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .token)
 
-                    Text("Get token from browser developer tools")
+                    Text(L10n.getAuthTokenHint)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
@@ -77,12 +77,12 @@ struct AddAccountSheet: View {
             HStack {
                 Spacer()
 
-                Button("Cancel") {
+                Button(L10n.cancel) {
                     isPresented = false
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button(isEditing ? "Save" : "Add") {
+                Button(isEditing ? L10n.save : L10n.add) {
                     saveAccount()
                 }
                 .buttonStyle(.borderedProminent)
@@ -109,7 +109,7 @@ struct AddAccountSheet: View {
         guard !trimmedToken.isEmpty else {
             withAnimation {
                 showError = true
-                errorMessage = "Token cannot be empty"
+                errorMessage = L10n.tokenCannotBeEmpty
             }
             return
         }
