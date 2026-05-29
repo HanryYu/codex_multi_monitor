@@ -72,14 +72,18 @@ class AccountStore: ObservableObject {
     
     func loadAccounts() {
         guard let data = userDefaults.data(forKey: accountsKey) else { return }
-        
+
         do {
             let decoder = JSONDecoder()
             accounts = try decoder.decode([Account].self, from: data)
-            
-            // Load tokens from Keychain
+
+            // Migrate tokens from Keychain on first run after update
+            let accountIDs = accounts.map { $0.id.uuidString }
+            SecureTokenStore.migrateFromKeychain(accountIDs: accountIDs)
+
+            // Load tokens from encrypted local storage
             for i in 0..<accounts.count {
-                if let token = KeychainHelper.load(key: "token_\(accounts[i].id.uuidString)") {
+                if let token = SecureTokenStore.load(accountID: accounts[i].id.uuidString) {
                     accounts[i].authToken = token
                 }
             }
@@ -93,10 +97,10 @@ class AccountStore: ObservableObject {
             let encoder = JSONEncoder()
             let data = try encoder.encode(accounts)
             userDefaults.set(data, forKey: accountsKey)
-            
-            // Save tokens to Keychain
+
+            // Save tokens to encrypted local storage
             for account in accounts {
-                KeychainHelper.save(key: "token_\(account.id.uuidString)", value: account.authToken)
+                SecureTokenStore.save(accountID: account.id.uuidString, token: account.authToken)
             }
         } catch {
             print("Failed to save accounts: \(error)")
@@ -118,7 +122,7 @@ class AccountStore: ObservableObject {
     func deleteAccount(at offsets: IndexSet) {
         for index in offsets {
             let account = accounts[index]
-            KeychainHelper.delete(key: "token_\(account.id.uuidString)")
+            SecureTokenStore.delete(accountID: account.id.uuidString)
             usageData.removeValue(forKey: account.id)
         }
         accounts.remove(atOffsets: offsets)
@@ -127,7 +131,7 @@ class AccountStore: ObservableObject {
     
     func deleteAccount(id: UUID) {
         if let index = accounts.firstIndex(where: { $0.id == id }) {
-            KeychainHelper.delete(key: "token_\(id.uuidString)")
+            SecureTokenStore.delete(accountID: id.uuidString)
             usageData.removeValue(forKey: id)
             accounts.remove(at: index)
             saveAccounts()

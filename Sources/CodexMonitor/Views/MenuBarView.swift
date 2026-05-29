@@ -597,17 +597,6 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(accountStore.isLoading)
-
-                Spacer()
-
-                Button(action: {
-                    WindowManager.shared.openSettingsWindow()
-                }) {
-                    Image(systemName: "gear")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color.secondary)
-                }
-                .buttonStyle(.plain)
             }
 
             Divider().opacity(0.3).padding(.top, 6)

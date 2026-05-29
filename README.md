@@ -6,10 +6,13 @@ A macOS menu bar application that monitors your ChatGPT Codex usage in real-time
 
 - 🎯 **Menu Bar App** - Lives in your macOS menu bar, no Dock icon
 - 📊 **Real-time Monitoring** - Track rate limits for 5-hour and weekly windows
-- 🔐 **Secure Token Storage** - Uses macOS Keychain for sensitive data
-- 🔄 **Auto-refresh** - Updates every 5 minutes automatically
+- 🔐 **Secure Token Storage** - AES-256 encrypted local storage — no system password prompts
+- 🔄 **Auto-refresh** - Configurable refresh interval (1–60 min, default 5 min)
 - 🎨 **Status Indicator** - Color-coded icon (green/yellow/red) based on usage
 - 👥 **Multi-account Support** - Monitor multiple ChatGPT accounts simultaneously
+- ⚙️ **Unified Settings** - Single settings window with tabbed interface (Accounts + Preferences)
+- 📐 **Display Modes** - Show remaining percentage or used percentage
+- ⏱️ **Reset Time Format** - Display reset time as relative ("in 3h 20m") or absolute ("15:06")
 
 ## Screenshots
 
@@ -23,8 +26,8 @@ The app displays usage information like:
 
 ## Requirements
 
-- macOS 14.0 (Sonoma) or later
-- Swift 5.9+ (included in Xcode 15+)
+- macOS 15.0 (Sequoia) or later
+- Swift 6.0+ / Swift Tools 6.0
 - ChatGPT Plus/Pro/Enterprise subscription
 
 ## Installation
@@ -35,7 +38,7 @@ The app displays usage information like:
 
 2. **Build the project**:
    ```bash
-   cd codex-monitor
+   cd codex_multi_monitor
    swift build
    ```
 
@@ -48,7 +51,7 @@ The app displays usage information like:
 
 1. **Generate Xcode project**:
    ```bash
-   cd codex-monitor
+   cd codex_multi_monitor
    swift package generate-xcodeproj
    ```
 
@@ -66,6 +69,27 @@ The app displays usage information like:
 
 ## Getting Your API Token
 
+### Quick Method (Console One-liner)
+
+1. Open [ChatGPT](https://chatgpt.com) in your browser and **make sure you are logged in**
+2. Open Developer Tools Console:
+   - **Chrome**: ⌘⌥J (Mac) or F12 → Console
+   - **Firefox**: ⌘⌥K (Mac) or F12 → Console
+   - **Safari**: ⌘⌥C (Mac) — enable Developer menu first in Safari → Settings → Advanced
+3. Paste this one-liner and press **Enter**:
+
+```javascript
+fetch('/api/auth/session').then(r=>r.json()).then(d=>{const t=d.accessToken;if(t){copy(t);alert('✅ Token copied to clipboard!\nPaste it into CodexMonitor.')}else{alert('❌ No accessToken found.\nMake sure you are logged in to ChatGPT.')}}).catch(()=>{const t=document.cookie.match(/__Secure-next-auth\.session-token=([^;]+)/)?.[1];if(t){copy(t);alert('✅ Session token copied (fallback)!\nPaste it into CodexMonitor.')}else{alert('❌ Could not extract token.\nMake sure you are logged in, or use the Network tab method below.')}})
+```
+
+4. The token is now in your clipboard — paste it into CodexMonitor
+
+> **How it works:** This first tries to fetch an access token from ChatGPT's `/api/auth/session` endpoint (the same token the web app uses). If that fails, it falls back to extracting the `__Secure-next-auth.session-token` cookie value directly.
+
+### Manual Method (Network Tab)
+
+If the one-liner doesn't work:
+
 1. Open [ChatGPT](https://chatgpt.com) in your browser
 2. Open Developer Tools (F12 or ⌘⌥I)
 3. Go to **Network** tab
@@ -77,10 +101,17 @@ The app displays usage information like:
 ## Usage
 
 1. **Launch** - The app appears as a gauge icon in your menu bar
-2. **Click** - Opens the monitoring panel
-3. **Add Account** - Click the "+" button and enter your token
-4. **Monitor** - View real-time usage statistics
-5. **Auto-refresh** - Data updates every 5 minutes automatically
+2. **Click** - Opens the monitoring panel showing all accounts
+3. **Add Account** - Click the "+" button (or open Settings) and enter your token
+4. **Monitor** - View real-time usage statistics per account
+5. **Auto-refresh** - Data updates automatically at your configured interval
+
+### Settings
+
+Open Settings via the gear icon or menu. Two tabs are available:
+
+- **Accounts** — Add, edit, remove, or reorder accounts. Drag to reorder.
+- **Preferences** — Configure display mode (remaining/used %), reset time format (relative/absolute), refresh interval, and launch-at-login.
 
 ### Status Colors
 
@@ -91,7 +122,7 @@ The app displays usage information like:
 ## Project Structure
 
 ```
-codex-monitor/
+codex_multi_monitor/
 ├── Package.swift
 ├── README.md
 └── Sources/
@@ -100,14 +131,17 @@ codex-monitor/
         ├── Info.plist                # App configuration
         ├── Models/
         │   ├── Account.swift         # Account data model
-        │   └── UsageResponse.swift   # API response models
+        │   └── UsageResponse.swift   # API response models (rate limits, credits, etc.)
         ├── Services/
-        │   ├── APIService.swift      # Network requests
-        │   ├── AccountStore.swift    # Account management
-        │   └── KeychainHelper.swift  # Keychain utilities
+        │   ├── APIService.swift      # Network requests to ChatGPT API
+        │   ├── AccountStore.swift    # Account management & persistence
+        │   ├── SecureTokenStore.swift # AES-GCM encrypted token storage
+        │   └── WindowManager.swift   # Centralized window management
         └── Views/
-            ├── MenuBarView.swift     # Main menu bar view
-            └── AddAccountSheet.swift # Add/edit account sheet
+            ├── MenuBarView.swift     # Main menu bar popover view
+            ├── AddAccountSheet.swift # Add/edit account sheet
+            ├── UnifiedSettingsView.swift  # Tabbed settings window (Accounts + Preferences)
+            └── PreferencesView.swift     # Display & refresh preferences
 ```
 
 ## API Details
@@ -116,7 +150,7 @@ The app uses the ChatGPT internal API:
 
 ```
 GET https://chatgpt.com/backend-api/wham/usage
-Authorization: Bearer <your-token>
+Authorization: Bearer <token>
 ```
 
 Response includes:
@@ -124,17 +158,18 @@ Response includes:
 - `rate_limit.primary_window` - 5-hour rolling window usage
 - `rate_limit.secondary_window` - Weekly usage limits
 - `credits` - API credit balance (if applicable)
+- `spend_control` - Spend control information
 
 ## Troubleshooting
 
 ### "Unauthorized" Error
-- Token may have expired
-- Get a fresh token from browser developer tools
+- Token may have expired — get a fresh token using the console one-liner above
+- If using the cookie fallback, try the `/api/auth/session` method instead (or vice versa)
 
 ### No Data Showing
 - Check your internet connection
 - Verify the token is valid
-- Try manual refresh (click the refresh button)
+- Try manual refresh (click the refresh button in the popover)
 
 ### App Not Appearing
 - Check if it's running: `ps aux | grep CodexMonitor`
@@ -143,7 +178,7 @@ Response includes:
 
 ## Security Notes
 
-- Tokens are stored in macOS Keychain (encrypted)
+- Tokens are stored in AES-256 encrypted local files (Application Support/CodexMonitor)
 - No data is sent to third-party servers
 - All requests go directly to OpenAI's servers
 - Token is only transmitted over HTTPS
