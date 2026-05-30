@@ -7,31 +7,91 @@ enum AppLanguage: String {
     case zhHans = "zh-Hans"
     case zhHant = "zh-Hant"
     case ja
+
+    var displayName: String {
+        switch self {
+        case .en:     return "English"
+        case .zhHans: return "简体中文"
+        case .zhHant: return "繁體中文"
+        case .ja:     return "日本語"
+        }
+    }
 }
 
-struct LocaleManager {
+enum LanguageOption: Hashable {
+    case system
+    case manual(AppLanguage)
+
+    static var allCases: [LanguageOption] {
+        [.system, .manual(.zhHans), .manual(.zhHant), .manual(.en), .manual(.ja)]
+    }
+
+    var displayName: String {
+        switch self {
+        case .system: return "跟随系统"
+        case .manual(let lang): return lang.displayName
+        }
+    }
+
+    var rawValue: String {
+        switch self {
+        case .system: return ""
+        case .manual(let lang): return lang.rawValue
+        }
+    }
+
+    static func from(saved: String?) -> LanguageOption {
+        guard let saved, !saved.isEmpty, let lang = AppLanguage(rawValue: saved) else {
+            return .system
+        }
+        return .manual(lang)
+    }
+}
+
+class LocaleManager {
     static let shared = LocaleManager()
 
-    let currentLanguage: AppLanguage
+    private(set) var currentLanguage: AppLanguage
 
     private init() {
+        currentLanguage = LocaleManager.resolveLanguage()
+    }
+
+    func setLanguage(_ option: LanguageOption) {
+        switch option {
+        case .system:
+            UserDefaults.standard.removeObject(forKey: "app_language")
+        case .manual(let lang):
+            UserDefaults.standard.set(lang.rawValue, forKey: "app_language")
+        }
+        currentLanguage = LocaleManager.resolveLanguage()
+    }
+
+    var currentLanguageOption: LanguageOption {
+        let saved = UserDefaults.standard.string(forKey: "app_language") ?? ""
+        if saved.isEmpty { return .system }
+        guard let lang = AppLanguage(rawValue: saved) else { return .system }
+        return .manual(lang)
+    }
+
+    private static func resolveLanguage() -> AppLanguage {
+        let saved = UserDefaults.standard.string(forKey: "app_language") ?? ""
+        if !saved.isEmpty, let manual = AppLanguage(rawValue: saved) {
+            return manual
+        }
         let locale = Locale.current
-        let identifier = locale.identifier  // e.g. "zh-Hans_CN", "zh_TW", "ja_JP"
+        let identifier = locale.identifier
         let langCode = locale.language.languageCode?.identifier ?? "en"
         let region = locale.language.region?.identifier ?? ""
-
         if langCode == "ja" {
-            currentLanguage = .ja
+            return .ja
         } else if langCode == "zh" {
-            // Determine Simplified vs Traditional by identifier or region
             if identifier.contains("Hant") || identifier.contains("TW") || identifier.contains("HK") || identifier.contains("MO") || region == "TW" || region == "HK" || region == "MO" {
-                currentLanguage = .zhHant
-            } else {
-                currentLanguage = .zhHans
+                return .zhHant
             }
-        } else {
-            currentLanguage = .en
+            return .zhHans
         }
+        return .en
     }
 }
 
@@ -714,6 +774,35 @@ enum L10n {
         case .ja:    return "アカウントがしきい値を超えた場合に通知"
         case .zhHans: return "当账户使用率超过此阈值时通知"
         case .zhHant: return "當帳戶使用率超過此閾值時通知"
+        }
+    }
+
+    // MARK: - Language Picker
+
+    static var language: String {
+        switch lang {
+        case .en:    return "Language"
+        case .ja:    return "言語"
+        case .zhHans: return "语言"
+        case .zhHant: return "語言"
+        }
+    }
+
+    static var languageDesc: String {
+        switch lang {
+        case .en:    return "Override the display language of the app"
+        case .ja:    return "アプリの表示言語を手動で指定"
+        case .zhHans: return "手动指定应用的显示语言"
+        case .zhHant: return "手動指定應用的顯示語言"
+        }
+    }
+
+    static var followSystem: String {
+        switch lang {
+        case .en:    return "Follow System"
+        case .ja:    return "システムに従う"
+        case .zhHans: return "跟随系统"
+        case .zhHant: return "跟隨系統"
         }
     }
 }

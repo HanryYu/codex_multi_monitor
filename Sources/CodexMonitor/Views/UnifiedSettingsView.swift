@@ -203,6 +203,7 @@ struct PreferencesContentView: View {
     @State private var alertThreshold: Double = 80
     @State private var showMenuBarText: Bool = false
     @State private var resetTimeFormat: ResetTimeFormat = .relative
+    @State private var selectedLanguage: LanguageOption = .system
 
     var body: some View {
         ScrollView {
@@ -358,6 +359,31 @@ struct PreferencesContentView: View {
                     }
                     .padding(.leading, 2)
                 }
+
+                Divider().opacity(0.4)
+
+                // Language
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(L10n.language, systemImage: "globe")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Text(L10n.languageDesc)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+
+                    Picker("", selection: $selectedLanguage) {
+                        ForEach(LanguageOption.allCases, id: \.self) { option in
+                            Text(option.displayName)
+                                .tag(option)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: selectedLanguage) { _, newValue in
+                        LocaleManager.shared.setLanguage(newValue)
+                    }
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -393,6 +419,9 @@ struct PreferencesContentView: View {
 
         let formatString = UserDefaults.standard.string(forKey: PreferencesKeys.resetTimeFormat) ?? ResetTimeFormat.relative.rawValue
         resetTimeFormat = ResetTimeFormat(rawValue: formatString) ?? .relative
+
+        let langString = UserDefaults.standard.string(forKey: "app_language")
+        selectedLanguage = LanguageOption.from(saved: langString)
     }
 
     private func toggleLaunchAtLogin(enable: Bool) {
