@@ -248,6 +248,7 @@ struct PreferencesContentView: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
+                    .frame(maxWidth: .infinity)
                     .onChange(of: displayMode) { _, newValue in
                         UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.displayMode)
                         NotificationCenter.default.post(name: .displayModeChanged, object: nil)
@@ -272,6 +273,7 @@ struct PreferencesContentView: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
+                    .frame(maxWidth: .infinity)
                     .onChange(of: resetTimeFormat) { _, newValue in
                         UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.resetTimeFormat)
                         NotificationCenter.default.post(name: .resetTimeFormatChanged, object: nil)
