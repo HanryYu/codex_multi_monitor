@@ -35,4 +35,17 @@ struct Account: Codable, Identifiable {
         self.accountID = accountID
         self.localAuthInvalid = localAuthInvalid
     }
+
+    // Custom decoder for backward compatibility with v0.4.x JSON
+    // that lacks `source` and `localAuthInvalid` fields.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        authToken = try container.decode(String.self, forKey: .authToken)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        source = try container.decodeIfPresent(AccountSource.self, forKey: .source) ?? .manual
+        accountID = try container.decodeIfPresent(String.self, forKey: .accountID)
+        localAuthInvalid = try container.decodeIfPresent(Bool.self, forKey: .localAuthInvalid) ?? false
+    }
 }
