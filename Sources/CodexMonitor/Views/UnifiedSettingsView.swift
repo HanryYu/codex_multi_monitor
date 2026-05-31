@@ -140,23 +140,8 @@ struct AccountManagementContentView: View {
                             if let result = accountStore.usageData[account.id] {
                                 switch result {
                                 case .success(let usage):
-                                    if let reachedType = usage.rateLimitReachedType {
-                                        // Distinguish 5h vs weekly limit
-                                        let type = reachedType.type.lowercased()
-                                        let label: String
-                                        if type == "primary" || type.contains("5h") || type.contains("5hour") || type.contains("hour") {
-                                            label = L10n.fiveHourLimitReached()
-                                        } else if type == "secondary" || type.contains("weekly") || type.contains("7d") || type.contains("week") {
-                                            label = L10n.weeklyLimitReached()
-                                        } else {
-                                            label = L10n.limitReached
-                                        }
+                                    if let label = resolvedLimitLabel(for: usage) {
                                         Text(label)
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(.red)
-                                    } else if let rl = usage.rateLimit, rl.limitReached {
-                                        // rate_limit windows exist but type not specified — still show as limit reached
-                                        Text(L10n.limitReached)
                                             .font(.system(size: 12, weight: .semibold))
                                             .foregroundStyle(.red)
                                     } else if let percent = usage.rateLimit?.primaryWindow?.usedPercent {
@@ -228,6 +213,24 @@ struct AccountManagementContentView: View {
         let prefix = token.prefix(8)
         let suffix = token.suffix(4)
         return "\(prefix)••••\(suffix)"
+    }
+
+    /// Resolve the limit-reached label for an account's usage data.
+    /// Returns nil if the account has not reached any limit.
+    func resolvedLimitLabel(for usage: UsageResponse) -> String? {
+        if let reachedType = usage.rateLimitReachedType {
+            let t = reachedType.type.lowercased()
+            if t == "primary" || t.contains("5h") || t.contains("5hour") || t.contains("hour") {
+                return L10n.fiveHourLimitReached()
+            } else if t == "secondary" || t.contains("weekly") || t.contains("7d") || t.contains("week") {
+                return L10n.weeklyLimitReached()
+            }
+            return L10n.limitReached
+        }
+        if let rl = usage.rateLimit, rl.limitReached {
+            return L10n.limitReached
+        }
+        return nil
     }
 }
 
