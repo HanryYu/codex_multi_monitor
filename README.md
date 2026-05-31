@@ -4,6 +4,10 @@
 
 A macOS menu bar app that monitors your ChatGPT Codex usage in real-time.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/HanryYu/codex_multi_monitor/main/assets/codexmonitor-screenshot.png" alt="CodexMonitor Screenshot" width="420">
+</p>
+
 ---
 
 ## Table of Contents
@@ -14,6 +18,7 @@ A macOS menu bar app that monitors your ChatGPT Codex usage in real-time.
 - [Getting Your API Token](#getting-your-api-token)
 - [Usage](#usage)
 - [Status Colors](#status-colors)
+- [Automation & CI/CD](#automation--cicd)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 
@@ -30,6 +35,8 @@ A macOS menu bar app that monitors your ChatGPT Codex usage in real-time.
 - ⚙️ **Unified Settings** — Single settings window with tabbed interface
 - 📐 **Display Modes** — Show remaining or used percentage
 - ⏱️ **Reset Time Format** — Relative ("in 3h 20m") or absolute ("15:06")
+- 🔔 **Smart Notifications** — Usage alerts when threshold exceeded, recovery alerts when limits reset
+- 🌐 **Multi-language** — English, 简体中文, 繁體中文, 日本語
 
 ## Requirements
 
@@ -72,7 +79,7 @@ Copy the output and paste it into CodexMonitor.
 1. Open [chatgpt.com/codex/cloud/settings/analytics](https://chatgpt.com/codex/cloud/settings/analytics) in your browser and **log in**
 2. Open Developer Tools (`⌘⌥I` on Mac) → **Network** tab
 3. The page will automatically load usage data — look for a request to `wham/usage`
-4. Click the request → **Headers** → copy the `Authorization: Bearer <token>` value
+4. Click the request → **Headers** → copy the `Authorization: Bearer ` value
 5. Paste the token (without `Bearer ` prefix) into CodexMonitor
 
 ## Usage
@@ -87,7 +94,7 @@ Copy the output and paste it into CodexMonitor.
 Open via the gear icon:
 
 - **Accounts** — Add, edit, remove, or reorder accounts (drag to reorder)
-- **Preferences** — Display mode, reset time format, refresh interval, launch at login
+- **Preferences** — Display mode, reset time format, refresh interval, launch at login, notifications
 
 ## Status Colors
 
@@ -96,6 +103,25 @@ Open via the gear icon:
 | 🟢 Green | Healthy usage (< 60%) |
 | 🟡 Yellow | Approaching limit (60–80%) |
 | 🔴 Red | At or near limit (> 80%) |
+
+## Automation & CI/CD
+
+The project uses GitHub Actions for automated release builds:
+
+- **Release workflow** triggers on version tag push (`v*`)
+- Builds a release binary with `swift build -c release`
+- Code signs with Developer ID (via GitHub Secrets)
+- Creates a DMG installer
+- Publishes a GitHub Release with the DMG attached
+
+To create a new release:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The workflow will automatically build, sign, and publish the release.
 
 ## Troubleshooting
 
