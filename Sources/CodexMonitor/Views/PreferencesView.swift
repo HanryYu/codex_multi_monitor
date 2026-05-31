@@ -58,6 +58,8 @@ enum PreferencesKeys {
     static let showMenuBarText = "showMenuBarText"
     static let resetTimeFormat = "resetTimeFormat"
     static let autoImportEnabled = "auto_import_enabled"
+    static let usageAlertEnabled = "usageAlertEnabled"
+    static let recoveryNotificationEnabled = "recoveryNotificationEnabled"
 }
 
 // MARK: - Default Binary Path
@@ -361,4 +363,6 @@ extension Notification.Name {
     static let menuBarTextChanged = Notification.Name("CodexMonitor.menuBarTextChanged")
     static let resetTimeFormatChanged = Notification.Name("CodexMonitor.resetTimeFormatChanged")
     static let autoImportChanged = Notification.Name("CodexMonitor.autoImportChanged")
+    static let usageAlertEnabledChanged = Notification.Name("CodexMonitor.usageAlertEnabledChanged")
+    static let recoveryNotificationEnabledChanged = Notification.Name("CodexMonitor.recoveryNotificationEnabledChanged")
 }

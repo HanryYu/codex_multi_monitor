@@ -173,8 +173,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     // MARK: - Notification Permission
 
     func requestNotificationPermission() {
+        UNUserNotificationCenter.current().delegate = self
+        AppDelegate.requestNotificationAuthorization()
+    }
+
+    /// Static method that can be called from settings to request notification permission
+    static func requestNotificationAuthorization() {
         let center = UNUserNotificationCenter.current()
-        center.delegate = self
         center.requestAuthorization(options: [.alert, .sound]) { granted, error in
             if let error = error {
                 print("Notification permission error: \(error)")

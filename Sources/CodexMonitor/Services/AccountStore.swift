@@ -242,6 +242,8 @@ class AccountStore: ObservableObject {
     
     /// Check for accounts that recovered from limited state and send notifications
     private func checkRecoveryNotifications(previousLimited: [UUID: String]) {
+        guard UserDefaults.standard.bool(forKey: PreferencesKeys.recoveryNotificationEnabled) != false else { return }
+
         for account in accounts {
             guard let previousType = previousLimited[account.id] else { continue }
             // Was limited before — check if now available
@@ -272,8 +274,10 @@ class AccountStore: ObservableObject {
     }
     
     // MARK: - Usage Alerts
-    
+
     private func checkUsageAlerts() {
+        guard UserDefaults.standard.bool(forKey: PreferencesKeys.usageAlertEnabled) != false else { return }
+
         let threshold = UserDefaults.standard.integer(forKey: PreferencesKeys.alertThreshold)
         let alertThreshold = threshold > 0 ? threshold : 80
         

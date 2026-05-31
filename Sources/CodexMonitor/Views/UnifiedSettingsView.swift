@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 // MARK: - Unified Settings Window
 
@@ -229,34 +230,15 @@ struct PreferencesContentView: View {
     @State private var resetTimeFormat: ResetTimeFormat = .relative
     @State private var selectedLanguage: LanguageOption = .system
     @State private var autoImportEnabled: Bool = false
+    @State private var usageAlertEnabled: Bool = true
+    @State private var recoveryNotificationEnabled: Bool = true
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Data Refresh Interval
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(L10n.dataRefreshInterval, systemImage: "arrow.clockwise")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
 
-                    Text(L10n.dataRefreshIntervalDesc)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-
-                    Picker("", selection: $refreshInterval) {
-                        ForEach(RefreshInterval.allCases) { interval in
-                            Text(interval.label).tag(interval)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .onChange(of: refreshInterval) { _, newValue in
-                        UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.refreshInterval)
-                        NotificationCenter.default.post(name: .refreshIntervalChanged, object: nil)
-                    }
-                }
-
-                Divider().opacity(0.4)
+                // ── Display Section ──
+                SectionHeader(label: L10n.displaySection, systemImage: "eye")
 
                 // Display Mode Toggle
                 VStack(alignment: .leading, spacing: 8) {
@@ -280,8 +262,31 @@ struct PreferencesContentView: View {
                         NotificationCenter.default.post(name: .displayModeChanged, object: nil)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                Divider().opacity(0.4)
+                CompactDivider()
+
+                // Menu Bar Text Toggle
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Label(L10n.showTextInMenuBar, systemImage: "text.alignleft")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Toggle("", isOn: $showMenuBarText)
+                            .labelsHidden()
+                    }
+                    .onChange(of: showMenuBarText) { _, newValue in
+                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showMenuBarText)
+                        NotificationCenter.default.post(name: .menuBarTextChanged, object: nil)
+                    }
+
+                    Text(L10n.showTextInMenuBarDesc)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                CompactDivider()
 
                 // Reset Time Format
                 VStack(alignment: .leading, spacing: 8) {
@@ -305,55 +310,132 @@ struct PreferencesContentView: View {
                         NotificationCenter.default.post(name: .resetTimeFormatChanged, object: nil)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                Divider().opacity(0.4)
+                // ── Notifications Section ──
+                SectionHeader(label: L10n.notificationSection, systemImage: "bell")
 
-                // Menu Bar Text Toggle
+                // Usage Alert Toggle
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Label(L10n.showTextInMenuBar, systemImage: "text.alignleft")
+                        Label(L10n.usageAlertEnabledLabel, systemImage: "bell.fill")
                             .font(.system(size: 12, weight: .medium))
                         Spacer()
-                        Toggle("", isOn: $showMenuBarText)
+                        Toggle("", isOn: $usageAlertEnabled)
                             .labelsHidden()
                     }
-                    .onChange(of: showMenuBarText) { _, newValue in
-                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showMenuBarText)
-                        NotificationCenter.default.post(name: .menuBarTextChanged, object: nil)
+                    .onChange(of: usageAlertEnabled) { _, newValue in
+                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.usageAlertEnabled)
+                        NotificationCenter.default.post(name: .usageAlertEnabledChanged, object: nil)
+                        if newValue { requestNotificationPermissionIfNeeded() }
                     }
 
-                    Text(L10n.showTextInMenuBarDesc)
+                    Text(L10n.usageAlertEnabledDesc)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Divider().opacity(0.4)
+                // Alert Threshold (conditionally visible)
+                if usageAlertEnabled {
+                    CompactDivider()
 
-                // Alert Threshold
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Label(L10n.usageAlertThreshold, systemImage: "bell.fill")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("\(Int(alertThreshold))%")
-                            .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text(L10n.usageAlertThresholdDesc)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-
-                    Slider(value: $alertThreshold, in: 50...95, step: 5)
-                        .onChange(of: alertThreshold) { _, newValue in
-                            UserDefaults.standard.set(Int(newValue), forKey: PreferencesKeys.alertThreshold)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Label(L10n.usageAlertThreshold, systemImage: "slider.horizontal.3")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(Int(alertThreshold))%")
+                                .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(.secondary)
                         }
+
+                        Text(L10n.usageAlertThresholdDesc)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+
+                        Slider(value: $alertThreshold, in: 50...95, step: 5)
+                            .onChange(of: alertThreshold) { _, newValue in
+                                UserDefaults.standard.set(Int(newValue), forKey: PreferencesKeys.alertThreshold)
+                            }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                CompactDivider()
+
+                // Recovery Notification Toggle
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Label(L10n.recoveryNotificationLabel, systemImage: "arrow.clockwise.circle")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Toggle("", isOn: $recoveryNotificationEnabled)
+                            .labelsHidden()
+                    }
+                    .onChange(of: recoveryNotificationEnabled) { _, newValue in
+                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.recoveryNotificationEnabled)
+                        NotificationCenter.default.post(name: .recoveryNotificationEnabledChanged, object: nil)
+                        if newValue { requestNotificationPermissionIfNeeded() }
+                    }
+
+                    Text(L10n.recoveryNotificationDesc)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Divider().opacity(0.4)
+                // ── General Section ──
+                SectionHeader(label: L10n.generalSection, systemImage: "gear")
+
+                // Data Refresh Interval
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(L10n.dataRefreshInterval, systemImage: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Text(L10n.dataRefreshIntervalDesc)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+
+                    Picker("", selection: $refreshInterval) {
+                        ForEach(RefreshInterval.allCases) { interval in
+                            Text(interval.label).tag(interval)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: refreshInterval) { _, newValue in
+                        UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.refreshInterval)
+                        NotificationCenter.default.post(name: .refreshIntervalChanged, object: nil)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                CompactDivider()
+
+                // Auto Import Local Accounts
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Label(L10n.autoImportLocalAccounts, systemImage: "arrow.down.doc")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Toggle("", isOn: $autoImportEnabled)
+                            .labelsHidden()
+                    }
+                    .onChange(of: autoImportEnabled) { _, newValue in
+                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.autoImportEnabled)
+                        NotificationCenter.default.post(name: .autoImportChanged, object: nil)
+                    }
+
+                    Text(L10n.autoImportLocalAccountsDesc)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                CompactDivider()
 
                 // Launch at Login
                 VStack(alignment: .leading, spacing: 8) {
@@ -394,29 +476,7 @@ struct PreferencesContentView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Divider().opacity(0.4)
-
-                // Auto Import Local Accounts
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Label(L10n.autoImportLocalAccounts, systemImage: "arrow.down.doc")
-                            .font(.system(size: 12, weight: .medium))
-                        Spacer()
-                        Toggle("", isOn: $autoImportEnabled)
-                            .labelsHidden()
-                    }
-                    .onChange(of: autoImportEnabled) { _, newValue in
-                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.autoImportEnabled)
-                        NotificationCenter.default.post(name: .autoImportChanged, object: nil)
-                    }
-
-                    Text(L10n.autoImportLocalAccountsDesc)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Divider().opacity(0.4)
+                CompactDivider()
 
                 // Language
                 VStack(alignment: .leading, spacing: 8) {
@@ -483,10 +543,56 @@ struct PreferencesContentView: View {
         selectedLanguage = LanguageOption.from(saved: langString)
 
         autoImportEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.autoImportEnabled)
+
+        // Notification toggles (default true)
+        let usageAlertVal = UserDefaults.standard.object(forKey: PreferencesKeys.usageAlertEnabled) as? Bool
+        usageAlertEnabled = usageAlertVal ?? true
+
+        let recoveryVal = UserDefaults.standard.object(forKey: PreferencesKeys.recoveryNotificationEnabled) as? Bool
+        recoveryNotificationEnabled = recoveryVal ?? true
     }
 
     private func toggleLaunchAtLogin(enable: Bool) {
         UserDefaults.standard.set(bundleIdentifier, forKey: PreferencesKeys.bundleIdentifier)
         _ = writeLaunchAgentPlist(bundleID: bundleIdentifier, binaryPath: binaryPath, enable: enable)
+    }
+
+    /// Check notification authorization and request if not yet granted
+    private func requestNotificationPermissionIfNeeded() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            guard settings.authorizationStatus != .authorized else { return }
+            DispatchQueue.main.async {
+                AppDelegate.requestNotificationAuthorization()
+            }
+        }
+    }
+}
+
+// MARK: - Section Header
+
+struct SectionHeader: View {
+    let label: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            Spacer()
+        }
+        .padding(.top, 6)
+    }
+}
+
+// MARK: - Compact Divider
+
+struct CompactDivider: View {
+    var body: some View {
+        Divider().opacity(0.3)
     }
 }

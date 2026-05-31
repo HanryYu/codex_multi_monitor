@@ -870,4 +870,71 @@ enum L10n {
         case .zhHant: return "本地認證檔案已失效"
         }
     }
+
+    // MARK: - Notification Toggles
+
+    static var usageAlertEnabledLabel: String {
+        switch lang {
+        case .en:    return "Usage Alert"
+        case .ja:    return "使用量アラート"
+        case .zhHans: return "用量提醒"
+        case .zhHant: return "用量提醒"
+        }
+    }
+
+    static var usageAlertEnabledDesc: String {
+        switch lang {
+        case .en:    return "Notify when any account's usage exceeds the threshold"
+        case .ja:    return "アカウントの使用量がしきい値を超えた場合に通知"
+        case .zhHans: return "当账户用量超过预警阈值时发送系统通知"
+        case .zhHant: return "當帳戶用量超過預警閾值時發送系統通知"
+        }
+    }
+
+    static var recoveryNotificationLabel: String {
+        switch lang {
+        case .en:    return "Recovery Notification"
+        case .ja:    return "復元通知"
+        case .zhHans: return "额度恢复提醒"
+        case .zhHant: return "額度恢復提醒"
+        }
+    }
+
+    static var recoveryNotificationDesc: String {
+        switch lang {
+        case .en:    return "Notify when a rate-limited account becomes available again"
+        case .ja:    return "レート制限が解除されたアカウントを通知"
+        case .zhHans: return "当限额账户恢复可用时发送系统通知"
+        case .zhHant: return "當限額帳戶恢復可用時發送系統通知"
+        }
+    }
+
+    // MARK: - Section Headers
+
+    static var displaySection: String {
+        switch lang {
+        case .en:    return "Display"
+        case .ja:    return "表示"
+        case .zhHans: return "显示"
+        case .zhHant: return "顯示"
+        }
+    }
+
+    static var notificationSection: String {
+        switch lang {
+        case .en:    return "Notifications"
+        case .ja:    return "通知"
+        case .zhHans: return "通知"
+        case .zhHant: return "通知"
+        }
+    }
+
+    static var generalSection: String {
+        switch lang {
+        case .en:    return "General"
+        case .ja:    return "一般"
+        case .zhHans: return "通用"
+        case .zhHant: return "通用"
+        }
+    }
 }
