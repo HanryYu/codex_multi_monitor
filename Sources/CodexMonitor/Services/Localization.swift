@@ -222,6 +222,33 @@ enum L10n {
         }
     }
 
+    static func fiveHourLimitReached() -> String {
+        switch lang {
+        case .en:    return "5-Hour Limit Reached"
+        case .ja:    return "5時間上限到達"
+        case .zhHans: return "5小时限额已达"
+        case .zhHant: return "5小時限額已達"
+        }
+    }
+
+    static func weeklyLimitReached() -> String {
+        switch lang {
+        case .en:    return "Weekly Limit Reached"
+        case .ja:    return "週間上限到達"
+        case .zhHans: return "每周限额已达"
+        case .zhHant: return "每週限額已達"
+        }
+    }
+
+    static func limitRecovered(accountName: String, limitType: String) -> String {
+        switch lang {
+        case .en:    return "\(accountName)'s \(limitType) limit has reset"
+        case .ja:    return "\(accountName)の\(limitType)上限がリセットされました"
+        case .zhHans: return "\(accountName) 的 \(limitType) 限额已刷新，现在可用"
+        case .zhHant: return "\(accountName) 的 \(limitType) 限額已刷新，現在可用"
+        }
+    }
+
     static var unavailable: String {
         switch lang {
         case .en:    return "Unavailable"

@@ -17,6 +17,10 @@ class AccountStore: ObservableObject {
     // Key: account UUID + window seconds, Value: true if notified
     private var notifiedAccounts: [String: Bool] = [:]
     
+    // Track which accounts were previously limited (for recovery notifications)
+    // Key: account UUID, Value: limit type description (e.g. "5小时", "每周")
+    private var previouslyLimitedAccounts: [UUID: String] = [:]
+    
     enum OverallStatus {
         case healthy, warning, critical, noAccounts
     }
@@ -144,6 +148,9 @@ class AccountStore: ObservableObject {
         isLoading = true
         print("[CodexMonitor] refreshAll: refreshing \(accounts.count) accounts")
         
+        // Snapshot limited accounts before refresh for recovery detection
+        let previousLimitedState = previouslyLimitedAccounts
+        
         await withTaskGroup(of: (UUID, Result<UsageResponse, APIError>).self) { group in
             for account in accounts {
                 group.addTask {
@@ -169,12 +176,98 @@ class AccountStore: ObservableObject {
         isLoading = false
         lastRefreshTime = Date()
         
+        // Update limited account tracking and check for recovery
+        updateLimitedTracking()
+        checkRecoveryNotifications(previousLimited: previousLimitedState)
+        
         // Check for usage alerts
         checkUsageAlerts()
         
         // Update status bar icon
         if let appDelegate = NSApp.delegate as? AppDelegate {
             appDelegate.updateStatusBarIcon()
+        }
+    }
+    
+    // MARK: - Limited Account Tracking
+    
+    /// Update the currently-limited accounts map from latest usage data
+    private func updateLimitedTracking() {
+        previouslyLimitedAccounts.removeAll()
+        for account in accounts {
+            guard case .success(let usage) = usageData[account.id] else { continue }
+            if let limitType = resolveLimitType(usage: usage) {
+                previouslyLimitedAccounts[account.id] = limitType
+            }
+        }
+    }
+    
+    /// Resolve the limit type label for a usage response
+    private func resolveLimitType(usage: UsageResponse) -> String? {
+        // Check rate_limit windows first (has more detail)
+        if let rl = usage.rateLimit {
+            var types: [String] = []
+            if let p = rl.primaryWindow, p.usedPercent >= 100 {
+                types.append(limitTypeLabel(seconds: p.limitWindowSeconds))
+            }
+            if let s = rl.secondaryWindow, s.usedPercent >= 100 {
+                let label = limitTypeLabel(seconds: s.limitWindowSeconds)
+                if !types.contains(label) { types.append(label) }
+            }
+            if rl.limitReached && types.isEmpty {
+                return L10n.limitReached
+            }
+            return types.isEmpty ? nil : types.joined(separator: " + ")
+        }
+        // Fallback to rate_limit_reached_type
+        if let reachedType = usage.rateLimitReachedType {
+            let type = reachedType.type.lowercased()
+            if type.contains("5h") || type.contains("5hour") || type.contains("hour") {
+                return L10n.fiveHourLimitReached()
+            } else if type.contains("weekly") || type.contains("7d") || type.contains("week") {
+                return L10n.weeklyLimitReached()
+            }
+            return L10n.limitReached
+        }
+        return nil
+    }
+    
+    private func limitTypeLabel(seconds: Int) -> String {
+        let hours = seconds / 3600
+        if hours >= 168 {
+            return L10n.weeklyLimitReached()
+        }
+        return L10n.fiveHourLimitReached()
+    }
+    
+    /// Check for accounts that recovered from limited state and send notifications
+    private func checkRecoveryNotifications(previousLimited: [UUID: String]) {
+        for account in accounts {
+            guard let previousType = previousLimited[account.id] else { continue }
+            // Was limited before — check if now available
+            let currentLimited = previouslyLimitedAccounts[account.id] != nil
+            if !currentLimited {
+                sendRecoveryNotification(accountName: account.name, limitType: previousType)
+            }
+        }
+    }
+    
+    private func sendRecoveryNotification(accountName: String, limitType: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "CodexMonitor"
+        content.body = L10n.limitRecovered(accountName: accountName, limitType: limitType)
+        content.sound = .default
+        
+        let request = UNNotificationRequest(
+            identifier: "limit_recovered_\(accountName)_\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("[CodexMonitor] Failed to send recovery notification: \(error)")
+            }
         }
     }
     

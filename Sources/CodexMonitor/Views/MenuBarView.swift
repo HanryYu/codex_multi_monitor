@@ -335,6 +335,126 @@ struct CreditsCardView: View {
     }
 }
 
+// MARK: - Limit Overlay View (shows limit type + reset time)
+
+struct LimitOverlayView: View {
+    let usage: UsageResponse
+    var resetTimeFormat: ResetTimeFormat = .relative
+
+    private var limitLabels: [String] {
+        var labels: [String] = []
+        // From rate_limit windows that reached 100%
+        if let rl = usage.rateLimit {
+            if let p = rl.primaryWindow, p.usedPercent >= 100 {
+                labels.append(limitLabel(seconds: p.limitWindowSeconds))
+            }
+            if let s = rl.secondaryWindow, s.usedPercent >= 100 {
+                let label = limitLabel(seconds: s.limitWindowSeconds)
+                if !labels.contains(label) { labels.append(label) }
+            }
+            if rl.limitReached && labels.isEmpty {
+                labels.append(L10n.limitReached)
+            }
+        }
+        // From rate_limit_reached_type
+        if labels.isEmpty, let reachedType = usage.rateLimitReachedType {
+            let type = reachedType.type.lowercased()
+            if type.contains("5h") || type.contains("5hour") || type.contains("hour") {
+                labels.append(L10n.fiveHourLimitReached())
+            } else if type.contains("weekly") || type.contains("7d") || type.contains("week") {
+                labels.append(L10n.weeklyLimitReached())
+            } else {
+                labels.append(L10n.limitReached)
+            }
+        }
+        return labels
+    }
+
+    private var resetTimeText: String? {
+        // Collect all reset times from limited windows
+        var resetTimes: [(afterSeconds: Int, resetAt: Int)] = []
+        if let rl = usage.rateLimit {
+            if let p = rl.primaryWindow, p.usedPercent >= 100 {
+                resetTimes.append((p.resetAfterSeconds, p.resetAt))
+            }
+            if let s = rl.secondaryWindow, s.usedPercent >= 100 {
+                resetTimes.append((s.resetAfterSeconds, s.resetAt))
+            }
+        }
+        // Pick the soonest reset
+        guard let soonest = resetTimes.min(by: { a, b in
+            let aSec = a.afterSeconds > 0 ? a.afterSeconds : max(0, a.resetAt - Int(Date().timeIntervalSince1970))
+            let bSec = b.afterSeconds > 0 ? b.afterSeconds : max(0, b.resetAt - Int(Date().timeIntervalSince1970))
+            return aSec < bSec
+        }) else { return nil }
+
+        if resetTimeFormat == .relative {
+            let seconds: Int
+            if soonest.afterSeconds > 0 {
+                seconds = soonest.afterSeconds
+            } else if soonest.resetAt > 0 {
+                seconds = max(0, soonest.resetAt - Int(Date().timeIntervalSince1970))
+            } else {
+                return nil
+            }
+            guard seconds > 0 else { return nil }
+            let hours = seconds / 3600
+            let minutes = (seconds % 3600) / 60
+            return L10n.resetRelative(hours: hours, minutes: minutes)
+        } else {
+            let targetDate: Date
+            if soonest.resetAt > 0 {
+                targetDate = Date(timeIntervalSince1970: TimeInterval(soonest.resetAt))
+            } else if soonest.afterSeconds > 0 {
+                targetDate = Date().addingTimeInterval(TimeInterval(soonest.afterSeconds))
+            } else {
+                return nil
+            }
+            return L10n.resetAbsoluteTime(targetDate)
+        }
+    }
+
+    private func limitLabel(seconds: Int) -> String {
+        let hours = seconds / 3600
+        if hours >= 168 {
+            return L10n.weeklyLimitReached()
+        } else {
+            return L10n.fiveHourLimitReached()
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.ultraThinMaterial.opacity(0.7))
+
+            VStack(spacing: 4) {
+                ForEach(limitLabels, id: \.self) { label in
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color(hex: "ff3b30"))
+                        Text(label)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color(hex: "ff3b30"))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Color(hex: "ff3b30").opacity(0.1))
+                    .clipShape(Capsule())
+                }
+
+                if let resetText = resetTimeText {
+                    Text(resetText)
+                        .font(.system(size: 10, weight: .medium).monospacedDigit())
+                        .foregroundStyle(Color(hex: "ff3b30").opacity(0.7))
+                        .padding(.top, 2)
+                }
+            }
+        }
+    }
+}
+
 // MARK: - MenuBarView (Popover — Gemini Canvas style)
 
 struct MenuBarView: View {
@@ -516,26 +636,8 @@ struct MenuBarView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
                     .overlay {
-                        if limited {
-                            ZStack {
-                                // Semi-transparent overlay
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(.ultraThinMaterial.opacity(0.7))
-
-                                // Centered badge
-                                HStack(spacing: 6) {
-                                    Image(systemName: "exclamationmark.circle.fill")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(Color(hex: "ff3b30"))
-                                    Text(L10n.limitReached)
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(Color(hex: "ff3b30"))
-                                }
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 6)
-                                .background(Color(hex: "ff3b30").opacity(0.1))
-                                .clipShape(Capsule())
-                            }
+                        if limited, let usageResult, case .success(let usage) = usageResult {
+                            LimitOverlayView(usage: usage, resetTimeFormat: resetTimeFormat)
                         }
                     }
                 }
