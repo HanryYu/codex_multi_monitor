@@ -140,7 +140,22 @@ struct AccountManagementContentView: View {
                             if let result = accountStore.usageData[account.id] {
                                 switch result {
                                 case .success(let usage):
-                                    if usage.rateLimitReachedType != nil {
+                                    if let reachedType = usage.rateLimitReachedType {
+                                        // Distinguish 5h vs weekly limit
+                                        let type = reachedType.type.lowercased()
+                                        let label: String
+                                        if type == "primary" || type.contains("5h") || type.contains("5hour") || type.contains("hour") {
+                                            label = L10n.fiveHourLimitReached()
+                                        } else if type == "secondary" || type.contains("weekly") || type.contains("7d") || type.contains("week") {
+                                            label = L10n.weeklyLimitReached()
+                                        } else {
+                                            label = L10n.limitReached
+                                        }
+                                        Text(label)
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(.red)
+                                    } else if let rl = usage.rateLimit, rl.limitReached {
+                                        // rate_limit windows exist but type not specified — still show as limit reached
                                         Text(L10n.limitReached)
                                             .font(.system(size: 12, weight: .semibold))
                                             .foregroundStyle(.red)
@@ -313,6 +328,7 @@ struct PreferencesContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 // ── Notifications Section ──
+                CompactDivider()
                 SectionHeader(label: L10n.notificationSection, systemImage: "bell")
 
                 // Usage Alert Toggle
@@ -387,6 +403,7 @@ struct PreferencesContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 // ── General Section ──
+                CompactDivider()
                 SectionHeader(label: L10n.generalSection, systemImage: "gear")
 
                 // Data Refresh Interval
