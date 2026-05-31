@@ -62,6 +62,7 @@ struct UnifiedSettingsView: View {
 
 struct AccountManagementContentView: View {
     @ObservedObject var accountStore: AccountStore
+    @ObservedObject var localeManager = LocaleManager.shared
     @State private var showingAddForm = false
     @State private var editingAccount: Account?
 

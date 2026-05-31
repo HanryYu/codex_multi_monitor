@@ -164,8 +164,8 @@ struct QuotaCardView: View {
             if !resetTimeText.isEmpty {
                 Spacer(minLength: 3)
                 Text(resetTimeText)
-                    .font(.system(size: 9, weight: .regular).monospacedDigit())
-                    .foregroundStyle(Color.secondary.opacity(0.55))
+                    .font(.system(size: 11, weight: .regular).monospacedDigit())
+                    .foregroundStyle(Color.secondary.opacity(0.7))
                     .lineLimit(1)
             }
         }
@@ -340,6 +340,7 @@ struct CreditsCardView: View {
 struct LimitOverlayView: View {
     let usage: UsageResponse
     var resetTimeFormat: ResetTimeFormat = .relative
+    @ObservedObject var localeManager = LocaleManager.shared
 
     private var limitLabels: [String] {
         var labels: [String] = []
@@ -446,7 +447,7 @@ struct LimitOverlayView: View {
 
                 if let resetText = resetTimeText {
                     Text(resetText)
-                        .font(.system(size: 10, weight: .medium).monospacedDigit())
+                        .font(.system(size: 11, weight: .medium).monospacedDigit())
                         .foregroundStyle(Color(hex: "ff3b30").opacity(0.7))
                         .padding(.top, 2)
                 }
