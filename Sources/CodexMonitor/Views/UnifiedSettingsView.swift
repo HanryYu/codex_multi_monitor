@@ -255,7 +255,8 @@ struct PreferencesContentView: View {
         ScrollView {
             VStack(spacing: 20) {
 
-                // ── Display Section ──
+                // ── Display Card ──
+                VStack(alignment: .leading, spacing: 8) {
                 SectionHeader(label: L10n.displaySection, systemImage: "eye")
 
                 // Display Mode Toggle
@@ -329,9 +330,14 @@ struct PreferencesContentView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(.quaternary.opacity(0.3))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
 
-                // ── Notifications Section ──
-                CompactDivider()
+                // ── Notifications Card ──
+                VStack(alignment: .leading, spacing: 8) {
                 SectionHeader(label: L10n.notificationSection, systemImage: "bell")
 
                 // Usage Alert Toggle
@@ -404,9 +410,14 @@ struct PreferencesContentView: View {
                         .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(.quaternary.opacity(0.3))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
 
-                // ── General Section ──
-                CompactDivider()
+                // ── General Card ──
+                VStack(alignment: .leading, spacing: 8) {
                 SectionHeader(label: L10n.generalSection, systemImage: "gear")
 
                 // Data Refresh Interval
@@ -520,6 +531,11 @@ struct PreferencesContentView: View {
                         LocaleManager.shared.setLanguage(newValue)
                     }
                 }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(.quaternary.opacity(0.3))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -597,10 +613,10 @@ struct SectionHeader: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: systemImage)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
             Text(label)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
             Spacer()
