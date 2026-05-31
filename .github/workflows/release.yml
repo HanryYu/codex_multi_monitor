@@ -29,7 +29,7 @@ jobs:
         if: env.CERTIFICATE != ''
         run: |
           BINARY=".build/release/CodexMonitor"
-          IDENTITY=$(security find-identity -v -p codesigning build.keychain 2>/dev/null | grep -E "Developer ID Application|Apple Development" | head -1 | awk -F'"' '{print $2}')
+          IDENTITY=$(security find-identity -v -p codesigning signing_temp.keychain 2>/dev/null | grep -E "Developer ID Application|Apple Development" | head -1 | awk -F'"' '{print $2}')
           if [ -z "$IDENTITY" ]; then
             echo "::warning::No signing identity found — skipping signing"
             exit 0
