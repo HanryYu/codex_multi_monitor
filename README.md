@@ -32,6 +32,7 @@ A macOS menu bar app that monitors your ChatGPT Codex usage in real-time.
 - 🔄 **Auto-refresh** — Configurable refresh interval (1–60 min, default 5 min)
 - 🎨 **Status Indicator** — Color-coded icon (green/yellow/red) based on usage
 - 👥 **Multi-account** — Monitor multiple ChatGPT accounts simultaneously
+- 🤖 **Auto Account Sync** — Automatically detects and imports accounts from `~/.codex/auth.json` — works with [cc-switch](https://github.com/HanryYu/cc-switch) or manual token rotation
 - ⚙️ **Unified Settings** — Single settings window with tabbed interface
 - 📐 **Display Modes** — Show remaining or used percentage
 - ⏱️ **Reset Time Format** — Relative ("in 3h 20m") or absolute ("15:06")
