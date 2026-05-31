@@ -339,6 +339,7 @@ struct CreditsCardView: View {
 
 struct MenuBarView: View {
     @ObservedObject var accountStore: AccountStore
+    @ObservedObject var localeManager = LocaleManager.shared
     @State private var displayMode: DisplayMode = .remaining
     @State private var resetTimeFormat: ResetTimeFormat = .relative
 

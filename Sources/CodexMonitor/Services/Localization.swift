@@ -48,10 +48,10 @@ enum LanguageOption: Hashable {
     }
 }
 
-class LocaleManager {
+class LocaleManager: ObservableObject {
     static let shared = LocaleManager()
 
-    private(set) var currentLanguage: AppLanguage
+    @Published private(set) var currentLanguage: AppLanguage
 
     private init() {
         currentLanguage = LocaleManager.resolveLanguage()

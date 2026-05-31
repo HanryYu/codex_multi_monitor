@@ -4,6 +4,7 @@ import SwiftUI
 
 struct UnifiedSettingsView: View {
     @ObservedObject var accountStore: AccountStore
+    @ObservedObject var localeManager = LocaleManager.shared
     @State private var selectedTab: SettingsTab = .accounts
 
     enum SettingsTab: String, CaseIterable {
@@ -46,6 +47,14 @@ struct UnifiedSettingsView: View {
         }
         .frame(width: 460, height: 480)
         .background(.ultraThinMaterial)
+        .onChange(of: localeManager.currentLanguage) { _, _ in
+            if let window = NSApp.windows.first(where: {
+                $0.title.contains("Codex Monitor") || $0.title.contains("CodexMonitor")
+                || $0.title.contains("設定") || $0.title.contains("设置")
+            }) {
+                window.title = L10n.codexMonitorSettings
+            }
+        }
     }
 }
 
@@ -211,6 +220,7 @@ struct AccountManagementContentView: View {
 // MARK: - Preferences Content (no Done button, no window close logic)
 
 struct PreferencesContentView: View {
+    @ObservedObject var localeManager = LocaleManager.shared
     @State private var refreshInterval: RefreshInterval = .fiveMinutes
     @State private var launchAtLogin: Bool = false
     @State private var bundleIdentifier: String = ""
@@ -301,10 +311,13 @@ struct PreferencesContentView: View {
                 Divider().opacity(0.4)
 
                 // Menu Bar Text Toggle
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle(isOn: $showMenuBarText) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
                         Label(L10n.showTextInMenuBar, systemImage: "text.alignleft")
                             .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Toggle("", isOn: $showMenuBarText)
+                            .labelsHidden()
                     }
                     .onChange(of: showMenuBarText) { _, newValue in
                         UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showMenuBarText)
@@ -315,6 +328,7 @@ struct PreferencesContentView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Divider().opacity(0.4)
 
@@ -339,14 +353,18 @@ struct PreferencesContentView: View {
                             UserDefaults.standard.set(Int(newValue), forKey: PreferencesKeys.alertThreshold)
                         }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Divider().opacity(0.4)
 
                 // Launch at Login
-                VStack(alignment: .leading, spacing: 10) {
-                    Toggle(isOn: $launchAtLogin) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
                         Label(L10n.launchAtLogin, systemImage: "power")
                             .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Toggle("", isOn: $launchAtLogin)
+                            .labelsHidden()
                     }
                     .onChange(of: launchAtLogin) { _, newValue in
                         toggleLaunchAtLogin(enable: newValue)
@@ -376,15 +394,18 @@ struct PreferencesContentView: View {
                     }
                     .padding(.leading, 2)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Divider().opacity(0.4)
 
                 // Auto Import Local Accounts
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle(isOn: $autoImportEnabled) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
                         Label(L10n.autoImportLocalAccounts, systemImage: "arrow.down.doc")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Toggle("", isOn: $autoImportEnabled)
+                            .labelsHidden()
                     }
                     .onChange(of: autoImportEnabled) { _, newValue in
                         UserDefaults.standard.set(newValue, forKey: PreferencesKeys.autoImportEnabled)
@@ -395,6 +416,7 @@ struct PreferencesContentView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Divider().opacity(0.4)
 
@@ -426,6 +448,9 @@ struct PreferencesContentView: View {
         }
         .onAppear {
             loadPreferences()
+        }
+        .onChange(of: localeManager.currentLanguage) { _, _ in
+            selectedLanguage = localeManager.currentLanguageOption
         }
     }
 

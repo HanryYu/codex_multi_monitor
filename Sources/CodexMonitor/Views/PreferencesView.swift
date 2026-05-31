@@ -207,9 +207,12 @@ struct PreferencesView: View {
 
                 // Menu Bar Text Toggle
                 VStack(alignment: .leading, spacing: 8) {
-                    Toggle(isOn: $showMenuBarText) {
+                    HStack {
                         Label(L10n.showQuotaInMenuBar, systemImage: "text.alignleft")
                             .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Toggle("", isOn: $showMenuBarText)
+                            .labelsHidden()
                     }
                     .onChange(of: showMenuBarText) { _, newValue in
                         UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showMenuBarText)
@@ -249,9 +252,12 @@ struct PreferencesView: View {
 
                 // Launch at Login
                 VStack(alignment: .leading, spacing: 10) {
-                    Toggle(isOn: $launchAtLogin) {
+                    HStack {
                         Label(L10n.launchAtLogin, systemImage: "power")
                             .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Toggle("", isOn: $launchAtLogin)
+                            .labelsHidden()
                     }
                     .onChange(of: launchAtLogin) { _, newValue in
                         toggleLaunchAtLogin(enable: newValue)
