@@ -805,4 +805,42 @@ enum L10n {
         case .zhHant: return "跟隨系統"
         }
     }
+
+    // MARK: - Auto Import Local Accounts
+
+    static var autoImportLocalAccounts: String {
+        switch lang {
+        case .en:    return "Auto Import Local Accounts"
+        case .ja:    return "ローカルアカウント自動インポート"
+        case .zhHans: return "自动导入本地账户"
+        case .zhHant: return "自動匯入本地帳戶"
+        }
+    }
+
+    static var autoImportLocalAccountsDesc: String {
+        switch lang {
+        case .en:    return "Monitor ~/.codex/auth.json for changes, automatically import and update accounts"
+        case .ja:    return "~/.codex/auth.json の変更を監視し、アカウントを自動インポート・更新"
+        case .zhHans: return "监听 ~/.codex/auth.json 变化，自动导入和更新账户"
+        case .zhHant: return "監聽 ~/.codex/auth.json 變化，自動匯入和更新帳戶"
+        }
+    }
+
+    static var sourceLocalBadge: String {
+        switch lang {
+        case .en:    return "Local"
+        case .ja:    return "ローカル"
+        case .zhHans: return "本地"
+        case .zhHant: return "本地"
+        }
+    }
+
+    static var localAuthInvalid: String {
+        switch lang {
+        case .en:    return "Local auth file missing"
+        case .ja:    return "ローカル認証ファイルがありません"
+        case .zhHans: return "本地认证文件已失效"
+        case .zhHant: return "本地認證檔案已失效"
+        }
+    }
 }

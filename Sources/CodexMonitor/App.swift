@@ -17,6 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var accountStore: AccountStore!
+    var authFileMonitor: AuthFileMonitor?
     var timer: Timer?
     var eventMonitor: Any?
 
@@ -27,6 +28,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Setup WindowManager
         WindowManager.shared.accountStore = accountStore
+
+        // Setup AuthFileMonitor
+        authFileMonitor = AuthFileMonitor(accountStore: accountStore)
+        if UserDefaults.standard.bool(forKey: PreferencesKeys.autoImportEnabled) {
+            authFileMonitor?.startMonitoring()
+        }
 
         // Request notification permissions
         requestNotificationPermission()
@@ -87,6 +94,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             object: nil
         )
 
+        // Listen for auto import toggle changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(autoImportDidChange),
+            name: .autoImportChanged,
+            object: nil
+        )
+
         scheduleRefreshTimer()
 
         Task { @MainActor in
@@ -98,6 +113,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
         }
+        authFileMonitor?.stopMonitoring()
     }
 
     @objc func togglePopover() {
@@ -124,6 +140,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @objc func menuBarTextChanged() {
         Task { @MainActor in
             updateStatusBarTitle()
+        }
+    }
+
+    @objc func autoImportDidChange() {
+        Task { @MainActor in
+            let enabled = UserDefaults.standard.bool(forKey: PreferencesKeys.autoImportEnabled)
+            if enabled {
+                authFileMonitor?.startMonitoring()
+            } else {
+                authFileMonitor?.stopMonitoring()
+            }
         }
     }
 

@@ -101,13 +101,29 @@ struct AccountManagementContentView: View {
                                 .foregroundStyle(.secondary)
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(account.name)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(.primary)
+                                HStack(spacing: 4) {
+                                    Text(account.name)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.primary)
+                                    if account.source == .localAuth {
+                                        Text(L10n.sourceLocalBadge)
+                                            .font(.system(size: 9, weight: .medium))
+                                            .foregroundStyle(.blue)
+                                            .padding(.horizontal, 5)
+                                            .padding(.vertical, 1)
+                                            .background(Color.blue.opacity(0.1))
+                                            .clipShape(Capsule())
+                                    }
+                                }
                                 Text(maskedToken(account.authToken))
                                     .font(.system(size: 11).monospaced())
                                     .foregroundStyle(.tertiary)
                                     .lineLimit(1)
+                                if account.source == .localAuth && account.localAuthInvalid {
+                                    Text(L10n.localAuthInvalid)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.red)
+                                }
                             }
 
                             Spacer()
@@ -204,6 +220,7 @@ struct PreferencesContentView: View {
     @State private var showMenuBarText: Bool = false
     @State private var resetTimeFormat: ResetTimeFormat = .relative
     @State private var selectedLanguage: LanguageOption = .system
+    @State private var autoImportEnabled: Bool = false
 
     var body: some View {
         ScrollView {
@@ -362,6 +379,24 @@ struct PreferencesContentView: View {
 
                 Divider().opacity(0.4)
 
+                // Auto Import Local Accounts
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(isOn: $autoImportEnabled) {
+                        Label(L10n.autoImportLocalAccounts, systemImage: "arrow.down.doc")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .onChange(of: autoImportEnabled) { _, newValue in
+                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.autoImportEnabled)
+                        NotificationCenter.default.post(name: .autoImportChanged, object: nil)
+                    }
+
+                    Text(L10n.autoImportLocalAccountsDesc)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+
+                Divider().opacity(0.4)
+
                 // Language
                 VStack(alignment: .leading, spacing: 8) {
                     Label(L10n.language, systemImage: "globe")
@@ -422,6 +457,8 @@ struct PreferencesContentView: View {
 
         let langString = UserDefaults.standard.string(forKey: "app_language")
         selectedLanguage = LanguageOption.from(saved: langString)
+
+        autoImportEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.autoImportEnabled)
     }
 
     private func toggleLaunchAtLogin(enable: Bool) {
