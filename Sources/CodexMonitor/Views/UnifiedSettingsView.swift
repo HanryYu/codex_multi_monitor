@@ -35,15 +35,12 @@ struct UnifiedSettingsView: View {
 
             Divider().opacity(0.5)
 
-            // Tab content
-            TabView(selection: $selectedTab) {
+            // Tab content (conditional rendering to avoid native title bar tab switcher)
+            if selectedTab == .accounts {
                 AccountManagementContentView(accountStore: accountStore)
-                    .tag(SettingsTab.accounts)
-
+            } else {
                 PreferencesContentView()
-                    .tag(SettingsTab.preferences)
             }
-            .tabViewStyle(.automatic)
         }
         .frame(width: 460, height: 480)
         .background(.ultraThinMaterial)
