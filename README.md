@@ -1,6 +1,6 @@
 # CodexMonitor
 
-[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos/)[![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift)](https://swift.org/)[![License](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE)[![Release](https://img.shields.io/badge/Release-v0.4.2-blue)](https://github.com/HanryYu/codex_multi_monitor/releases/latest)[![Platform](https://img.shields.io/badge/Platform-Apple%20Silicon%20%2F%20Intel-lightgrey)](https://github.com/HanryYu/codex_multi_monitor)
+[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos/)[![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift)](https://swift.org/)[![License](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE)[![Release](https://img.shields.io/github/v/release/HanryYu/codex_multi_monitor)](https://github.com/HanryYu/codex_multi_monitor/releases/latest)[![Platform](https://img.shields.io/badge/Platform-Apple%20Silicon%20%2F%20Intel-lightgrey)](https://github.com/HanryYu/codex_multi_monitor)
 
 A macOS menu bar app that monitors your ChatGPT Codex usage in real-time.
 
