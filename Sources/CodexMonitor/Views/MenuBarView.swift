@@ -94,6 +94,8 @@ extension View {
 
 struct QuotaCardView: View {
     let label: String
+    @ObservedObject var localeManager = LocaleManager.shared
+
     let displayPercent: Int   // what to show (remaining or used, depending on displayMode)
     let usedPercent: Int      // raw used percentage (for progress bar)
     let displayMode: DisplayMode
