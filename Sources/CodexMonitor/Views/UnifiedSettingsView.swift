@@ -139,7 +139,11 @@ struct AccountManagementContentView: View {
                             if let result = accountStore.usageData[account.id] {
                                 switch result {
                                 case .success(let usage):
-                                    if let percent = usage.rateLimit?.primaryWindow?.usedPercent {
+                                    if usage.rateLimitReachedType != nil {
+                                        Text(L10n.limitReached)
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(.red)
+                                    } else if let percent = usage.rateLimit?.primaryWindow?.usedPercent {
                                         Text("\(percent)%")
                                             .font(.system(size: 12, weight: .semibold).monospacedDigit())
                                             .foregroundStyle(percent >= 80 ? .orange : .green)
@@ -157,10 +161,6 @@ struct AccountManagementContentView: View {
                                                 .font(.system(size: 12))
                                                 .foregroundStyle(.secondary)
                                         }
-                                    } else if usage.rateLimitReachedType != nil {
-                                        Text(L10n.limitReached)
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(.red)
                                     } else {
                                         Text("—")
                                             .font(.system(size: 12))
