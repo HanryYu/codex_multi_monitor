@@ -384,6 +384,7 @@ struct PreferencesContentView: View {
                     Toggle(isOn: $autoImportEnabled) {
                         Label(L10n.autoImportLocalAccounts, systemImage: "arrow.down.doc")
                             .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
                     }
                     .onChange(of: autoImportEnabled) { _, newValue in
                         UserDefaults.standard.set(newValue, forKey: PreferencesKeys.autoImportEnabled)
