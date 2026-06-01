@@ -20,8 +20,6 @@ A macOS menu bar app that monitors your ChatGPT Codex usage in real-time.
 - [Getting Your API Token](#getting-your-api-token)
 - [Usage](#usage)
 - [Status Colors](#status-colors)
-- [Update Notifications](#update-notifications)
-- [Automation & CI/CD](#automation--cicd)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 
@@ -102,14 +100,6 @@ Copy the output and paste it into CodexMonitor.
 3. Accounts are auto-detected on launch — or click **+** to add manually
 4. The app refreshes data every 30 seconds automatically
 
-### Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `⌘ + N` | Add new account |
-| `⌘ + ,` | Open Preferences |
-| `⌘ + Q` | Quit |
-
 ## Status Colors
 
 | Color | Meaning |
@@ -119,51 +109,6 @@ Copy the output and paste it into CodexMonitor.
 | 🔴 Red | < 20% quota remaining |
 
 When a limit is reached (5-hour or weekly), the status area shows a "Limit Reached" overlay with the estimated reset time.
-
-## Update Notifications
-
-CodexMonitor checks for new versions on GitHub Releases automatically. When a new version is available, you'll see a notification in the menu bar and can open the release page directly.
-
-## Automation & CI/CD
-
-CodexMonitor is designed to work seamlessly with OpenAI's Codex GitHub bot for automated code reviews and PR management.
-
-### How It Works
-
-1. **Codex Bot** runs on GitHub via `codex.yaml` workflow
-2. **CodexMonitor** tracks API usage and quota across all your accounts
-3. When one account hits its limit, switch to another account to keep Codex running
-
-### Setup for Your Repo
-
-Add this to `.github/workflows/codex.yaml` in your repository:
-
-```yaml
-name: Codex
-
-on:
-  issue_comment:
-    types: [created]
-  pull_request:
-    types: [opened, synchronize]
-
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
-
-jobs:
-  codex:
-    if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/codex')) ||
-      (github.event_name == 'pull_request')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: openai/codex-action@v1
-        with:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-```
 
 ## Troubleshooting
 

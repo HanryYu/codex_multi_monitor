@@ -20,8 +20,6 @@
 - [获取 API Token](#获取-api-token)
 - [使用说明](#使用说明)
 - [状态颜色](#状态颜色)
-- [更新提醒](#更新提醒)
-- [自动化与 CI/CD](#自动化与-cicd)
 - [常见问题](#常见问题)
 - [开源协议](#开源协议)
 
@@ -102,14 +100,6 @@ cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); pr
 3. 启动时自动检测账户 — 或点击 **+** 手动添加
 4. 应用每 30 秒自动刷新数据
 
-### 快捷键
-
-| 快捷键 | 功能 |
-|--------|------|
-| `⌘ + N` | 添加新账户 |
-| `⌘ + ,` | 打开偏好设置 |
-| `⌘ + Q` | 退出 |
-
 ## 状态颜色
 
 | 颜色 | 含义 |
@@ -119,51 +109,6 @@ cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); pr
 | 🔴 红色 | 剩余额度 < 20% |
 
 当达到限额（5 小时或周限额）时，状态区域会显示 "Limit Reached" 遮罩和预计重置时间。
-
-## 更新提醒
-
-CodexMonitor 会自动检查 GitHub Releases 上的新版本。有新版本时，菜单栏会显示通知，你可以直接打开 release 页面下载更新。
-
-## 自动化与 CI/CD
-
-CodexMonitor 旨在与 OpenAI 的 Codex GitHub 机器人无缝协作，用于自动化代码审查和 PR 管理。
-
-### 工作原理
-
-1. **Codex 机器人** 通过 `codex.yaml` 工作流在 GitHub 上运行
-2. **CodexMonitor** 追踪所有账户的 API 使用情况和额度
-3. 当一个账户达到限额时，切换到另一个账户以保持 Codex 持续运行
-
-### 为你的仓库配置
-
-在你的仓库中添加 `.github/workflows/codex.yaml`：
-
-```yaml
-name: Codex
-
-on:
-  issue_comment:
-    types: [created]
-  pull_request:
-    types: [opened, synchronize]
-
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
-
-jobs:
-  codex:
-    if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/codex')) ||
-      (github.event_name == 'pull_request')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: openai/codex-action@v1
-        with:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-```
 
 ## 常见问题
 
