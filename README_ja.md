@@ -71,20 +71,35 @@ open /Applications/CodexMonitor.app
 
 ## API Token の取得
 
-1. [chatgpt.com/codex](https://chatgpt.com/codex) にアクセス
-2. ChatGPT アカウントでログイン
-3. 開発者ツール → **Network** タブを開く
-4. `ab.chatgpt.com` または `chatgpt.com` への API リクエストを探す
-5. **Authorization** ヘッダーを探す — UUID 形式のトークンが含まれています（例: `3f8c2b1a-...`）
-6. このトークンをコピー
+### 方法 1：アカウント自動管理（推奨）
 
-> **ヒント:** すでにローカルで Codex を使用している場合、初回起動時にアプリがアカウントを自動検出します。
+CodexMonitor は Codex アカウントを自動検出・管理できます。アプリを起動するだけで、ローカル認証データをスキャンし、アカウントをインポートし、トークンのリフレッシュと重複排除を自動で処理します。
+
+> [cc-switch](https://github.com/HanryYu/cc-switch) を使用している場合やトークンを手動で切り替えている場合でも、CodexMonitor は自動的にアカウントを同期します。
+
+### 方法 2：ブラウザの Network タブ
+
+1. ブラウザで [chatgpt.com/codex/cloud/settings/analytics](https://chatgpt.com/codex/cloud/settings/analytics) を開いて**ログイン**
+2. 開発者ツール（Mac では `⌘⌥I`）→ **Network** タブ
+3. ページが自動的に使用データを読み込み — `wham/usage` リクエストを探す
+4. リクエストをクリック → **ヘッダー** → `Authorization: Bearer *** の値をコピー
+5. トークン（`Bearer ` プレフィックスなし）を CodexMonitor に貼り付け
+
+### 方法 3：コマンドラインから取得
+
+[Codex CLI](https://github.com/openai/codex) をインストールしている場合、ローカルからトークンを取得できます：
+
+```bash
+cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['tokens']['access_token'])"
+```
+
+出力をコピーして CodexMonitor に貼り付けます。
 
 ## 使い方
 
 1. Applications フォルダから **CodexMonitor** を起動
 2. メニューバーのアイコンをクリックしてアカウントを表示
-3. **+** をクリックしてアカウントを追加し、API トークンを貼り付け
+3. 起動時にアカウントを自動検出 — または **+** をクリックして手動追加
 4. アプリは30秒ごとに自動的にデータを更新
 
 ### キーボードショートカット
@@ -94,10 +109,6 @@ open /Applications/CodexMonitor.app
 | `⌘ + N` | 新しいアカウントを追加 |
 | `⌘ + ,` | 環境設定を開く |
 | `⌘ + Q` | 終了 |
-
-### アカウントトークンの検出
-
-初回起動時、アプリは `~/Library/Application Support/codex/` 内の既存の Codex アカウントを検索し、インポートを促します — トークンを手動でコピーする必要はありません。
 
 ## ステータスカラー
 

@@ -71,20 +71,35 @@ open /Applications/CodexMonitor.app
 
 ## Getting Your API Token
 
-1. Visit [chatgpt.com/codex](https://chatgpt.com/codex)
-2. Log in with your ChatGPT account
-3. Open Developer Tools → **Network** tab
-4. Look for API requests to `ab.chatgpt.com` or `chatgpt.com`
-5. Find the **Authorization** header — it contains a UUID token (e.g., `3f8c2b1a-...`)
-6. Copy this token
+### Method 1: Auto Account Management (Recommended)
 
-> **Tip:** If you've already used Codex locally, the app can auto-detect your account on first launch.
+CodexMonitor can automatically detect and manage your Codex accounts. Simply launch the app — it will scan local auth data, import accounts, and handle token refresh and deduplication automatically.
+
+> If you use [cc-switch](https://github.com/HanryYu/cc-switch) or rotate tokens manually, CodexMonitor will keep accounts in sync without extra steps.
+
+### Method 2: Browser Network Tab
+
+1. Open [chatgpt.com/codex/cloud/settings/analytics](https://chatgpt.com/codex/cloud/settings/analytics) in your browser and **log in**
+2. Open Developer Tools (`⌘⌥I` on Mac) → **Network** tab
+3. The page will automatically load usage data — look for a request to `wham/usage`
+4. Click the request → **Headers** → copy the `Authorization: Bearer ***` value
+5. Paste the token (without `Bearer ` prefix) into CodexMonitor
+
+### Method 3: Local Command
+
+If you have [Codex CLI](https://github.com/openai/codex) installed, extract the token locally:
+
+```bash
+cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['tokens']['access_token'])"
+```
+
+Copy the output and paste it into CodexMonitor.
 
 ## Usage
 
 1. Launch **CodexMonitor** from your Applications folder
 2. Click the menu bar icon to see your accounts
-3. Click **+** to add an account, paste your API token
+3. Accounts are auto-detected on launch — or click **+** to add manually
 4. The app refreshes data every 30 seconds automatically
 
 ### Keyboard Shortcuts
@@ -94,10 +109,6 @@ open /Applications/CodexMonitor.app
 | `⌘ + N` | Add new account |
 | `⌘ + ,` | Open Preferences |
 | `⌘ + Q` | Quit |
-
-### Account Token Detection
-
-On first launch, the app will search for existing Codex accounts in `~/Library/Application Support/codex/` and prompt you to import them — no manual token copying needed.
 
 ## Status Colors
 

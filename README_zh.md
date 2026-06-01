@@ -71,20 +71,35 @@ open /Applications/CodexMonitor.app
 
 ## 获取 API Token
 
-1. 访问 [chatgpt.com/codex](https://chatgpt.com/codex)
-2. 使用 ChatGPT 账户登录
-3. 打开开发者工具 → **Network** 标签
-4. 查找发往 `ab.chatgpt.com` 或 `chatgpt.com` 的 API 请求
-5. 找到 **Authorization** 头 — 其中包含一个 UUID 格式的 token（如 `3f8c2b1a-...`）
-6. 复制此 token
+### 方式 1：自动账户管理（推荐）
 
-> **提示：** 如果你已经在本地使用过 Codex，应用可以在首次启动时自动检测你的账户。
+CodexMonitor 可以自动检测和管理你的 Codex 账户。只需启动应用 — 它会自动扫描本地认证数据、导入账户，并处理 token 刷新和去重。
+
+> 如果你使用 [cc-switch](https://github.com/HanryYu/cc-switch) 或手动切换 token，CodexMonitor 会自动保持账户同步，无需额外操作。
+
+### 方式 2：浏览器 Network 面板
+
+1. 在浏览器中打开 [chatgpt.com/codex/cloud/settings/analytics](https://chatgpt.com/codex/cloud/settings/analytics) 并**登录**
+2. 打开开发者工具（Mac 上按 `⌘⌥I`）→ **Network** 标签
+3. 页面会自动加载使用数据 — 查找 `wham/usage` 请求
+4. 点击该请求 → **Headers** → 复制 `Authorization: Bearer ***` 的值
+5. 将 token（不含 `Bearer ` 前缀）粘贴到 CodexMonitor
+
+### 方式 3：本地命令提取
+
+如果你安装了 [Codex CLI](https://github.com/openai/codex)，可以用本地命令提取 token：
+
+```bash
+cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['tokens']['access_token'])"
+```
+
+复制输出结果并粘贴到 CodexMonitor。
 
 ## 使用说明
 
 1. 从应用程序文件夹启动 **CodexMonitor**
 2. 点击菜单栏图标查看账户
-3. 点击 **+** 添加账户，粘贴 API token
+3. 启动时自动检测账户 — 或点击 **+** 手动添加
 4. 应用每 30 秒自动刷新数据
 
 ### 快捷键
@@ -94,10 +109,6 @@ open /Applications/CodexMonitor.app
 | `⌘ + N` | 添加新账户 |
 | `⌘ + ,` | 打开偏好设置 |
 | `⌘ + Q` | 退出 |
-
-### 账户 Token 检测
-
-首次启动时，应用会搜索 `~/Library/Application Support/codex/` 中的现有 Codex 账户，并提示你导入 — 无需手动复制 token。
 
 ## 状态颜色
 
