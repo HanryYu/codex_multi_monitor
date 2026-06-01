@@ -1,12 +1,8 @@
 # CodexMonitor
 
-<div align="right">
+[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos/) [![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift)](https://swift.org/) [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/HanryYu/codex_multi_monitor)](https://github.com/HanryYu/codex_multi_monitor/releases/latest) [![Platform](https://img.shields.io/badge/Platform-Apple%20Silicon%20%2F%20Intel-lightgrey)](https://github.com/HanryYu/codex_multi_monitor)
 
 [English](README.md) | [中文](README_zh.md) | [日本語](README_ja.md)
-
-</div>
-
-[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos/)[![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift)](https://swift.org/)[![License](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE)[![Release](https://img.shields.io/github/v/release/HanryYu/codex_multi_monitor)](https://github.com/HanryYu/codex_multi_monitor/releases/latest)[![Platform](https://img.shields.io/badge/Platform-Apple%20Silicon%20%2F%20Intel-lightgrey)](https://github.com/HanryYu/codex_multi_monitor)
 
 A macOS menu bar app that monitors your ChatGPT Codex usage in real-time.
 
@@ -24,127 +20,151 @@ A macOS menu bar app that monitors your ChatGPT Codex usage in real-time.
 - [Getting Your API Token](#getting-your-api-token)
 - [Usage](#usage)
 - [Status Colors](#status-colors)
+- [Update Notifications](#update-notifications)
 - [Automation & CI/CD](#automation--cicd)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 
----
-
 ## Features
 
-- 🎯 **Menu Bar App** — Lives in your macOS menu bar, no Dock icon
-- 📊 **Real-time Monitoring** — Track rate limits for 5-hour and weekly windows
-- 🔐 **Secure Storage** — AES-256 encrypted local token storage
-- 🔄 **Auto-refresh** — Configurable refresh interval (1–60 min, default 5 min)
-- 🎨 **Status Indicator** — Color-coded icon (green/yellow/red) based on usage
-- 👥 **Multi-account** — Monitor multiple ChatGPT accounts simultaneously
-- 🤖 **Auto Account Sync** — Automatically detects and imports accounts from `~/.codex/auth.json` — works with [cc-switch](https://github.com/HanryYu/cc-switch) or manual token rotation
-- ⚙️ **Unified Settings** — Single settings window with tabbed interface
-- 📐 **Display Modes** — Show remaining or used percentage
-- ⏱️ **Reset Time Format** — Relative ("in 3h 20m") or absolute ("15:06")
-- 🔔 **Smart Notifications** — Usage alerts when threshold exceeded, recovery alerts when limits reset
-- 🌐 **Multi-language** — English, 简体中文, 繁體中文, 日本語
+- **Real-Time Monitoring** — Track your Codex usage directly from the macOS menu bar
+- **Multi-Account Support** — Monitor multiple Codex accounts with easy switching
+- **Usage Visualization** — See quota usage with color-coded status indicators
+- **Limit Reached Alert** — Visual overlay when 5-hour or weekly limit is reached, with reset countdown
+- **Smart Notifications** — Get notified when quota is low or when an account recovers from limit
+- **Auto Account Sync** — Automatically detect and add local Codex accounts on launch
+- **Multi-Language** — English, 中文, 日本語
+- **Update Notifications** — Get notified when a new version is available on GitHub
 
 ## Requirements
 
-- macOS 15.0 (Sequoia) or later
+- macOS 15.0+
+- Xcode 16+ (for building from source)
 - Swift 6.0+
-- ChatGPT Plus / Pro / Enterprise subscription
 
 ## Installation
 
 ### Download DMG (Recommended)
 
 1. Go to [Releases](https://github.com/HanryYu/codex_multi_monitor/releases/latest)
-2. Download the `.dmg` file
-3. Open and drag **CodexMonitor** to Applications
+2. Download the `CodexMonitor-x.x.x.dmg` file
+3. Open the DMG and drag **CodexMonitor** to your **Applications** folder
+4. Launch CodexMonitor — it will appear in your menu bar
+
+> **Note:** The app is signed with an Apple Development certificate. On first launch, macOS may show a security warning — right-click the app and select "Open" to bypass it.
 
 ### Build from Source
 
 ```bash
 git clone https://github.com/HanryYu/codex_multi_monitor.git
 cd codex_multi_monitor
-swift build -c release
+make install
 ```
 
-The binary will be at `.build/release/CodexMonitor`.
+Or manually:
+
+```bash
+swift build -c release
+cp -f .build/release/CodexMonitor /Applications/CodexMonitor.app/Contents/MacOS/
+open /Applications/CodexMonitor.app
+```
 
 ## Getting Your API Token
 
-### Method 1: Codex CLI Auth File (Recommended)
+1. Visit [chatgpt.com/codex](https://chatgpt.com/codex)
+2. Log in with your ChatGPT account
+3. Open Developer Tools → **Network** tab
+4. Look for API requests to `ab.chatgpt.com` or `chatgpt.com`
+5. Find the **Authorization** header — it contains a UUID token (e.g., `3f8c2b1a-...`)
+6. Copy this token
 
-If you have the [Codex CLI](https://github.com/openai/codex) installed, the token is stored locally:
-
-```bash
-cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['tokens']['access_token'])"
-```
-
-Copy the output and paste it into CodexMonitor.
-
-### Method 2: Browser Network Tab
-
-1. Open [chatgpt.com/codex/cloud/settings/analytics](https://chatgpt.com/codex/cloud/settings/analytics) in your browser and **log in**
-2. Open Developer Tools (`⌘⌥I` on Mac) → **Network** tab
-3. The page will automatically load usage data — look for a request to `wham/usage`
-4. Click the request → **Headers** → copy the `Authorization: Bearer *** value
-5. Paste the token (without `Bearer ` prefix) into CodexMonitor
+> **Tip:** If you've already used Codex locally, the app can auto-detect your account on first launch.
 
 ## Usage
 
-1. **Launch** — The app appears as a gauge icon in your menu bar
-2. **Click** — Opens the monitoring panel showing all accounts
-3. **Add Account** — Click "+" (or open Settings) and paste your token
-4. **Monitor** — View real-time usage statistics per account
+1. Launch **CodexMonitor** from your Applications folder
+2. Click the menu bar icon to see your accounts
+3. Click **+** to add an account, paste your API token
+4. The app refreshes data every 30 seconds automatically
 
-### Settings
+### Keyboard Shortcuts
 
-Open via the gear icon:
+| Shortcut | Action |
+|----------|--------|
+| `⌘ + N` | Add new account |
+| `⌘ + ,` | Open Preferences |
+| `⌘ + Q` | Quit |
 
-- **Accounts** — Add, edit, remove, or reorder accounts (drag to reorder)
-- **Preferences** — Display mode, reset time format, refresh interval, launch at login, notifications
+### Account Token Detection
+
+On first launch, the app will search for existing Codex accounts in `~/Library/Application Support/codex/` and prompt you to import them — no manual token copying needed.
 
 ## Status Colors
 
 | Color | Meaning |
 |-------|---------|
-| 🟢 Green | Healthy usage (< 60%) |
-| 🟡 Yellow | Approaching limit (60–80%) |
-| 🔴 Red | At or near limit (> 80%) |
+| 🟢 Green | > 50% quota remaining |
+| 🟡 Yellow | 20-50% quota remaining |
+| 🔴 Red | < 20% quota remaining |
+
+When a limit is reached (5-hour or weekly), the status area shows a "Limit Reached" overlay with the estimated reset time.
+
+## Update Notifications
+
+CodexMonitor checks for new versions on GitHub Releases automatically. When a new version is available, you'll see a notification in the menu bar and can open the release page directly.
 
 ## Automation & CI/CD
 
-The project uses GitHub Actions for automated release builds:
+CodexMonitor is designed to work seamlessly with OpenAI's Codex GitHub bot for automated code reviews and PR management.
 
-- **Release workflow** triggers on version tag push (`v*`)
-- Builds a release binary with `swift build -c release`
-- Code signs with Developer ID (via GitHub Secrets)
-- Creates a DMG installer
-- Publishes a GitHub Release with the DMG attached
+### How It Works
 
-To create a new release:
+1. **Codex Bot** runs on GitHub via `codex.yaml` workflow
+2. **CodexMonitor** tracks API usage and quota across all your accounts
+3. When one account hits its limit, switch to another account to keep Codex running
 
-```bash
-git tag v1.0.0
-git push origin v1.0.0
+### Setup for Your Repo
+
+Add this to `.github/workflows/codex.yaml` in your repository:
+
+```yaml
+name: Codex
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  codex:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/codex')) ||
+      (github.event_name == 'pull_request')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: openai/codex-action@v1
+        with:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 ```
-
-The workflow will automatically build, sign, and publish the release.
 
 ## Troubleshooting
 
-**"Unauthorized" Error**
-- Token may have expired — get a fresh token using the console one-liner above
+**Menu bar icon not showing?**
+- Check Activity Monitor — the app may already be running. Force quit and relaunch.
 
-**No Data Showing**
-- Check your internet connection
-- Verify the token is valid
-- Click the refresh button in the popover
+**"No accounts found" on first launch?**
+- Make sure you've used Codex locally at least once, or add your token manually via the **+** button.
 
-**App Not Appearing**
-- Check if it's running: `ps aux | grep CodexMonitor`
-- Look for the gauge icon in your menu bar
-- The app doesn't show in Dock (by design)
+**DMG won't open / "unidentified developer"?**
+- Right-click → Open, or go to System Settings → Privacy & Security → Allow Anyway.
 
 ## License
 
-[GPLv3](LICENSE)
+[GPLv3](LICENSE) — © 2025 Henry Yu
