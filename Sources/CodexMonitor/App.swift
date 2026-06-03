@@ -24,6 +24,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
+        // Register default preference values so features work out-of-the-box
+        // before the user opens Settings for the first time.
+        UserDefaults.standard.register(defaults: [
+            PreferencesKeys.usageAlertEnabled: true,
+            PreferencesKeys.recoveryNotificationEnabled: true,
+            PreferencesKeys.autoImportEnabled: true,
+            PreferencesKeys.alertThreshold: 80,
+        ])
+
         accountStore = AccountStore()
 
         // Setup WindowManager
