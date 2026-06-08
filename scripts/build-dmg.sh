@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="CodexMonitor"
 DMG_NAME="CodexMonitor"
-VERSION="${1:-0.6.2}"
+VERSION="${1:-0.6.3}"
 BUNDLE_ID="com.henry.codex-monitor"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
