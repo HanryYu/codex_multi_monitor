@@ -249,6 +249,79 @@ enum L10n {
         }
     }
 
+    static var creditsLimitReached: String {
+        switch lang {
+        case .en:    return "Credits Limit Reached"
+        case .ja:    return "クレジット上限到達"
+        case .zhHans: return "额度已用尽"
+        case .zhHant: return "額度已用盡"
+        }
+    }
+
+    static var spendLimitReached: String {
+        switch lang {
+        case .en:    return "Spend Limit Reached"
+        case .ja:    return "支出上限到達"
+        case .zhHans: return "消费限额已达"
+        case .zhHant: return "消費限額已達"
+        }
+    }
+
+    static func usageWarningNotification(
+        accountName: String,
+        limitType: String,
+        usedPercent: Int,
+        resetTime: String?
+    ) -> String {
+        switch lang {
+        case .en:
+            if let resetTime {
+                return "\(accountName)'s \(limitType) usage reached \(usedPercent)%. Resets at \(resetTime)."
+            }
+            return "\(accountName)'s \(limitType) usage reached \(usedPercent)%."
+        case .ja:
+            if let resetTime {
+                return "\(accountName)の\(limitType)使用量が\(usedPercent)%に達しました。\(resetTime)にリセットされます。"
+            }
+            return "\(accountName)の\(limitType)使用量が\(usedPercent)%に達しました。"
+        case .zhHans:
+            if let resetTime {
+                return "\(accountName) 的 \(limitType) 已使用 \(usedPercent)%，将在 \(resetTime) 重置。"
+            }
+            return "\(accountName) 的 \(limitType) 已使用 \(usedPercent)%."
+        case .zhHant:
+            if let resetTime {
+                return "\(accountName) 的 \(limitType) 已使用 \(usedPercent)%，將在 \(resetTime) 重置。"
+            }
+            return "\(accountName) 的 \(limitType) 已使用 \(usedPercent)%."
+        }
+    }
+
+    static func limitReachedNotification(accountName: String, limitType: String, resetTime: String?) -> String {
+        switch lang {
+        case .en:
+            if let resetTime {
+                return "\(accountName)'s \(limitType) is exhausted. Resets at \(resetTime)."
+            }
+            return "\(accountName)'s \(limitType) is exhausted."
+        case .ja:
+            if let resetTime {
+                return "\(accountName)の\(limitType)が上限に達しました。\(resetTime)にリセットされます。"
+            }
+            return "\(accountName)の\(limitType)が上限に達しました。"
+        case .zhHans:
+            if let resetTime {
+                return "\(accountName) 的 \(limitType) 已用尽，将在 \(resetTime) 重置。"
+            }
+            return "\(accountName) 的 \(limitType) 已用尽。"
+        case .zhHant:
+            if let resetTime {
+                return "\(accountName) 的 \(limitType) 已用盡，將在 \(resetTime) 重置。"
+            }
+            return "\(accountName) 的 \(limitType) 已用盡。"
+        }
+    }
+
     static var unavailable: String {
         switch lang {
         case .en:    return "Unavailable"
@@ -871,7 +944,106 @@ enum L10n {
         }
     }
 
+    static func localAccountImported(accountName: String) -> String {
+        switch lang {
+        case .en:    return "Imported local account: \(accountName)"
+        case .ja:    return "ローカルアカウントをインポートしました: \(accountName)"
+        case .zhHans: return "已自动导入本地账户: \(accountName)"
+        case .zhHant: return "已自動匯入本地帳戶: \(accountName)"
+        }
+    }
+
+    static var localAuthFileMissingNotification: String {
+        switch lang {
+        case .en:    return "~/.codex/auth.json is missing. Local accounts are marked unavailable."
+        case .ja:    return "~/.codex/auth.json が見つかりません。ローカルアカウントを利用不可にしました。"
+        case .zhHans: return "~/.codex/auth.json 已删除，本地导入账户已标记为失效"
+        case .zhHant: return "~/.codex/auth.json 已刪除，本地匯入帳戶已標記為失效"
+        }
+    }
+
     // MARK: - Notification Toggles
+
+    static var limitNotificationLabel: String {
+        switch lang {
+        case .en:    return "Limit Reached Alert"
+        case .ja:    return "上限到達通知"
+        case .zhHans: return "限额达到提醒"
+        case .zhHant: return "限額達到提醒"
+        }
+    }
+
+    static var limitNotificationDesc: String {
+        switch lang {
+        case .en:    return "Notify when a 5-hour, weekly, credit, or spend limit is exhausted"
+        case .ja:    return "5時間、週間、クレジット、支出の上限到達時に通知"
+        case .zhHans: return "当 5 小时、每周、额度或消费限额用尽时通知"
+        case .zhHant: return "當 5 小時、每週、額度或消費限額用盡時通知"
+        }
+    }
+
+    static var usageWarningNotificationLabel: String {
+        switch lang {
+        case .en:    return "Usage Warning Alert"
+        case .ja:    return "使用量警告通知"
+        case .zhHans: return "用量预警提醒"
+        case .zhHant: return "用量預警提醒"
+        }
+    }
+
+    static var usageWarningNotificationDesc: String {
+        switch lang {
+        case .en:    return "Notify when any account's usage exceeds the warning threshold"
+        case .ja:    return "アカウントの使用量が警告閾値を超えた場合に通知"
+        case .zhHans: return "当账户用量超过预警阈值时发送系统通知"
+        case .zhHant: return "當帳戶用量超過預警閾值時發送系統通知"
+        }
+    }
+
+    static var testNotificationButton: String {
+        switch lang {
+        case .en:    return "Send Test Alert"
+        case .ja:    return "テスト通知を送信"
+        case .zhHans: return "发送测试提醒"
+        case .zhHant: return "發送測試提醒"
+        }
+    }
+
+    static var testNotificationBody: String {
+        switch lang {
+        case .en:    return "This is how CodexMonitor usage alerts will appear."
+        case .ja:    return "CodexMonitor の使用量通知はこのように表示されます。"
+        case .zhHans: return "这是 CodexMonitor 用量提醒的显示效果。"
+        case .zhHant: return "這是 CodexMonitor 用量提醒的顯示效果。"
+        }
+    }
+
+    static var notificationTestSent: String {
+        switch lang {
+        case .en:    return "Sent"
+        case .ja:    return "送信済み"
+        case .zhHans: return "已发送"
+        case .zhHant: return "已發送"
+        }
+    }
+
+    static var notificationPermissionDenied: String {
+        switch lang {
+        case .en:    return "Notifications are disabled in System Settings"
+        case .ja:    return "システム設定で通知が無効です"
+        case .zhHans: return "系统设置中通知已关闭"
+        case .zhHant: return "系統設定中通知已關閉"
+        }
+    }
+
+    static func notificationTestFailed(error: String) -> String {
+        switch lang {
+        case .en:    return "Failed: \(error)"
+        case .ja:    return "失敗: \(error)"
+        case .zhHans: return "发送失败: \(error)"
+        case .zhHant: return "發送失敗: \(error)"
+        }
+    }
 
     static var usageAlertEnabledLabel: String {
         switch lang {
@@ -906,6 +1078,143 @@ enum L10n {
         case .ja:    return "レート制限が解除されたアカウントを通知"
         case .zhHans: return "当限额账户恢复可用时发送系统通知"
         case .zhHant: return "當限額帳戶恢復可用時發送系統通知"
+        }
+    }
+
+    // MARK: - Updates
+
+    static var updateSection: String {
+        switch lang {
+        case .en:    return "Updates"
+        case .ja:    return "アップデート"
+        case .zhHans: return "更新"
+        case .zhHant: return "更新"
+        }
+    }
+
+    static var automaticUpdates: String {
+        switch lang {
+        case .en:    return "Automatic Updates"
+        case .ja:    return "自動アップデート"
+        case .zhHans: return "自动检查更新"
+        case .zhHant: return "自動檢查更新"
+        }
+    }
+
+    static var checkForUpdatesButton: String {
+        switch lang {
+        case .en:    return "Check Now"
+        case .ja:    return "今すぐ確認"
+        case .zhHans: return "立即检查"
+        case .zhHant: return "立即檢查"
+        }
+    }
+
+    static var updateCheckingButton: String {
+        switch lang {
+        case .en:    return "Working"
+        case .ja:    return "処理中"
+        case .zhHans: return "处理中"
+        case .zhHant: return "處理中"
+        }
+    }
+
+    static var installUpdateButton: String {
+        switch lang {
+        case .en:    return "Install"
+        case .ja:    return "インストール"
+        case .zhHans: return "安装并重启"
+        case .zhHant: return "安裝並重啟"
+        }
+    }
+
+    static var updateStatusIdle: String {
+        switch lang {
+        case .en:    return "Current version: \(AppVersion.current)"
+        case .ja:    return "現在のバージョン: \(AppVersion.current)"
+        case .zhHans: return "当前版本: \(AppVersion.current)"
+        case .zhHant: return "目前版本: \(AppVersion.current)"
+        }
+    }
+
+    static var updateStatusChecking: String {
+        switch lang {
+        case .en:    return "Checking GitHub Releases..."
+        case .ja:    return "GitHub Releases を確認中..."
+        case .zhHans: return "正在检查 GitHub Releases..."
+        case .zhHant: return "正在檢查 GitHub Releases..."
+        }
+    }
+
+    static func updateStatusCurrent(version: String) -> String {
+        switch lang {
+        case .en:    return "You are on the latest version (\(version))."
+        case .ja:    return "最新バージョンです（\(version)）。"
+        case .zhHans: return "已是最新版本（\(version)）。"
+        case .zhHant: return "已是最新版本（\(version)）。"
+        }
+    }
+
+    static func updateStatusAvailable(version: String) -> String {
+        switch lang {
+        case .en:    return "Version \(version) is available."
+        case .ja:    return "バージョン \(version) が利用可能です。"
+        case .zhHans: return "发现新版本 \(version)。"
+        case .zhHant: return "發現新版本 \(version)。"
+        }
+    }
+
+    static func updateStatusDownloading(version: String) -> String {
+        switch lang {
+        case .en:    return "Downloading version \(version)..."
+        case .ja:    return "バージョン \(version) をダウンロード中..."
+        case .zhHans: return "正在下载 \(version)..."
+        case .zhHant: return "正在下載 \(version)..."
+        }
+    }
+
+    static func updateStatusDownloaded(version: String) -> String {
+        switch lang {
+        case .en:    return "Version \(version) is downloaded and ready to install."
+        case .ja:    return "バージョン \(version) のダウンロードが完了しました。"
+        case .zhHans: return "\(version) 已下载，可安装。"
+        case .zhHant: return "\(version) 已下載，可安裝。"
+        }
+    }
+
+    static var updateStatusNoAsset: String {
+        switch lang {
+        case .en:    return "Latest release has no DMG asset."
+        case .ja:    return "最新リリースに DMG がありません。"
+        case .zhHans: return "最新 Release 没有 DMG 文件。"
+        case .zhHant: return "最新 Release 沒有 DMG 檔案。"
+        }
+    }
+
+    static func updateStatusFailed(error: String) -> String {
+        switch lang {
+        case .en:    return "Update failed: \(error)"
+        case .ja:    return "アップデート失敗: \(error)"
+        case .zhHans: return "更新失败: \(error)"
+        case .zhHant: return "更新失敗: \(error)"
+        }
+    }
+
+    static func updateAvailableNotification(version: String) -> String {
+        switch lang {
+        case .en:    return "CodexMonitor \(version) is available."
+        case .ja:    return "CodexMonitor \(version) が利用可能です。"
+        case .zhHans: return "CodexMonitor \(version) 已发布。"
+        case .zhHant: return "CodexMonitor \(version) 已發布。"
+        }
+    }
+
+    static func updateReadyNotification(version: String) -> String {
+        switch lang {
+        case .en:    return "CodexMonitor \(version) has been downloaded."
+        case .ja:    return "CodexMonitor \(version) のダウンロードが完了しました。"
+        case .zhHans: return "CodexMonitor \(version) 已下载完成。"
+        case .zhHant: return "CodexMonitor \(version) 已下載完成。"
         }
     }
 

@@ -24,12 +24,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
+        migratePreferenceDefaults()
+
         // Register default preference values so features work out-of-the-box
         // before the user opens Settings for the first time.
         UserDefaults.standard.register(defaults: [
-            PreferencesKeys.usageAlertEnabled: true,
+            PreferencesKeys.usageWarningNotificationEnabled: true,
+            PreferencesKeys.limitNotificationEnabled: true,
             PreferencesKeys.recoveryNotificationEnabled: true,
             PreferencesKeys.autoImportEnabled: true,
+            PreferencesKeys.automaticUpdatesEnabled: true,
             PreferencesKeys.alertThreshold: 80,
         ])
 
@@ -115,6 +119,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         Task { @MainActor in
             await accountStore.refreshAll()
+        }
+
+        GitHubReleaseUpdater.shared.checkAutomaticallyIfNeeded()
+    }
+
+    private func migratePreferenceDefaults() {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: PreferencesKeys.usageWarningNotificationEnabled) == nil,
+           let oldValue = defaults.object(forKey: PreferencesKeys.usageAlertEnabled) as? Bool {
+            defaults.set(oldValue, forKey: PreferencesKeys.usageWarningNotificationEnabled)
         }
     }
 

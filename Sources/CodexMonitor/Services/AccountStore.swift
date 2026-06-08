@@ -12,14 +12,8 @@ class AccountStore: ObservableObject {
     
     private let userDefaults = UserDefaults.standard
     private let accountsKey = "saved_accounts"
-    
-    // Track which accounts have been notified in the current window
-    // Key: account UUID + window seconds, Value: true if notified
-    private var notifiedAccounts: [String: Bool] = [:]
-    
-    // Track which accounts were previously limited (for recovery notifications)
-    // Key: account UUID, Value: limit type description (e.g. "5小时", "每周")
-    private var previouslyLimitedAccounts: [UUID: String] = [:]
+    private let limitedStateKey = "CodexMonitor.limitedNotificationState.v1"
+    private let sentNotificationKeysKey = "CodexMonitor.sentNotificationKeys.v1"
     
     enum OverallStatus {
         case healthy, warning, critical, noAccounts
@@ -148,9 +142,6 @@ class AccountStore: ObservableObject {
         isLoading = true
         print("[CodexMonitor] refreshAll: refreshing \(accounts.count) accounts")
         
-        // Snapshot limited accounts before refresh for recovery detection
-        let previousLimitedState = previouslyLimitedAccounts
-        
         await withTaskGroup(of: (UUID, Result<UsageResponse, APIError>).self) { group in
             for account in accounts {
                 group.addTask {
@@ -176,12 +167,7 @@ class AccountStore: ObservableObject {
         isLoading = false
         lastRefreshTime = Date()
         
-        // Update limited account tracking and check for recovery
-        updateLimitedTracking()
-        checkRecoveryNotifications(previousLimited: previousLimitedState)
-        
-        // Check for usage alerts
-        checkUsageAlerts()
+        processUsageNotifications()
         
         // Update status bar icon
         if let appDelegate = NSApp.delegate as? AppDelegate {
@@ -189,49 +175,215 @@ class AccountStore: ObservableObject {
         }
     }
     
-    // MARK: - Limited Account Tracking
-    
-    /// Update the currently-limited accounts map from latest usage data
-    private func updateLimitedTracking() {
-        previouslyLimitedAccounts.removeAll()
+    // MARK: - Usage Notifications
+
+    private func processUsageNotifications() {
+        var sentKeys = loadSentNotificationKeys()
+        var nextLimitedState = loadLimitedNotificationState()
+        let activeAccountIDs = Set(accounts.map { $0.id.uuidString })
+        nextLimitedState = nextLimitedState.filter { activeAccountIDs.contains($0.key) }
+
         for account in accounts {
             guard case .success(let usage) = usageData[account.id] else { continue }
-            if let limitType = resolveLimitType(usage: usage) {
-                previouslyLimitedAccounts[account.id] = limitType
-            }
+
+            let windows = notificationWindows(for: usage)
+            let currentLimited = Dictionary(
+                uniqueKeysWithValues: windows
+                    .filter(\.isLimited)
+                    .map { ($0.id, PersistedLimitState(limitType: $0.limitType, resetAt: $0.resetAt)) }
+            )
+
+            sendWarningNotificationsIfNeeded(
+                account: account,
+                windows: windows,
+                sentKeys: &sentKeys
+            )
+            sendLimitReachedNotificationsIfNeeded(
+                account: account,
+                windows: windows,
+                sentKeys: &sentKeys
+            )
+            sendRecoveryNotificationsIfNeeded(
+                account: account,
+                previous: nextLimitedState[account.id.uuidString] ?? [:],
+                current: currentLimited,
+                sentKeys: &sentKeys
+            )
+
+            nextLimitedState[account.id.uuidString] = currentLimited.isEmpty ? nil : currentLimited
+        }
+
+        saveSentNotificationKeys(sentKeys)
+        saveLimitedNotificationState(nextLimitedState)
+    }
+
+    private func sendWarningNotificationsIfNeeded(
+        account: Account,
+        windows: [UsageNotificationWindow],
+        sentKeys: inout Set<String>
+    ) {
+        guard UserDefaults.standard.bool(forKey: PreferencesKeys.usageWarningNotificationEnabled) else { return }
+
+        let threshold = UserDefaults.standard.integer(forKey: PreferencesKeys.alertThreshold)
+        let alertThreshold = threshold > 0 ? threshold : 80
+
+        for window in windows {
+            guard let usedPercent = window.usedPercent,
+                  usedPercent >= alertThreshold,
+                  usedPercent < 100,
+                  !window.isLimited
+            else { continue }
+
+            let key = "warning:\(account.id.uuidString):\(window.id):\(window.resetKey):\(alertThreshold)"
+            guard !sentKeys.contains(key) else { continue }
+
+            sendUsageWarningNotification(
+                accountName: account.name,
+                limitType: window.limitType,
+                usedPercent: usedPercent,
+                resetAt: window.resetAt
+            )
+            sentKeys.insert(key)
         }
     }
-    
-    /// Resolve the limit type label for a usage response
-    private func resolveLimitType(usage: UsageResponse) -> String? {
-        // Check rate_limit windows first (has more detail)
-        if let rl = usage.rateLimit {
-            var types: [String] = []
-            if let p = rl.primaryWindow, p.usedPercent >= 100 {
-                types.append(limitTypeLabel(seconds: p.limitWindowSeconds))
-            }
-            if let s = rl.secondaryWindow, s.usedPercent >= 100 {
-                let label = limitTypeLabel(seconds: s.limitWindowSeconds)
-                if !types.contains(label) { types.append(label) }
-            }
-            if rl.limitReached && types.isEmpty {
-                return L10n.limitReached
-            }
-            return types.isEmpty ? nil : types.joined(separator: " + ")
+
+    private func sendLimitReachedNotificationsIfNeeded(
+        account: Account,
+        windows: [UsageNotificationWindow],
+        sentKeys: inout Set<String>
+    ) {
+        guard UserDefaults.standard.bool(forKey: PreferencesKeys.limitNotificationEnabled) else { return }
+
+        for window in windows where window.isLimited {
+            let key = "limit:\(account.id.uuidString):\(window.id):\(window.resetKey)"
+            guard !sentKeys.contains(key) else { continue }
+
+            sendLimitReachedNotification(
+                accountName: account.name,
+                limitType: window.limitType,
+                resetAt: window.resetAt
+            )
+            sentKeys.insert(key)
         }
-        // Fallback to rate_limit_reached_type
-        if let reachedType = usage.rateLimitReachedType {
-            let type = reachedType.type.lowercased()
-            if type.contains("5h") || type.contains("5hour") || type.contains("hour") {
-                return L10n.fiveHourLimitReached()
-            } else if type.contains("weekly") || type.contains("7d") || type.contains("week") {
-                return L10n.weeklyLimitReached()
-            }
-            return L10n.limitReached
-        }
-        return nil
     }
-    
+
+    private func sendRecoveryNotificationsIfNeeded(
+        account: Account,
+        previous: [String: PersistedLimitState],
+        current: [String: PersistedLimitState],
+        sentKeys: inout Set<String>
+    ) {
+        guard UserDefaults.standard.bool(forKey: PreferencesKeys.recoveryNotificationEnabled) else { return }
+
+        for (stateID, previousState) in previous where current[stateID] == nil {
+            let key = "recovery:\(account.id.uuidString):\(stateID):\(previousState.resetKey)"
+            guard !sentKeys.contains(key) else { continue }
+
+            sendRecoveryNotification(accountName: account.name, limitType: previousState.limitType)
+            sentKeys.insert(key)
+        }
+    }
+
+    private func notificationWindows(for usage: UsageResponse) -> [UsageNotificationWindow] {
+        var windows: [UsageNotificationWindow] = []
+
+        if let rateLimit = usage.rateLimit {
+            let reachedType = usage.rateLimitReachedType?.type.lowercased()
+            let primaryUsed = rateLimit.primaryWindow?.usedPercent ?? -1
+            let secondaryUsed = rateLimit.secondaryWindow?.usedPercent ?? -1
+
+            if let primary = rateLimit.primaryWindow {
+                windows.append(UsageNotificationWindow(
+                    id: "primary:\(primary.limitWindowSeconds)",
+                    limitType: limitTypeLabel(seconds: primary.limitWindowSeconds),
+                    usedPercent: primary.usedPercent,
+                    resetAt: primary.resetAt > 0 ? primary.resetAt : nil,
+                    isLimited: isWindowLimited(
+                        window: primary,
+                        rateLimit: rateLimit,
+                        reachedType: reachedType,
+                        preferredType: "primary",
+                        maxUsedPercent: max(primaryUsed, secondaryUsed)
+                    )
+                ))
+            }
+
+            if let secondary = rateLimit.secondaryWindow {
+                windows.append(UsageNotificationWindow(
+                    id: "secondary:\(secondary.limitWindowSeconds)",
+                    limitType: limitTypeLabel(seconds: secondary.limitWindowSeconds),
+                    usedPercent: secondary.usedPercent,
+                    resetAt: secondary.resetAt > 0 ? secondary.resetAt : nil,
+                    isLimited: isWindowLimited(
+                        window: secondary,
+                        rateLimit: rateLimit,
+                        reachedType: reachedType,
+                        preferredType: "secondary",
+                        maxUsedPercent: max(primaryUsed, secondaryUsed)
+                    )
+                ))
+            }
+        }
+
+        if let reachedType = usage.rateLimitReachedType, !windows.contains(where: \.isLimited) {
+            windows.append(UsageNotificationWindow(
+                id: "reached:\(reachedType.type)",
+                limitType: limitTypeLabel(reachedType: reachedType.type),
+                usedPercent: 100,
+                resetAt: nil,
+                isLimited: true
+            ))
+        }
+
+        if let credits = usage.credits, credits.overageLimitReached {
+            windows.append(UsageNotificationWindow(
+                id: "credits",
+                limitType: L10n.creditsLimitReached,
+                usedPercent: nil,
+                resetAt: nil,
+                isLimited: true
+            ))
+        }
+
+        if let spendControl = usage.spendControl, spendControl.reached {
+            windows.append(UsageNotificationWindow(
+                id: "spend-control",
+                limitType: L10n.spendLimitReached,
+                usedPercent: nil,
+                resetAt: nil,
+                isLimited: true
+            ))
+        }
+
+        return windows
+    }
+
+    private func isWindowLimited(
+        window: WindowUsage,
+        rateLimit: RateLimit,
+        reachedType: String?,
+        preferredType: String,
+        maxUsedPercent: Int
+    ) -> Bool {
+        if window.usedPercent >= 100 { return true }
+        guard rateLimit.limitReached else { return false }
+
+        if let reachedType {
+            if preferredType == "primary" {
+                return reachedType == "primary"
+                    || reachedType.contains("5h")
+                    || reachedType.contains("5hour")
+                    || reachedType.contains("hour")
+            }
+            return reachedType == "secondary"
+                || reachedType.contains("weekly")
+                || reachedType.contains("7d")
+                || reachedType.contains("week")
+        }
+
+        return window.usedPercent == maxUsedPercent
+    }
+
     private func limitTypeLabel(seconds: Int) -> String {
         let hours = seconds / 3600
         if hours >= 168 {
@@ -239,21 +391,65 @@ class AccountStore: ObservableObject {
         }
         return L10n.fiveHourLimitReached()
     }
-    
-    /// Check for accounts that recovered from limited state and send notifications
-    private func checkRecoveryNotifications(previousLimited: [UUID: String]) {
-        guard UserDefaults.standard.bool(forKey: PreferencesKeys.recoveryNotificationEnabled) != false else { return }
 
-        for account in accounts {
-            guard let previousType = previousLimited[account.id] else { continue }
-            // Was limited before — check if now available
-            let currentLimited = previouslyLimitedAccounts[account.id] != nil
-            if !currentLimited {
-                sendRecoveryNotification(accountName: account.name, limitType: previousType)
+    private func limitTypeLabel(reachedType: String) -> String {
+        let type = reachedType.lowercased()
+        if type.contains("5h") || type.contains("5hour") || type.contains("hour") || type == "primary" {
+            return L10n.fiveHourLimitReached()
+        }
+        if type.contains("weekly") || type.contains("7d") || type.contains("week") || type == "secondary" {
+            return L10n.weeklyLimitReached()
+        }
+        return L10n.limitReached
+    }
+
+    private func sendUsageWarningNotification(accountName: String, limitType: String, usedPercent: Int, resetAt: Int?) {
+        let content = UNMutableNotificationContent()
+        content.title = "CodexMonitor"
+        content.body = L10n.usageWarningNotification(
+            accountName: accountName,
+            limitType: limitType,
+            usedPercent: usedPercent,
+            resetTime: resetTimeString(resetAt)
+        )
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "usage_warning_\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                print("[CodexMonitor] Failed to send usage warning notification: \(error)")
             }
         }
     }
-    
+
+    private func sendLimitReachedNotification(accountName: String, limitType: String, resetAt: Int?) {
+        let content = UNMutableNotificationContent()
+        content.title = "CodexMonitor"
+        content.body = L10n.limitReachedNotification(
+            accountName: accountName,
+            limitType: limitType,
+            resetTime: resetTimeString(resetAt)
+        )
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "limit_reached_\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                print("[CodexMonitor] Failed to send limit notification: \(error)")
+            }
+        }
+    }
+
     private func sendRecoveryNotification(accountName: String, limitType: String) {
         let content = UNMutableNotificationContent()
         content.title = "CodexMonitor"
@@ -272,97 +468,57 @@ class AccountStore: ObservableObject {
             }
         }
     }
-    
-    // MARK: - Usage Alerts
 
-    private func checkUsageAlerts() {
-        guard UserDefaults.standard.bool(forKey: PreferencesKeys.usageAlertEnabled) != false else { return }
-
-        let threshold = UserDefaults.standard.integer(forKey: PreferencesKeys.alertThreshold)
-        let alertThreshold = threshold > 0 ? threshold : 80
-        
-        for account in accounts {
-            guard case .success(let usage) = usageData[account.id] else { continue }
-            
-            var shouldNotify = false
-            var usedPercent = 0
-            var windowSeconds = 0
-            var resetAt = 0
-            
-            if let rateLimit = usage.rateLimit {
-                // Check primary window
-                if let primary = rateLimit.primaryWindow, primary.usedPercent >= alertThreshold {
-                    let key = "\(account.id.uuidString)_\(primary.limitWindowSeconds)"
-                    if notifiedAccounts[key] != true {
-                        shouldNotify = true
-                        usedPercent = primary.usedPercent
-                        windowSeconds = primary.limitWindowSeconds
-                        resetAt = primary.resetAt
-                        notifiedAccounts[key] = true
-                    }
-                }
-                
-                // Check secondary window
-                if let secondary = rateLimit.secondaryWindow, secondary.usedPercent >= alertThreshold {
-                    let key = "\(account.id.uuidString)_\(secondary.limitWindowSeconds)"
-                    if notifiedAccounts[key] != true {
-                        shouldNotify = true
-                        usedPercent = secondary.usedPercent
-                        windowSeconds = secondary.limitWindowSeconds
-                        resetAt = secondary.resetAt
-                        notifiedAccounts[key] = true
-                    }
-                }
-            }
-            
-            if shouldNotify {
-                sendUsageAlert(
-                    accountName: account.name,
-                    usedPercent: usedPercent,
-                    windowSeconds: windowSeconds,
-                    resetAt: resetAt
-                )
-            }
-        }
-    }
-    
-    private func sendUsageAlert(accountName: String, usedPercent: Int, windowSeconds: Int, resetAt: Int) {
-        let hours = windowSeconds / 3600
-        let windowLabel: String
-        if hours >= 168 {
-            windowLabel = "Weekly"
-        } else if hours >= 24 {
-            windowLabel = "\(hours / 24)-day"
-        } else {
-            windowLabel = "\(hours)-hour"
-        }
-        
+    private func resetTimeString(_ resetAt: Int?) -> String? {
+        guard let resetAt, resetAt > 0 else { return nil }
         let resetDate = Date(timeIntervalSince1970: TimeInterval(resetAt))
         let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        let resetTimeStr = formatter.string(from: resetDate)
-        
-        let content = UNMutableNotificationContent()
-        content.title = "CodexMonitor"
-        content.body = "[\(accountName)] \(windowLabel) quota used \(usedPercent)%, resets at \(resetTimeStr)"
-        content.sound = .default
-        
-        let request = UNNotificationRequest(
-            identifier: "usage_alert_\(accountName)_\(windowSeconds)",
-            content: content,
-            trigger: nil // deliver immediately
-        )
-        
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("Failed to send notification: \(error)")
-            }
-        }
+        formatter.locale = Locale.current
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: resetDate)
     }
-    
-    /// Reset notification tracking (call when a new window cycle begins)
-    func resetNotificationTracking(for accountID: UUID, windowSeconds: Int) {
-        let key = "\(accountID.uuidString)_\(windowSeconds)"
-        notifiedAccounts.removeValue(forKey: key)
+
+    private func loadSentNotificationKeys() -> Set<String> {
+        let values = userDefaults.stringArray(forKey: sentNotificationKeysKey) ?? []
+        return Set(values)
+    }
+
+    private func saveSentNotificationKeys(_ keys: Set<String>) {
+        let capped = Array(keys).suffix(500)
+        userDefaults.set(Array(capped), forKey: sentNotificationKeysKey)
+    }
+
+    private func loadLimitedNotificationState() -> [String: [String: PersistedLimitState]] {
+        guard let data = userDefaults.data(forKey: limitedStateKey),
+              let decoded = try? JSONDecoder().decode([String: [String: PersistedLimitState]].self, from: data)
+        else { return [:] }
+        return decoded
+    }
+
+    private func saveLimitedNotificationState(_ state: [String: [String: PersistedLimitState]]) {
+        guard let data = try? JSONEncoder().encode(state) else { return }
+        userDefaults.set(data, forKey: limitedStateKey)
+    }
+}
+
+private struct UsageNotificationWindow {
+    let id: String
+    let limitType: String
+    let usedPercent: Int?
+    let resetAt: Int?
+    let isLimited: Bool
+
+    var resetKey: String {
+        resetAt.map(String.init) ?? "unknown"
+    }
+}
+
+private struct PersistedLimitState: Codable {
+    let limitType: String
+    let resetAt: Int?
+
+    var resetKey: String {
+        resetAt.map(String.init) ?? "unknown"
     }
 }

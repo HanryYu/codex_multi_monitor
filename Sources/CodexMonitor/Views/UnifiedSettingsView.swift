@@ -238,18 +238,20 @@ struct AccountManagementContentView: View {
 
 struct PreferencesContentView: View {
     @ObservedObject var localeManager = LocaleManager.shared
+    @ObservedObject private var updater = GitHubReleaseUpdater.shared
     @State private var refreshInterval: RefreshInterval = .fiveMinutes
     @State private var launchAtLogin: Bool = false
-    @State private var bundleIdentifier: String = ""
-    @State private var binaryPath: String = ""
     @State private var displayMode: DisplayMode = .remaining
     @State private var alertThreshold: Double = 80
     @State private var showMenuBarText: Bool = false
     @State private var resetTimeFormat: ResetTimeFormat = .relative
     @State private var selectedLanguage: LanguageOption = .system
     @State private var autoImportEnabled: Bool = false
-    @State private var usageAlertEnabled: Bool = true
+    @State private var usageWarningNotificationEnabled: Bool = true
+    @State private var limitNotificationEnabled: Bool = true
     @State private var recoveryNotificationEnabled: Bool = true
+    @State private var automaticUpdatesEnabled: Bool = true
+    @State private var notificationTestStatus: String?
 
     var body: some View {
         ScrollView {
@@ -340,29 +342,50 @@ struct PreferencesContentView: View {
                 VStack(alignment: .leading, spacing: 8) {
                 SectionHeader(label: L10n.notificationSection, systemImage: "bell")
 
-                // Usage Alert Toggle
+                // Limit Notification Toggle
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Label(L10n.usageAlertEnabledLabel, systemImage: "bell.fill")
+                        Label(L10n.limitNotificationLabel, systemImage: "bell.badge.fill")
                             .font(.system(size: 12, weight: .medium))
                         Spacer()
-                        Toggle("", isOn: $usageAlertEnabled)
+                        Toggle("", isOn: $limitNotificationEnabled)
                             .labelsHidden()
                     }
-                    .onChange(of: usageAlertEnabled) { _, newValue in
-                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.usageAlertEnabled)
-                        NotificationCenter.default.post(name: .usageAlertEnabledChanged, object: nil)
+                    .onChange(of: limitNotificationEnabled) { _, newValue in
+                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.limitNotificationEnabled)
                         if newValue { requestNotificationPermissionIfNeeded() }
                     }
 
-                    Text(L10n.usageAlertEnabledDesc)
+                    Text(L10n.limitNotificationDesc)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                CompactDivider()
+
+                // Usage Warning Toggle
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Label(L10n.usageWarningNotificationLabel, systemImage: "bell.fill")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Toggle("", isOn: $usageWarningNotificationEnabled)
+                            .labelsHidden()
+                    }
+                    .onChange(of: usageWarningNotificationEnabled) { _, newValue in
+                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.usageWarningNotificationEnabled)
+                        if newValue { requestNotificationPermissionIfNeeded() }
+                    }
+
+                    Text(L10n.usageWarningNotificationDesc)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Alert Threshold (conditionally visible)
-                if usageAlertEnabled {
+                if usageWarningNotificationEnabled {
                     CompactDivider()
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -410,6 +433,25 @@ struct PreferencesContentView: View {
                         .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+                CompactDivider()
+
+                HStack(spacing: 8) {
+                    Button(action: sendTestNotification) {
+                        Label(L10n.testNotificationButton, systemImage: "paperplane.fill")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    if let notificationTestStatus {
+                        Text(notificationTestStatus)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
@@ -469,7 +511,7 @@ struct PreferencesContentView: View {
                 CompactDivider()
 
                 // Launch at Login
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Label(L10n.launchAtLogin, systemImage: "power")
                             .font(.system(size: 12, weight: .medium))
@@ -480,30 +522,6 @@ struct PreferencesContentView: View {
                     .onChange(of: launchAtLogin) { _, newValue in
                         toggleLaunchAtLogin(enable: newValue)
                     }
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 4) {
-                            Text(L10n.bundleIdLabel)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                            Text(bundleIdentifier)
-                                .font(.system(size: 10).monospaced())
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                        HStack(spacing: 4) {
-                            Text(L10n.binaryLabel)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                            Text(binaryPath)
-                                .font(.system(size: 10).monospaced())
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                    }
-                    .padding(.leading, 2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -514,10 +532,6 @@ struct PreferencesContentView: View {
                     Label(L10n.language, systemImage: "globe")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
-
-                    Text(L10n.languageDesc)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
 
                     Picker("", selection: $selectedLanguage) {
                         ForEach(LanguageOption.allCases, id: \.self) { option in
@@ -531,6 +545,70 @@ struct PreferencesContentView: View {
                         LocaleManager.shared.setLanguage(newValue)
                     }
                 }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(.quaternary.opacity(0.3))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                // ── Updates Card ──
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionHeader(label: L10n.updateSection, systemImage: "arrow.down.circle")
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Label(L10n.automaticUpdates, systemImage: "sparkles")
+                                .font(.system(size: 12, weight: .medium))
+                            Spacer()
+                            Toggle("", isOn: $automaticUpdatesEnabled)
+                                .labelsHidden()
+                        }
+                        .onChange(of: automaticUpdatesEnabled) { _, newValue in
+                            UserDefaults.standard.set(newValue, forKey: PreferencesKeys.automaticUpdatesEnabled)
+                            if newValue {
+                                GitHubReleaseUpdater.shared.checkAutomaticallyIfNeeded()
+                            }
+                        }
+
+                        Text(updater.statusText)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    CompactDivider()
+
+                    HStack(spacing: 8) {
+                        Button(action: {
+                            Task {
+                                await updater.checkForUpdates(downloadIfAvailable: true, userInitiated: true)
+                            }
+                        }) {
+                            if updater.isChecking || updater.isDownloading {
+                                Label(L10n.updateCheckingButton, systemImage: "arrow.clockwise")
+                                    .font(.system(size: 12, weight: .medium))
+                            } else {
+                                Label(L10n.checkForUpdatesButton, systemImage: "arrow.clockwise")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(updater.isChecking || updater.isDownloading)
+
+                        Button(action: {
+                            updater.installDownloadedUpdate()
+                        }) {
+                            Label(L10n.installUpdateButton, systemImage: "square.and.arrow.down")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(updater.downloadedURL == nil)
+
+                        Spacer()
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
@@ -558,11 +636,7 @@ struct PreferencesContentView: View {
             refreshInterval = RefreshInterval(rawValue: saved) ?? .fiveMinutes
         }
 
-        bundleIdentifier = defaultBundleIdentifier()
-        binaryPath = defaultBinaryPath()
-
-        let plist = readLaunchAgentPlist(bundleID: bundleIdentifier)
-        launchAtLogin = plist != nil
+        launchAtLogin = LoginItemService.isEnabled
 
         let modeString = UserDefaults.standard.string(forKey: PreferencesKeys.displayMode) ?? DisplayMode.remaining.rawValue
         displayMode = DisplayMode(rawValue: modeString) ?? .remaining
@@ -581,16 +655,82 @@ struct PreferencesContentView: View {
         autoImportEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.autoImportEnabled)
 
         // Notification toggles (default true)
-        let usageAlertVal = UserDefaults.standard.object(forKey: PreferencesKeys.usageAlertEnabled) as? Bool
-        usageAlertEnabled = usageAlertVal ?? true
+        let warningVal = UserDefaults.standard.object(forKey: PreferencesKeys.usageWarningNotificationEnabled) as? Bool
+        if let warningVal {
+            usageWarningNotificationEnabled = warningVal
+        } else {
+            usageWarningNotificationEnabled = (UserDefaults.standard.object(forKey: PreferencesKeys.usageAlertEnabled) as? Bool) ?? true
+        }
+
+        let limitVal = UserDefaults.standard.object(forKey: PreferencesKeys.limitNotificationEnabled) as? Bool
+        limitNotificationEnabled = limitVal ?? true
 
         let recoveryVal = UserDefaults.standard.object(forKey: PreferencesKeys.recoveryNotificationEnabled) as? Bool
         recoveryNotificationEnabled = recoveryVal ?? true
+
+        let automaticUpdatesVal = UserDefaults.standard.object(forKey: PreferencesKeys.automaticUpdatesEnabled) as? Bool
+        automaticUpdatesEnabled = automaticUpdatesVal ?? true
     }
 
     private func toggleLaunchAtLogin(enable: Bool) {
-        UserDefaults.standard.set(bundleIdentifier, forKey: PreferencesKeys.bundleIdentifier)
-        _ = writeLaunchAgentPlist(bundleID: bundleIdentifier, binaryPath: binaryPath, enable: enable)
+        let success = LoginItemService.setEnabled(enable)
+        launchAtLogin = success ? enable : LoginItemService.isEnabled
+    }
+
+    private func sendTestNotification() {
+        let center = UNUserNotificationCenter.current()
+
+        func enqueueTestNotification() {
+            let content = UNMutableNotificationContent()
+            content.title = "CodexMonitor"
+            content.body = L10n.testNotificationBody
+            content.sound = .default
+
+            let request = UNNotificationRequest(
+                identifier: "notification_test_\(UUID().uuidString)",
+                content: content,
+                trigger: nil
+            )
+
+            center.add(request) { error in
+                DispatchQueue.main.async {
+                    if let error {
+                        notificationTestStatus = L10n.notificationTestFailed(error: error.localizedDescription)
+                    } else {
+                        notificationTestStatus = L10n.notificationTestSent
+                    }
+                }
+            }
+        }
+
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                enqueueTestNotification()
+            case .notDetermined:
+                center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+                    if granted {
+                        enqueueTestNotification()
+                    } else {
+                        DispatchQueue.main.async {
+                            if let error {
+                                notificationTestStatus = L10n.notificationTestFailed(error: error.localizedDescription)
+                            } else {
+                                notificationTestStatus = L10n.notificationPermissionDenied
+                            }
+                        }
+                    }
+                }
+            case .denied:
+                DispatchQueue.main.async {
+                    notificationTestStatus = L10n.notificationPermissionDenied
+                }
+            @unknown default:
+                DispatchQueue.main.async {
+                    notificationTestStatus = L10n.notificationPermissionDenied
+                }
+            }
+        }
     }
 
     /// Check notification authorization and request if not yet granted

@@ -59,7 +59,11 @@ enum PreferencesKeys {
     static let resetTimeFormat = "resetTimeFormat"
     static let autoImportEnabled = "auto_import_enabled"
     static let usageAlertEnabled = "usageAlertEnabled"
+    static let usageWarningNotificationEnabled = "usageWarningNotificationEnabled"
+    static let limitNotificationEnabled = "limitNotificationEnabled"
     static let recoveryNotificationEnabled = "recoveryNotificationEnabled"
+    static let automaticUpdatesEnabled = "automaticUpdatesEnabled"
+    static let lastUpdateCheckAt = "lastUpdateCheckAt"
 }
 
 // MARK: - Default Binary Path
@@ -125,8 +129,6 @@ func writeLaunchAgentPlist(bundleID: String, binaryPath: String, enable: Bool) -
 struct PreferencesView: View {
     @State private var refreshInterval: RefreshInterval = .fiveMinutes
     @State private var launchAtLogin: Bool = false
-    @State private var bundleIdentifier: String = ""
-    @State private var binaryPath: String = ""
     @State private var displayMode: DisplayMode = .remaining
     @State private var alertThreshold: Double = 80
     @State private var showMenuBarText: Bool = false
@@ -264,30 +266,6 @@ struct PreferencesView: View {
                     .onChange(of: launchAtLogin) { _, newValue in
                         toggleLaunchAtLogin(enable: newValue)
                     }
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 4) {
-                            Text(L10n.bundleIdLabel)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                            Text(bundleIdentifier)
-                                .font(.system(size: 10).monospaced())
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                        HStack(spacing: 4) {
-                            Text(L10n.binaryLabel)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                            Text(binaryPath)
-                                .font(.system(size: 10).monospaced())
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                    }
-                    .padding(.leading, 2)
                 }
             }
 
@@ -321,11 +299,7 @@ struct PreferencesView: View {
             refreshInterval = RefreshInterval(rawValue: saved) ?? .fiveMinutes
         }
 
-        bundleIdentifier = defaultBundleIdentifier()
-        binaryPath = defaultBinaryPath()
-
-        let plist = readLaunchAgentPlist(bundleID: bundleIdentifier)
-        launchAtLogin = plist != nil
+        launchAtLogin = LoginItemService.isEnabled
 
         // Load display mode
         let modeString = UserDefaults.standard.string(forKey: PreferencesKeys.displayMode) ?? DisplayMode.remaining.rawValue
@@ -344,8 +318,8 @@ struct PreferencesView: View {
     }
 
     private func toggleLaunchAtLogin(enable: Bool) {
-        UserDefaults.standard.set(bundleIdentifier, forKey: PreferencesKeys.bundleIdentifier)
-        _ = writeLaunchAgentPlist(bundleID: bundleIdentifier, binaryPath: binaryPath, enable: enable)
+        let success = LoginItemService.setEnabled(enable)
+        launchAtLogin = success ? enable : LoginItemService.isEnabled
     }
 
     private func closeWindow() {

@@ -8,6 +8,7 @@ final class AuthFileMonitor {
     private let accountStore: AccountStore
     private var dispatchSource: DispatchSourceFileSystemObject?
     private var fileDescriptor: Int32 = -1
+    private var pendingSyncWorkItem: DispatchWorkItem?
 
     /// auth.json 文件路径
     static let authFilePath: String = {
@@ -43,6 +44,8 @@ final class AuthFileMonitor {
 
     /// 停止文件监听
     func stopMonitoring() {
+        pendingSyncWorkItem?.cancel()
+        pendingSyncWorkItem = nil
         dispatchSource?.cancel()
         dispatchSource = nil
         if fileDescriptor >= 0 {
@@ -121,14 +124,12 @@ final class AuthFileMonitor {
         source.setEventHandler { [weak self] in
             guard let self else { return }
             let flags = self.dispatchSource?.data ?? []
-            if flags.contains(.delete) || flags.contains(.revoke) {
-                // 文件被删除或撤销
-                self.handleFileDeleted()
-                // 重新打开文件（macOS 上 DispatchSource 需要重新创建）
+            if flags.contains(.delete) || flags.contains(.rename) || flags.contains(.revoke) {
+                // auth.json is commonly replaced atomically by tools like CC Switch.
+                // A DispatchSource follows the old inode, so recreate it on rename.
                 self.restartMonitoring()
             } else {
-                // 文件内容变化
-                self.syncFromAuthFile()
+                self.scheduleSyncFromAuthFile()
             }
         }
 
@@ -186,54 +187,71 @@ final class AuthFileMonitor {
             return
         }
 
-        // auth.json 格式: { "account_id_key": "bearer_token", ... }
-        guard let entries = try? JSONSerialization.jsonObject(with: data) as? [String: String] else {
-            print("[AuthFileMonitor] auth.json is not valid JSON dict")
+        guard let entries = parseAuthEntries(from: data) else {
+            print("[AuthFileMonitor] auth.json is not a supported auth format")
             return
         }
+
+        var hasChanges = false
 
         // 恢复之前因文件删除而失效的账户
         for i in 0..<accountStore.accounts.count {
             if accountStore.accounts[i].source == .localAuth && accountStore.accounts[i].localAuthInvalid {
                 accountStore.accounts[i].localAuthInvalid = false
+                hasChanges = true
             }
         }
 
-        // 收集当前 auth.json 中的 accountID
-        let remoteAccountIDs = Set(entries.keys)
+        let remoteAccountIDs = Set(entries.map(\.accountID))
 
         // 更新或添加账户
-        for (accountID, token) in entries {
+        for entry in entries {
+            let accountID = entry.accountID
+            let token = entry.authToken
             if let index = accountStore.accounts.firstIndex(where: { $0.source == .localAuth && $0.accountID == accountID }) {
                 // 已存在：检查 token 是否变化
                 if accountStore.accounts[index].authToken != token {
                     accountStore.accounts[index].authToken = token
                     accountStore.accounts[index].localAuthInvalid = false
+                    hasChanges = true
                     print("[AuthFileMonitor] Updated token for local account: \(accountID)")
+                } else if accountStore.accounts[index].localAuthInvalid {
+                    accountStore.accounts[index].localAuthInvalid = false
+                    hasChanges = true
                 }
             } else {
                 // 新账户：自动添加
                 let newAccount = Account(
-                    name: accountID,
+                    name: entry.displayName,
                     authToken: token,
                     source: .localAuth,
                     accountID: accountID
                 )
                 accountStore.accounts.append(newAccount)
+                hasChanges = true
                 sendNotification(
                     title: "CodexMonitor",
-                    body: "已自动导入本地账户: \(accountID)"
+                    body: L10n.localAccountImported(accountName: entry.displayName)
                 )
                 print("[AuthFileMonitor] Imported new local account: \(accountID)")
             }
         }
 
         // 移除 auth.json 中不再存在的 localAuth 账户
+        let beforeCount = accountStore.accounts.count
         accountStore.accounts.removeAll { account in
             account.source == .localAuth && !remoteAccountIDs.contains(account.accountID ?? "")
         }
+        if beforeCount != accountStore.accounts.count {
+            hasChanges = true
+        }
 
-        accountStore.saveAccounts()
+        if hasChanges {
+            accountStore.saveAccounts()
+            Task { @MainActor in
+                await accountStore.refreshAll()
+            }
+        }
     }
 
     /// 文件被删除时标记所有 localAuth 账户失效
@@ -249,7 +267,7 @@ final class AuthFileMonitor {
             accountStore.saveAccounts()
             sendNotification(
                 title: "CodexMonitor",
-                body: "~/.codex/auth.json 已删除，本地导入账户已标记为失效"
+                body: L10n.localAuthFileMissingNotification
             )
             print("[AuthFileMonitor] auth.json deleted, marked local accounts as invalid")
         }
@@ -284,4 +302,90 @@ final class AuthFileMonitor {
             }
         }
     }
+
+    private func scheduleSyncFromAuthFile() {
+        pendingSyncWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.syncFromAuthFile()
+        }
+        pendingSyncWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: workItem)
+    }
+
+    private func parseAuthEntries(from data: Data) -> [LocalAuthEntry]? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+
+        if let root = object as? [String: Any],
+           let tokens = root["tokens"] as? [String: Any],
+           let accessToken = tokens["access_token"] as? String,
+           !accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let accountID = (tokens["account_id"] as? String)
+                ?? accountIDFromTokenPayload(tokens["id_token"] as? String)
+                ?? accountIDFromTokenPayload(accessToken)
+                ?? "codex-local-auth"
+
+            return [LocalAuthEntry(
+                accountID: accountID,
+                displayName: localAccountDisplayName(accountID: accountID),
+                authToken: accessToken
+            )]
+        }
+
+        if let legacyEntries = object as? [String: String] {
+            let entries = legacyEntries.compactMap { accountID, token -> LocalAuthEntry? in
+                let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !accountID.isEmpty, !trimmedToken.isEmpty else { return nil }
+                return LocalAuthEntry(
+                    accountID: accountID,
+                    displayName: localAccountDisplayName(accountID: accountID),
+                    authToken: trimmedToken
+                )
+            }
+            return entries.isEmpty ? nil : entries
+        }
+
+        return nil
+    }
+
+    private func accountIDFromTokenPayload(_ token: String?) -> String? {
+        guard let token else { return nil }
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+
+        var payload = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while payload.count % 4 != 0 {
+            payload.append("=")
+        }
+
+        guard let data = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+
+        if let accountID = json["https://api.openai.com/auth"] as? [String: Any],
+           let value = accountID["account_id"] as? String {
+            return value
+        }
+        if let value = json["account_id"] as? String {
+            return value
+        }
+        if let value = json["sub"] as? String {
+            return value
+        }
+        return nil
+    }
+
+    private func localAccountDisplayName(accountID: String) -> String {
+        let shortID = accountID.count > 8 ? String(accountID.prefix(8)) : accountID
+        return "Codex \(shortID)"
+    }
+}
+
+private struct LocalAuthEntry {
+    let accountID: String
+    let displayName: String
+    let authToken: String
 }

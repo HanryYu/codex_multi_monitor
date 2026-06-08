@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="CodexMonitor"
 DMG_NAME="CodexMonitor"
-VERSION="${1:-0.1.0}"
+VERSION="${1:-0.6.0}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_DIR/.build/release"
