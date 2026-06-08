@@ -85,6 +85,10 @@ class AccountStore: ObservableObject {
                     accounts[i].authToken = token
                 }
             }
+
+            if enrichAccountIdentitiesFromTokens() {
+                saveAccounts()
+            }
         } catch {
             print("Failed to load accounts: \(error)")
         }
@@ -103,6 +107,27 @@ class AccountStore: ObservableObject {
         } catch {
             print("Failed to save accounts: \(error)")
         }
+    }
+
+    @discardableResult
+    func enrichAccountIdentitiesFromTokens() -> Bool {
+        var changed = false
+
+        for index in accounts.indices {
+            let identity = AuthTokenIdentityParser.parse(accessToken: accounts[index].authToken)
+
+            if let accountID = identity.accountID, accounts[index].accountID != accountID {
+                accounts[index].accountID = accountID
+                changed = true
+            }
+
+            if let email = identity.email, accounts[index].accountEmail != email {
+                accounts[index].accountEmail = email
+                changed = true
+            }
+        }
+
+        return changed
     }
     
     func addAccount(_ account: Account) {

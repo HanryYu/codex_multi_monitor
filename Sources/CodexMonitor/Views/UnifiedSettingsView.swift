@@ -127,6 +127,13 @@ struct AccountManagementContentView: View {
                                     .font(.system(size: 11).monospaced())
                                     .foregroundStyle(.tertiary)
                                     .lineLimit(1)
+                                if let email = account.accountEmail, !email.isEmpty {
+                                    Text(email)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                }
                                 if account.source == .localAuth && account.localAuthInvalid {
                                     Text(L10n.localAuthInvalid)
                                         .font(.system(size: 10))

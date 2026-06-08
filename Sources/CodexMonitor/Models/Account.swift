@@ -15,6 +15,8 @@ struct Account: Codable, Identifiable {
     var source: AccountSource
     /// auth.json 中的 key，用于去重和匹配（仅 localAuth 账户使用）
     var accountID: String?
+    /// Codex 账号邮箱，用于把手动账户和本地 auth.json 账户对应起来
+    var accountEmail: String?
     /// 本地认证文件是否已失效（文件被删除时标记）
     var localAuthInvalid: Bool
 
@@ -25,6 +27,7 @@ struct Account: Codable, Identifiable {
         createdAt: Date = Date(),
         source: AccountSource = .manual,
         accountID: String? = nil,
+        accountEmail: String? = nil,
         localAuthInvalid: Bool = false
     ) {
         self.id = id
@@ -33,6 +36,7 @@ struct Account: Codable, Identifiable {
         self.createdAt = createdAt
         self.source = source
         self.accountID = accountID
+        self.accountEmail = AuthTokenIdentityParser.normalizedEmail(accountEmail)
         self.localAuthInvalid = localAuthInvalid
     }
 
@@ -46,6 +50,7 @@ struct Account: Codable, Identifiable {
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         source = try container.decodeIfPresent(AccountSource.self, forKey: .source) ?? .manual
         accountID = try container.decodeIfPresent(String.self, forKey: .accountID)
+        accountEmail = AuthTokenIdentityParser.normalizedEmail(try container.decodeIfPresent(String.self, forKey: .accountEmail))
         localAuthInvalid = try container.decodeIfPresent(Bool.self, forKey: .localAuthInvalid) ?? false
     }
 }

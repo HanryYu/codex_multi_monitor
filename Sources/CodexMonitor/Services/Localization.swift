@@ -691,6 +691,24 @@ enum L10n {
         }
     }
 
+    static var accountEmail: String {
+        switch lang {
+        case .en:    return "Codex Account Email"
+        case .ja:    return "Codex アカウントのメール"
+        case .zhHans: return "Codex 账号邮箱"
+        case .zhHant: return "Codex 帳號信箱"
+        }
+    }
+
+    static var accountEmailPlaceholder: String {
+        switch lang {
+        case .en:    return "email@example.com"
+        case .ja:    return "email@example.com"
+        case .zhHans: return "email@example.com"
+        case .zhHant: return "email@example.com"
+        }
+    }
+
     static var authToken: String {
         switch lang {
         case .en:    return "Authorization Token"

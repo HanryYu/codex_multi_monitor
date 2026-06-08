@@ -7,13 +7,14 @@ struct AddAccountSheet: View {
     var editingAccount: Account?
 
     @State private var name: String = ""
+    @State private var accountEmail: String = ""
     @State private var authToken: String = ""
     @State private var showError = false
     @State private var errorMessage = ""
     @FocusState private var focusedField: Field?
 
     enum Field {
-        case name, token
+        case name, email, token
     }
 
     var isEditing: Bool {
@@ -46,6 +47,16 @@ struct AddAccountSheet: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
+                    Label(L10n.accountEmail, systemImage: "envelope")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    TextField(L10n.accountEmailPlaceholder, text: $accountEmail)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($focusedField, equals: .email)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
                     Label(L10n.authToken, systemImage: "key")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
@@ -53,6 +64,9 @@ struct AddAccountSheet: View {
                     TextField(L10n.authTokenPlaceholder, text: $authToken)
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .token)
+                        .onChange(of: authToken) { _, newValue in
+                            autofillIdentity(from: newValue)
+                        }
 
                     Text(L10n.getAuthTokenHint)
                         .font(.system(size: 10))
@@ -96,6 +110,7 @@ struct AddAccountSheet: View {
         .onAppear {
             if let account = editingAccount {
                 name = account.name
+                accountEmail = account.accountEmail ?? ""
                 authToken = account.authToken
             } else {
                 focusedField = .name
@@ -114,15 +129,25 @@ struct AddAccountSheet: View {
             return
         }
 
+        let identity = AuthTokenIdentityParser.parse(accessToken: trimmedToken)
+        let email = AuthTokenIdentityParser.normalizedEmail(accountEmail) ?? identity.email
+        let accountID = identity.accountID
+
         if isEditing, let existingAccount = editingAccount {
             var updatedAccount = existingAccount
             updatedAccount.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedAccount.accountEmail = email
+            if let accountID {
+                updatedAccount.accountID = accountID
+            }
             updatedAccount.authToken = trimmedToken
             accountStore.updateAccount(updatedAccount)
         } else {
             let newAccount = Account(
                 name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                authToken: trimmedToken
+                authToken: trimmedToken,
+                accountID: accountID,
+                accountEmail: email
             )
             accountStore.addAccount(newAccount)
         }
@@ -131,6 +156,14 @@ struct AddAccountSheet: View {
 
         Task {
             await accountStore.refreshAll()
+        }
+    }
+
+    private func autofillIdentity(from token: String) {
+        guard accountEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let identity = AuthTokenIdentityParser.parse(accessToken: token)
+        if let email = identity.email {
+            accountEmail = email
         }
     }
 }

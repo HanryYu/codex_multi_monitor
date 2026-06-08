@@ -203,19 +203,36 @@ final class AuthFileMonitor {
         }
 
         let remoteAccountIDs = Set(entries.map(\.accountID))
+        let remoteEmails = Set(entries.compactMap(\.accountEmail))
 
         // 更新或添加账户
         for entry in entries {
             let accountID = entry.accountID
             let token = entry.authToken
-            if let index = accountStore.accounts.firstIndex(where: { $0.source == .localAuth && $0.accountID == accountID }) {
-                // 已存在：检查 token 是否变化
+            if let index = matchingAccountIndex(for: entry) {
                 if accountStore.accounts[index].authToken != token {
                     accountStore.accounts[index].authToken = token
-                    accountStore.accounts[index].localAuthInvalid = false
                     hasChanges = true
                     print("[AuthFileMonitor] Updated token for local account: \(accountID)")
-                } else if accountStore.accounts[index].localAuthInvalid {
+                }
+
+                if accountStore.accounts[index].accountID != entry.accountID {
+                    accountStore.accounts[index].accountID = entry.accountID
+                    hasChanges = true
+                }
+
+                if let email = entry.accountEmail, accountStore.accounts[index].accountEmail != email {
+                    accountStore.accounts[index].accountEmail = email
+                    hasChanges = true
+                }
+
+                if accountStore.accounts[index].source == .localAuth,
+                   accountStore.accounts[index].name.hasPrefix("Codex ") || accountStore.accounts[index].name == accountID {
+                    accountStore.accounts[index].name = entry.displayName
+                    hasChanges = true
+                }
+
+                if accountStore.accounts[index].source == .localAuth && accountStore.accounts[index].localAuthInvalid {
                     accountStore.accounts[index].localAuthInvalid = false
                     hasChanges = true
                 }
@@ -225,7 +242,8 @@ final class AuthFileMonitor {
                     name: entry.displayName,
                     authToken: token,
                     source: .localAuth,
-                    accountID: accountID
+                    accountID: accountID,
+                    accountEmail: entry.accountEmail
                 )
                 accountStore.accounts.append(newAccount)
                 hasChanges = true
@@ -239,8 +257,15 @@ final class AuthFileMonitor {
 
         // 移除 auth.json 中不再存在的 localAuth 账户
         let beforeCount = accountStore.accounts.count
+        let accountSnapshot = accountStore.accounts
         accountStore.accounts.removeAll { account in
-            account.source == .localAuth && !remoteAccountIDs.contains(account.accountID ?? "")
+            guard account.source == .localAuth else { return false }
+            let accountIDMissing = !remoteAccountIDs.contains(account.accountID ?? "")
+            let emailMissing = account.accountEmail.map { !remoteEmails.contains($0) } ?? true
+            let duplicatedByManualAccount = accountSnapshot.contains { other in
+                other.id != account.id && other.source != .localAuth && identifiersMatch(lhs: account, rhs: other)
+            }
+            return (accountIDMissing && emailMissing) || duplicatedByManualAccount
         }
         if beforeCount != accountStore.accounts.count {
             hasChanges = true
@@ -321,14 +346,19 @@ final class AuthFileMonitor {
            let tokens = root["tokens"] as? [String: Any],
            let accessToken = tokens["access_token"] as? String,
            !accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let identity = AuthTokenIdentityParser.parse(
+                accessToken: accessToken,
+                idToken: tokens["id_token"] as? String
+            )
             let accountID = (tokens["account_id"] as? String)
-                ?? accountIDFromTokenPayload(tokens["id_token"] as? String)
-                ?? accountIDFromTokenPayload(accessToken)
+                ?? identity.accountID
                 ?? "codex-local-auth"
+            let email = identity.email
 
             return [LocalAuthEntry(
                 accountID: accountID,
-                displayName: localAccountDisplayName(accountID: accountID),
+                accountEmail: email,
+                displayName: localAccountDisplayName(accountID: accountID, email: email),
                 authToken: accessToken
             )]
         }
@@ -337,9 +367,11 @@ final class AuthFileMonitor {
             let entries = legacyEntries.compactMap { accountID, token -> LocalAuthEntry? in
                 let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !accountID.isEmpty, !trimmedToken.isEmpty else { return nil }
+                let identity = AuthTokenIdentityParser.parse(accessToken: trimmedToken)
                 return LocalAuthEntry(
                     accountID: accountID,
-                    displayName: localAccountDisplayName(accountID: accountID),
+                    accountEmail: identity.email,
+                    displayName: localAccountDisplayName(accountID: accountID, email: identity.email),
                     authToken: trimmedToken
                 )
             }
@@ -349,36 +381,33 @@ final class AuthFileMonitor {
         return nil
     }
 
-    private func accountIDFromTokenPayload(_ token: String?) -> String? {
-        guard let token else { return nil }
-        let parts = token.split(separator: ".")
-        guard parts.count >= 2 else { return nil }
-
-        var payload = String(parts[1])
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-        while payload.count % 4 != 0 {
-            payload.append("=")
+    private func matchingAccountIndex(for entry: LocalAuthEntry) -> Int? {
+        if let email = entry.accountEmail,
+           let index = accountStore.accounts.firstIndex(where: { $0.accountEmail == email }) {
+            return index
         }
 
-        guard let data = Data(base64Encoded: payload),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return nil }
+        if let index = accountStore.accounts.firstIndex(where: { $0.accountID == entry.accountID }) {
+            return index
+        }
 
-        if let accountID = json["https://api.openai.com/auth"] as? [String: Any],
-           let value = accountID["account_id"] as? String {
-            return value
-        }
-        if let value = json["account_id"] as? String {
-            return value
-        }
-        if let value = json["sub"] as? String {
-            return value
-        }
         return nil
     }
 
-    private func localAccountDisplayName(accountID: String) -> String {
+    private func identifiersMatch(lhs: Account, rhs: Account) -> Bool {
+        if let lhsEmail = lhs.accountEmail, let rhsEmail = rhs.accountEmail, lhsEmail == rhsEmail {
+            return true
+        }
+        if let lhsAccountID = lhs.accountID, let rhsAccountID = rhs.accountID, lhsAccountID == rhsAccountID {
+            return true
+        }
+        return false
+    }
+
+    private func localAccountDisplayName(accountID: String, email: String?) -> String {
+        if let email {
+            return email
+        }
         let shortID = accountID.count > 8 ? String(accountID.prefix(8)) : accountID
         return "Codex \(shortID)"
     }
@@ -386,6 +415,7 @@ final class AuthFileMonitor {
 
 private struct LocalAuthEntry {
     let accountID: String
+    let accountEmail: String?
     let displayName: String
     let authToken: String
 }
