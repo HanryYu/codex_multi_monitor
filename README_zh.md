@@ -42,7 +42,19 @@
 
 ## 安装方式
 
-### 下载 DMG（推荐）
+### Homebrew（推荐）
+
+```bash
+brew tap HanryYu/tap
+brew install --cask codexmonitor
+```
+
+升级：
+```bash
+brew upgrade --cask codexmonitor
+```
+
+### 下载 DMG
 
 1. 前往 [Releases](https://github.com/HanryYu/codex_multi_monitor/releases/latest)
 2. 下载 `CodexMonitor-x.x.x.dmg` 文件
@@ -80,7 +92,7 @@ CodexMonitor 可以自动检测和管理你的 Codex 账户。只需启动应用
 1. 在浏览器中打开 [chatgpt.com/codex/cloud/settings/analytics](https://chatgpt.com/codex/cloud/settings/analytics) 并**登录**
 2. 打开开发者工具（Mac 上按 `⌘⌥I`）→ **Network** 标签
 3. 页面会自动加载使用数据 — 查找 `wham/usage` 请求
-4. 点击该请求 → **Headers** → 复制 `Authorization: Bearer ***` 的值
+4. 点击该请求 → **Headers** → 复制 `Authorization: Bearer *** 的值
 5. 将 token（不含 `Bearer ` 前缀）粘贴到 CodexMonitor
 
 ### 方式 3：本地命令提取
