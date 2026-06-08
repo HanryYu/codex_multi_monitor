@@ -3,22 +3,37 @@ set -euo pipefail
 
 APP_NAME="CodexMonitor"
 DMG_NAME="CodexMonitor"
-VERSION="${1:-0.6.1}"
+VERSION="${1:-0.6.2}"
+BUNDLE_ID="com.henry.codex-monitor"
+CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_DIR/.build/release"
+ARM64_BUILD_DIR="$PROJECT_DIR/.build/arm64/arm64-apple-macosx/release"
+X86_64_BUILD_DIR="$PROJECT_DIR/.build/x86_64/x86_64-apple-macosx/release"
+UNIVERSAL_BUILD_DIR="$PROJECT_DIR/.build/universal"
 APP_BUNDLE="$PROJECT_DIR/.build/$APP_NAME.app"
 DMG_OUTPUT="$PROJECT_DIR/.build/$DMG_NAME-$VERSION.dmg"
 
-echo "🔨 Building $APP_NAME $VERSION (release)..."
+echo "🔨 Building $APP_NAME $VERSION (Universal release)..."
 cd "$PROJECT_DIR"
-swift build -c release 2>&1
+swift build -c release \
+    --triple arm64-apple-macosx15.0 \
+    --scratch-path "$PROJECT_DIR/.build/arm64" 2>&1
+swift build -c release \
+    --triple x86_64-apple-macosx15.0 \
+    --scratch-path "$PROJECT_DIR/.build/x86_64" 2>&1
 
-BINARY="$BUILD_DIR/$APP_NAME"
-if [ ! -f "$BINARY" ]; then
-    echo "❌ Binary not found at $BINARY"
+ARM64_BINARY="$ARM64_BUILD_DIR/$APP_NAME"
+X86_64_BINARY="$X86_64_BUILD_DIR/$APP_NAME"
+if [[ ! -f "$ARM64_BINARY" || ! -f "$X86_64_BINARY" ]]; then
+    echo "❌ Architecture-specific release binaries not found"
     exit 1
 fi
+
+mkdir -p "$UNIVERSAL_BUILD_DIR"
+BINARY="$UNIVERSAL_BUILD_DIR/$APP_NAME"
+/usr/bin/lipo -create "$ARM64_BINARY" "$X86_64_BINARY" -output "$BINARY"
+/usr/bin/lipo "$BINARY" -verify_arch arm64 x86_64
 
 echo "📦 Creating .app bundle..."
 rm -rf "$APP_BUNDLE"
@@ -36,7 +51,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
     <key>CFBundleExecutable</key>
     <string>$APP_NAME</string>
     <key>CFBundleIdentifier</key>
-    <string>com.henry.codex-monitor</string>
+    <string>$BUNDLE_ID</string>
     <key>CFBundleName</key>
     <string>$APP_NAME</string>
     <key>CFBundleDisplayName</key>
@@ -66,6 +81,33 @@ else
     echo "   ⚠️  AppIcon.icns not found at $ICON_SRC"
 fi
 
+echo "🔏 Signing .app bundle..."
+if [[ -n "$CODE_SIGN_IDENTITY" ]]; then
+    if [[ "$CODE_SIGN_IDENTITY" == Developer\ ID\ Application:* ]]; then
+        codesign --force \
+            --identifier "$BUNDLE_ID" \
+            --options runtime \
+            --timestamp \
+            --sign "$CODE_SIGN_IDENTITY" \
+            "$APP_BUNDLE"
+    else
+        codesign --force \
+            --identifier "$BUNDLE_ID" \
+            --options runtime \
+            --sign "$CODE_SIGN_IDENTITY" \
+            "$APP_BUNDLE"
+    fi
+    echo "   ✅ Signed with $CODE_SIGN_IDENTITY"
+else
+    codesign --force \
+        --identifier "$BUNDLE_ID" \
+        --sign - \
+        "$APP_BUNDLE"
+    echo "   ⚠️  No Developer ID identity supplied; created an ad-hoc signed local build"
+fi
+
+codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
+
 echo "💿 Creating DMG..."
 rm -f "$DMG_OUTPUT"
 
@@ -83,6 +125,16 @@ hdiutil create -volname "$APP_NAME" \
     "$DMG_OUTPUT" 2>&1
 
 rm -rf "$TEMP_DIR"
+
+if [[ "$CODE_SIGN_IDENTITY" == Developer\ ID\ Application:* ]]; then
+    codesign --force --timestamp --sign "$CODE_SIGN_IDENTITY" "$DMG_OUTPUT"
+    codesign --verify --verbose=2 "$DMG_OUTPUT"
+    echo "   ✅ DMG signed with Developer ID"
+elif [[ -n "$CODE_SIGN_IDENTITY" ]]; then
+    codesign --force --sign "$CODE_SIGN_IDENTITY" "$DMG_OUTPUT"
+    codesign --verify --verbose=2 "$DMG_OUTPUT"
+    echo "   ⚠️  DMG signed with a development certificate; Developer ID is required for Homebrew distribution"
+fi
 
 echo ""
 echo "✅ Done!"

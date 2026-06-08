@@ -3,7 +3,7 @@ import Foundation
 import UserNotifications
 
 enum AppVersion {
-    static let fallback = "0.6.1"
+    static let fallback = "0.6.2"
 
     static var current: String {
         let info = Bundle.main.infoDictionary
@@ -201,8 +201,24 @@ final class GitHubReleaseUpdater: ObservableObject {
             exit 1
         fi
 
-        /usr/bin/ditto "$SOURCE_APP" "$APP_PATH"
-        /usr/bin/xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || true
+        /usr/bin/codesign --verify --deep --strict "$SOURCE_APP"
+
+        TEMP_APP="${APP_PATH}.update"
+        BACKUP_APP="${APP_PATH}.backup"
+        /bin/rm -rf "$TEMP_APP" "$BACKUP_APP"
+        /usr/bin/ditto "$SOURCE_APP" "$TEMP_APP"
+        /usr/bin/codesign --verify --deep --strict "$TEMP_APP"
+
+        /bin/mv "$APP_PATH" "$BACKUP_APP"
+        if /bin/mv "$TEMP_APP" "$APP_PATH" && /usr/bin/codesign --verify --deep --strict "$APP_PATH"; then
+            /bin/rm -rf "$BACKUP_APP"
+        else
+            /bin/rm -rf "$APP_PATH"
+            /bin/mv "$BACKUP_APP" "$APP_PATH"
+            /usr/bin/hdiutil detach "$MOUNT_POINT" || true
+            exit 1
+        fi
+
         /usr/bin/hdiutil detach "$MOUNT_POINT" || true
         /usr/bin/open "$APP_PATH"
         """

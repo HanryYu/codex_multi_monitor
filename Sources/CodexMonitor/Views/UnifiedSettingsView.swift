@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import UserNotifications
 
 // MARK: - Unified Settings Window
@@ -259,6 +260,7 @@ struct PreferencesContentView: View {
     @State private var recoveryNotificationEnabled: Bool = true
     @State private var automaticUpdatesEnabled: Bool = true
     @State private var notificationTestStatus: String?
+    @State private var notificationNeedsSettings = false
 
     var body: some View {
         ScrollView {
@@ -451,13 +453,22 @@ struct PreferencesContentView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
 
-                    if let notificationTestStatus {
-                        Text(notificationTestStatus)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
+                    if notificationNeedsSettings {
+                        Button(action: openNotificationSettings) {
+                            Label(L10n.openNotificationSettingsButton, systemImage: "gear")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
                     Spacer()
+                }
+
+                if let notificationTestStatus {
+                    Text(notificationTestStatus)
+                        .font(.system(size: 10))
+                        .foregroundStyle(notificationNeedsSettings ? Color.red : Color.secondary)
+                        .lineLimit(3)
                 }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -686,6 +697,7 @@ struct PreferencesContentView: View {
 
     private func sendTestNotification() {
         let center = UNUserNotificationCenter.current()
+        notificationNeedsSettings = false
 
         func enqueueTestNotification() {
             let content = UNMutableNotificationContent()
@@ -702,9 +714,10 @@ struct PreferencesContentView: View {
             center.add(request) { error in
                 DispatchQueue.main.async {
                     if let error {
-                        notificationTestStatus = L10n.notificationTestFailed(error: error.localizedDescription)
+                        notificationTestStatus = notificationErrorMessage(error)
                     } else {
                         notificationTestStatus = L10n.notificationTestSent
+                        notificationNeedsSettings = false
                     }
                 }
             }
@@ -721,9 +734,10 @@ struct PreferencesContentView: View {
                     } else {
                         DispatchQueue.main.async {
                             if let error {
-                                notificationTestStatus = L10n.notificationTestFailed(error: error.localizedDescription)
+                                notificationTestStatus = notificationErrorMessage(error)
                             } else {
                                 notificationTestStatus = L10n.notificationPermissionDenied
+                                notificationNeedsSettings = true
                             }
                         }
                     }
@@ -731,13 +745,34 @@ struct PreferencesContentView: View {
             case .denied:
                 DispatchQueue.main.async {
                     notificationTestStatus = L10n.notificationPermissionDenied
+                    notificationNeedsSettings = true
                 }
             @unknown default:
                 DispatchQueue.main.async {
                     notificationTestStatus = L10n.notificationPermissionDenied
+                    notificationNeedsSettings = true
                 }
             }
         }
+    }
+
+    private func notificationErrorMessage(_ error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.domain == UNErrorDomain,
+           nsError.code == UNError.Code.notificationsNotAllowed.rawValue {
+            notificationNeedsSettings = true
+            return L10n.notificationsNotAllowed
+        }
+        return L10n.notificationTestFailed(
+            error: "\(nsError.localizedDescription) (\(nsError.domain) \(nsError.code))"
+        )
+    }
+
+    private func openNotificationSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 
     /// Check notification authorization and request if not yet granted

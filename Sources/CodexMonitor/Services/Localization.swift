@@ -1054,6 +1054,24 @@ enum L10n {
         }
     }
 
+    static var notificationsNotAllowed: String {
+        switch lang {
+        case .en:    return "macOS has not allowed notifications for this app. Open Notification Settings or reinstall the latest signed version."
+        case .ja:    return "macOS がこのアプリの通知を許可していません。通知設定を開くか、最新の署名済みバージョンを再インストールしてください。"
+        case .zhHans: return "macOS 尚未允许此应用发送通知。请打开通知设置，或重新安装最新的已签名版本。"
+        case .zhHant: return "macOS 尚未允許此應用程式傳送通知。請開啟通知設定，或重新安裝最新的已簽名版本。"
+        }
+    }
+
+    static var openNotificationSettingsButton: String {
+        switch lang {
+        case .en:    return "Notification Settings"
+        case .ja:    return "通知設定"
+        case .zhHans: return "通知设置"
+        case .zhHant: return "通知設定"
+        }
+    }
+
     static func notificationTestFailed(error: String) -> String {
         switch lang {
         case .en:    return "Failed: \(error)"

@@ -12,36 +12,49 @@ jobs:
     env:
       CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION }}
       CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build release binary
-        run: swift build -c release
-
       - name: Import Code-Signing Certs
-        if: env.CERTIFICATE != ''
         uses: apple-actions/import-codesign-certs@v3
         with:
           p12-file-base64: ${{ secrets.DEVELOPER_ID_APPLICATION }}
           p12-password: ${{ secrets.DEVELOPER_ID_APPLICATION_PASSWORD }}
 
-      - name: Code sign binary
-        if: env.CERTIFICATE != ''
-        run: |
-          BINARY=".build/release/CodexMonitor"
-          IDENTITY=$(security find-identity -v -p codesigning signing_temp.keychain 2>/dev/null | grep -E "Developer ID Application|Apple Development" | head -1 | awk -F'"' '{print $2}')
-          if [ -z "$IDENTITY" ]; then
-            echo "::warning::No signing identity found — skipping signing"
-            exit 0
-          fi
-          echo "Signing with identity: $IDENTITY"
-          codesign --force --options runtime --sign "$IDENTITY" "$BINARY"
-          codesign --verify --verbose "$BINARY"
-
-      - name: Create DMG
+      - name: Create signed DMG
+        id: package
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          bash scripts/build-dmg.sh "$VERSION"
+          IDENTITY=$(security find-identity -v -p codesigning signing_temp.keychain 2>/dev/null | grep -E "Developer ID Application|Apple Development" | head -1 | awk -F'"' '{print $2}' || true)
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::Code-signing identity not found"
+            exit 1
+          fi
+          if [[ "$IDENTITY" != Developer\ ID\ Application:* ]]; then
+            echo "::warning::Using Apple Development signing. Configure a Developer ID Application certificate before submitting a Homebrew Cask."
+            echo "developer_id=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "developer_id=true" >> "$GITHUB_OUTPUT"
+          fi
+          CODE_SIGN_IDENTITY="$IDENTITY" bash scripts/build-dmg.sh "$VERSION"
+          codesign --verify --deep --strict --verbose=2 .build/CodexMonitor.app
+          lipo .build/CodexMonitor.app/Contents/MacOS/CodexMonitor -verify_arch arm64 x86_64
+
+      - name: Notarize DMG
+        if: steps.package.outputs.developer_id == 'true' && env.APPLE_ID != '' && env.APPLE_APP_SPECIFIC_PASSWORD != '' && env.APPLE_TEAM_ID != ''
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DMG=".build/CodexMonitor-${VERSION}.dmg"
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
