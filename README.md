@@ -42,7 +42,19 @@ A macOS menu bar app that monitors your ChatGPT Codex usage in real-time.
 
 ## Installation
 
-### Download DMG (Recommended)
+### Homebrew (Recommended)
+
+```bash
+brew tap HanryYu/tap
+brew install --cask codexmonitor
+```
+
+To upgrade:
+```bash
+brew upgrade --cask codexmonitor
+```
+
+### Download DMG
 
 1. Go to [Releases](https://github.com/HanryYu/codex_multi_monitor/releases/latest)
 2. Download the `CodexMonitor-x.x.x.dmg` file
@@ -80,7 +92,7 @@ CodexMonitor can automatically detect and manage your Codex accounts. Simply lau
 1. Open [chatgpt.com/codex/cloud/settings/analytics](https://chatgpt.com/codex/cloud/settings/analytics) in your browser and **log in**
 2. Open Developer Tools (`⌘⌥I` on Mac) → **Network** tab
 3. The page will automatically load usage data — look for a request to `wham/usage`
-4. Click the request → **Headers** → copy the `Authorization: Bearer ***` value
+4. Click the request → **Headers** → copy the `Authorization: Bearer *** value
 5. Paste the token (without `Bearer ` prefix) into CodexMonitor
 
 ### Method 3: Local Command
