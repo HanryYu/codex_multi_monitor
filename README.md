@@ -4,7 +4,7 @@
 
 [English](README.md) | [中文](README_zh.md) | [日本語](README_ja.md)
 
-A macOS menu bar app that monitors your ChatGPT Codex usage in real-time.
+A lightweight macOS menu bar app for monitoring ChatGPT Codex quotas across multiple accounts.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/HanryYu/codex_multi_monitor/main/assets/codexmonitor-screenshot.png" alt="CodexMonitor Screenshot" width="420">
@@ -29,10 +29,13 @@ A macOS menu bar app that monitors your ChatGPT Codex usage in real-time.
 - **Multi-Account Support** — Monitor multiple Codex accounts with easy switching
 - **Usage Visualization** — See quota usage with color-coded status indicators
 - **Limit Reached Alert** — Visual overlay when 5-hour or weekly limit is reached, with reset countdown
-- **Smart Notifications** — Get notified when quota is low or when an account recovers from limit
+- **Smart Notifications** — Receive matching test and live alerts when usage is high, exhausted, or restored
+- **Weekly Cycle Activation (Beta)** — After weekly quota recovery, send one short Codex request to start the next weekly subscription cycle
 - **Auto Account Sync** — Automatically detect and add local Codex accounts on launch
-- **Multi-Language** — English, 中文, 日本語
-- **Update Notifications** — Get notified when a new version is available on GitHub
+- **Multi-Language** — English, 简体中文, 繁體中文, 日本語
+- **Automatic Updates** — Check, download, and install new versions from GitHub Releases
+
+> Weekly Cycle Activation only runs when the recovered monitored account matches the account currently signed in to Codex on this Mac.
 
 ## Requirements
 
@@ -61,7 +64,7 @@ brew upgrade --cask codexmonitor
 3. Open the DMG and drag **CodexMonitor** to your **Applications** folder
 4. Launch CodexMonitor — it will appear in your menu bar
 
-> **Note:** The app is signed with an Apple Development certificate. On first launch, macOS may show a security warning — right-click the app and select "Open" to bypass it.
+Official release builds are Developer ID signed, notarized by Apple, and distributed as Universal Binary apps for Apple Silicon and Intel Macs.
 
 ### Build from Source
 
@@ -92,7 +95,7 @@ CodexMonitor can automatically detect and manage your Codex accounts. Simply lau
 1. Open [chatgpt.com/codex/cloud/settings/analytics](https://chatgpt.com/codex/cloud/settings/analytics) in your browser and **log in**
 2. Open Developer Tools (`⌘⌥I` on Mac) → **Network** tab
 3. The page will automatically load usage data — look for a request to `wham/usage`
-4. Click the request → **Headers** → copy the `Authorization: Bearer *** value
+4. Click the request → **Headers** → copy the `Authorization: Bearer ***` value
 5. Paste the token (without `Bearer ` prefix) into CodexMonitor
 
 ### Method 3: Local Command
@@ -105,12 +108,14 @@ cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); pr
 
 Copy the output and paste it into CodexMonitor.
 
+Treat access tokens and `~/.codex/auth.json` like passwords. Do not commit or share them.
+
 ## Usage
 
 1. Launch **CodexMonitor** from your Applications folder
 2. Click the menu bar icon to see your accounts
 3. Accounts are auto-detected on launch — or click **+** to add manually
-4. The app refreshes data every 30 seconds automatically
+4. Choose a refresh interval in Settings; the default is 5 minutes
 
 ## Status Colors
 
@@ -131,8 +136,8 @@ When a limit is reached (5-hour or weekly), the status area shows a "Limit Reach
 - Make sure you've used Codex locally at least once, or add your token manually via the **+** button.
 
 **DMG won't open / "unidentified developer"?**
-- Right-click → Open, or go to System Settings → Privacy & Security → Allow Anyway.
+- Download the latest notarized DMG from the official [Releases](https://github.com/HanryYu/codex_multi_monitor/releases/latest) page and reinstall it.
 
 ## License
 
-[GPLv3](LICENSE) — © 2025 Henry Yu
+[GPLv3](LICENSE) — © 2026 Ryan Hansen

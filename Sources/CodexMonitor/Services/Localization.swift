@@ -249,6 +249,15 @@ enum L10n {
         }
     }
 
+    static var recoveryNotificationTitle: String {
+        switch lang {
+        case .en:    return "Codex Quota Restored"
+        case .ja:    return "Codex 上限が回復しました"
+        case .zhHans: return "Codex 额度已恢复"
+        case .zhHant: return "Codex 額度已恢復"
+        }
+    }
+
     static var creditsLimitReached: String {
         switch lang {
         case .en:    return "Credits Limit Reached"
@@ -561,10 +570,46 @@ enum L10n {
 
     static var aboutCopyright: String {
         switch lang {
-        case .en:    return "© 2026 Codex Team. All rights reserved."
-        case .ja:    return "© 2026 Codex Team. All rights reserved."
-        case .zhHans: return "© 2026 Codex Team. 保留所有权利。"
-        case .zhHant: return "© 2026 Codex Team. 保留所有權利。"
+        case .en:    return "© Ryan Hansen. All rights reserved."
+        case .ja:    return "© Ryan Hansen. All rights reserved."
+        case .zhHans: return "© Ryan Hansen。保留所有权利。"
+        case .zhHant: return "© Ryan Hansen。保留所有權利。"
+        }
+    }
+
+    static var aboutGitHub: String {
+        switch lang {
+        case .en:    return "GitHub"
+        case .ja:    return "GitHub"
+        case .zhHans: return "GitHub 主页"
+        case .zhHant: return "GitHub 主頁"
+        }
+    }
+
+    static var aboutLicense: String {
+        switch lang {
+        case .en:    return "License"
+        case .ja:    return "ライセンス"
+        case .zhHans: return "开源协议"
+        case .zhHant: return "開源協議"
+        }
+    }
+
+    static var aboutX: String {
+        switch lang {
+        case .en:    return "X"
+        case .ja:    return "X"
+        case .zhHans: return "X 主页"
+        case .zhHant: return "X 主頁"
+        }
+    }
+
+    static var aboutFeedback: String {
+        switch lang {
+        case .en:    return "Email Feedback"
+        case .ja:    return "メールでフィードバック"
+        case .zhHans: return "邮件反馈"
+        case .zhHant: return "郵件回饋"
         }
     }
 
@@ -1096,6 +1141,71 @@ enum L10n {
         case .ja:    return "CodexMonitor の使用量通知はこのように表示されます。"
         case .zhHans: return "这是 CodexMonitor 用量提醒的显示效果。"
         case .zhHant: return "這是 CodexMonitor 用量提醒的顯示效果。"
+        }
+    }
+
+    static var notificationTestAccountName: String {
+        switch lang {
+        case .en:    return "Codex account"
+        case .ja:    return "Codex アカウント"
+        case .zhHans: return "Codex 账户"
+        case .zhHant: return "Codex 帳戶"
+        }
+    }
+
+    // MARK: - Quota Activation
+
+    static var quotaActivationSection: String {
+        switch lang {
+        case .en:    return "Weekly Quota Cycle"
+        case .ja:    return "週間上限サイクル"
+        case .zhHans: return "每周额度周期"
+        case .zhHant: return "每週額度週期"
+        }
+    }
+
+    static var quotaActivationLabel: String {
+        switch lang {
+        case .en:    return "Start a new cycle after weekly quota recovery"
+        case .ja:    return "週間上限の回復後に新しいサイクルを開始"
+        case .zhHans: return "每周额度恢复后启动新周期"
+        case .zhHant: return "每週額度恢復後啟動新週期"
+        }
+    }
+
+    static var quotaActivationDesc: String {
+        switch lang {
+        case .en:    return "Sends one short request after recovery to start the next weekly subscription quota cycle"
+        case .ja:    return "回復後に短いリクエストを1回送信し、次の週間サブスクリプション上限サイクルを開始します"
+        case .zhHans: return "恢复后发送一次简短请求，启动新的周订阅额度周期"
+        case .zhHant: return "恢復後傳送一次簡短請求，啟動新的週訂閱額度週期"
+        }
+    }
+
+    static var quotaActivationScopeNote: String {
+        switch lang {
+        case .en:    return "Only applies to the currently signed-in account when its account ID matches."
+        case .ja:    return "現在サインイン中で、アカウント ID が一致するアカウントにのみ適用されます。"
+        case .zhHans: return "仅对当前登录且账号 ID 配对的账号生效。"
+        case .zhHant: return "僅對目前登入且帳戶 ID 配對的帳戶生效。"
+        }
+    }
+
+    static var quotaActivationCodexNotFound: String {
+        switch lang {
+        case .en:    return "Codex CLI was not found on this Mac."
+        case .ja:    return "この Mac に Codex CLI が見つかりません。"
+        case .zhHans: return "本机未找到 Codex CLI。"
+        case .zhHant: return "本機未找到 Codex CLI。"
+        }
+    }
+
+    static var quotaActivationAuthUnavailable: String {
+        switch lang {
+        case .en:    return "No active Codex login was found at ~/.codex/auth.json."
+        case .ja:    return "~/.codex/auth.json に有効な Codex ログインが見つかりません。"
+        case .zhHans: return "未在 ~/.codex/auth.json 找到当前 Codex 登录。"
+        case .zhHant: return "未在 ~/.codex/auth.json 找到目前 Codex 登入。"
         }
     }
 

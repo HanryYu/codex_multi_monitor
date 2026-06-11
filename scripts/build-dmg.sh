@@ -81,6 +81,12 @@ else
     echo "   ⚠️  AppIcon.icns not found at $ICON_SRC"
 fi
 
+GITHUB_ICON_SRC="$PROJECT_DIR/Sources/CodexMonitor/Resources/GitHub_Invertocat_Black.png"
+if [ -f "$GITHUB_ICON_SRC" ]; then
+    cp "$GITHUB_ICON_SRC" "$APP_BUNDLE/Contents/Resources/GitHub_Invertocat_Black.png"
+    echo "   ✅ GitHub icon copied"
+fi
+
 echo "🔏 Signing .app bundle..."
 if [[ -n "$CODE_SIGN_IDENTITY" ]]; then
     if [[ "$CODE_SIGN_IDENTITY" == Developer\ ID\ Application:* ]]; then

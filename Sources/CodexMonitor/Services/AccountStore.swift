@@ -298,13 +298,20 @@ class AccountStore: ObservableObject {
         current: [String: PersistedLimitState],
         sentKeys: inout Set<String>
     ) {
-        guard UserDefaults.standard.bool(forKey: PreferencesKeys.recoveryNotificationEnabled) else { return }
-
         for (stateID, previousState) in previous where current[stateID] == nil {
             let key = "recovery:\(account.id.uuidString):\(stateID):\(previousState.resetKey)"
             guard !sentKeys.contains(key) else { continue }
 
-            sendRecoveryNotification(accountName: account.name, limitType: previousState.limitType)
+            if UserDefaults.standard.bool(forKey: PreferencesKeys.recoveryNotificationEnabled) {
+                sendRecoveryNotification(accountName: account.name, limitType: previousState.limitType)
+            }
+
+            if CodexQuotaActivationService.isWeeklyRecovery(stateID: stateID) {
+                Task {
+                    await CodexQuotaActivationService.shared.activate(account: account)
+                }
+            }
+
             sentKeys.insert(key)
         }
     }
@@ -481,10 +488,7 @@ class AccountStore: ObservableObject {
     }
 
     private func sendRecoveryNotification(accountName: String, limitType: String) {
-        let content = UNMutableNotificationContent()
-        content.title = "CodexMonitor"
-        content.body = L10n.limitRecovered(accountName: accountName, limitType: limitType)
-        content.sound = .default
+        let content = RecoveryNotificationContent.make(accountName: accountName, limitType: limitType)
         
         let request = UNNotificationRequest(
             identifier: "limit_recovered_\(accountName)_\(Date().timeIntervalSince1970)",

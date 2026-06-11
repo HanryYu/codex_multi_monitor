@@ -49,7 +49,7 @@ struct UnifiedSettingsView: View {
                     case .accounts:
                         AccountManagementContentView(accountStore: accountStore)
                     case .preferences:
-                        PreferencesContentView()
+                        PreferencesContentView(accountStore: accountStore)
                     case .about:
                         AboutSettingsContentView()
                     }
@@ -403,6 +403,7 @@ private struct AccountSettingsRow: View {
 // MARK: - Preferences Content (no Done button, no window close logic)
 
 struct PreferencesContentView: View {
+    @ObservedObject var accountStore: AccountStore
     @ObservedObject var localeManager = LocaleManager.shared
     @ObservedObject private var updater = GitHubReleaseUpdater.shared
     @State private var refreshInterval: RefreshInterval = .fiveMinutes
@@ -416,6 +417,7 @@ struct PreferencesContentView: View {
     @State private var usageWarningNotificationEnabled: Bool = true
     @State private var limitNotificationEnabled: Bool = true
     @State private var recoveryNotificationEnabled: Bool = true
+    @State private var quotaActivationEnabled: Bool = false
     @State private var automaticUpdatesEnabled: Bool = true
     @State private var notificationTestStatus: String?
     @State private var notificationNeedsSettings = false
@@ -425,6 +427,7 @@ struct PreferencesContentView: View {
             VStack(alignment: .leading, spacing: 0) {
                 displaySettingsSection
                 notificationSettingsSection
+                quotaActivationSettingsSection
                 generalSettingsSection
                 updateSettingsSection
             }
@@ -626,6 +629,32 @@ struct PreferencesContentView: View {
         }
     }
 
+    private var quotaActivationSettingsSection: some View {
+        SettingGroupCard(label: L10n.quotaActivationSection, systemImage: "bolt.circle") {
+            SettingsCheckbox(
+                title: L10n.quotaActivationLabel,
+                description: L10n.quotaActivationDesc,
+                badge: "Beta",
+                isChecked: $quotaActivationEnabled
+            )
+            .onChange(of: quotaActivationEnabled) { _, newValue in
+                UserDefaults.standard.set(newValue, forKey: PreferencesKeys.quotaActivationEnabled)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.quotaActivationScopeNote)
+                if let quotaActivationAvailabilityText {
+                    Text(quotaActivationAvailabilityText)
+                }
+            }
+            .font(.system(size: 10))
+            .foregroundStyle(Color(hex: "9CA3AF"))
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.leading, 24)
+        }
+    }
+
     private var updateSettingsSection: some View {
         SettingGroupCard(label: L10n.updateSection, systemImage: "arrow.clockwise") {
             HStack(alignment: .top, spacing: 12) {
@@ -709,6 +738,8 @@ struct PreferencesContentView: View {
         let recoveryVal = UserDefaults.standard.object(forKey: PreferencesKeys.recoveryNotificationEnabled) as? Bool
         recoveryNotificationEnabled = recoveryVal ?? true
 
+        quotaActivationEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled)
+
         let automaticUpdatesVal = UserDefaults.standard.object(forKey: PreferencesKeys.automaticUpdatesEnabled) as? Bool
         automaticUpdatesEnabled = automaticUpdatesVal ?? true
     }
@@ -723,10 +754,11 @@ struct PreferencesContentView: View {
         notificationNeedsSettings = false
 
         func enqueueTestNotification() {
-            let content = UNMutableNotificationContent()
-            content.title = "CodexMonitor"
-            content.body = L10n.testNotificationBody
-            content.sound = .default
+            let accountName = accountStore.accounts.first?.name ?? L10n.notificationTestAccountName
+            let content = RecoveryNotificationContent.make(
+                accountName: accountName,
+                limitType: L10n.fiveHourLimitReached()
+            )
 
             let request = UNNotificationRequest(
                 identifier: "notification_test_\(UUID().uuidString)",
@@ -807,33 +839,38 @@ struct PreferencesContentView: View {
             }
         }
     }
+
+    private var quotaActivationAvailabilityText: String? {
+        switch CodexQuotaActivationService.availability() {
+        case .ready:
+            return nil
+        case .codexNotFound:
+            return L10n.quotaActivationCodexNotFound
+        case .authUnavailable:
+            return L10n.quotaActivationAuthUnavailable
+        }
+    }
 }
 
 // MARK: - About Content
 
 struct AboutSettingsContentView: View {
+    private let githubURL = URL(string: "https://github.com/HanryYu")!
+    private let xURL = URL(string: "https://x.com/ryanhan_top")!
+    private let feedbackURL = URL(string: "mailto:suggestion@hanry.top?subject=Codex%20Monitor%20Feedback")!
+    private let licenseURL = URL(string: "https://github.com/HanryYu/codex_multi_monitor/blob/main/LICENSE")!
+
     var body: some View {
         VStack(spacing: 0) {
-            Spacer(minLength: 76)
+            Spacer(minLength: 62)
 
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: "3B82F6"), Color(hex: "2563EB")],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            Image(nsImage: aboutAppIcon)
+                .resizable()
+                .interpolation(.high)
+                .antialiased(true)
+                .scaledToFit()
                 .frame(width: 80, height: 80)
-                .overlay {
-                    Image(systemName: "waveform.path.ecg")
-                        .font(.system(size: 36, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color(hex: "60A5FA").opacity(0.5), lineWidth: 1)
-                }
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             Text("Codex Monitor")
                 .font(.system(size: 18, weight: .bold))
@@ -845,16 +882,103 @@ struct AboutSettingsContentView: View {
                 .foregroundStyle(Color(hex: "6B7280"))
                 .padding(.top, 4)
 
+            HStack(spacing: 10) {
+                AboutIconLinkButton(
+                    label: L10n.aboutGitHub,
+                    icon: .resource(name: "GitHub_Invertocat_Black", extension: "png"),
+                    destination: githubURL
+                )
+
+                AboutIconLinkButton(
+                    label: L10n.aboutX,
+                    icon: .text("𝕏"),
+                    destination: xURL
+                )
+
+                AboutIconLinkButton(
+                    label: L10n.aboutFeedback,
+                    icon: .system("envelope"),
+                    destination: feedbackURL
+                )
+            }
+            .padding(.top, 24)
+
             Spacer()
 
-            Text(L10n.aboutCopyright)
-                .font(.system(size: 11))
-                .foregroundStyle(Color(hex: "9CA3AF"))
-                .multilineTextAlignment(.center)
-                .padding(.bottom, 28)
+            VStack(spacing: 4) {
+                Text("Build with ♥️ in Seattle")
+
+                HStack(spacing: 5) {
+                    Text("2026 Ryan Hansen")
+                    Text("·")
+                    Link("GPL v3.0", destination: licenseURL)
+                        .foregroundStyle(Color(hex: "6B7280"))
+                }
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(Color(hex: "9CA3AF"))
+            .multilineTextAlignment(.center)
+            .padding(.bottom, 28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.white)
+    }
+
+    private var aboutAppIcon: NSImage {
+        if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+           let image = NSImage(contentsOf: iconURL) {
+            return image
+        }
+        return NSApp.applicationIconImage
+    }
+}
+
+private enum AboutLinkIcon {
+    case system(String)
+    case text(String)
+    case resource(name: String, extension: String)
+}
+
+private struct AboutIconLinkButton: View {
+    let label: String
+    let icon: AboutLinkIcon
+    let destination: URL
+
+    var body: some View {
+        Link(destination: destination) {
+            Group {
+                switch icon {
+                case .system(let name):
+                    Image(systemName: name)
+                        .font(.system(size: 16, weight: .medium))
+                case .text(let value):
+                    Text(value)
+                        .font(.system(size: 18, weight: .medium))
+                case .resource(let name, let fileExtension):
+                    if let url = Bundle.main.url(forResource: name, withExtension: fileExtension),
+                       let image = NSImage(contentsOf: url) {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 19, height: 19)
+                    } else {
+                        Text("GH")
+                            .font(.system(size: 11, weight: .bold))
+                    }
+                }
+            }
+            .foregroundStyle(Color(hex: "374151"))
+            .frame(width: 42, height: 42)
+            .background(Color(hex: "F9FAFB"))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color(hex: "E5E7EB"), lineWidth: 0.7)
+            }
+        }
+        .buttonStyle(.plain)
+        .help(label)
+        .accessibilityLabel(label)
     }
 }
 
@@ -908,6 +1032,7 @@ struct SettingGroupCard<Content: View>: View {
 struct SettingsCheckbox: View {
     let title: String
     let description: String?
+    var badge: String? = nil
     @Binding var isChecked: Bool
 
     var body: some View {
@@ -936,6 +1061,16 @@ struct SettingsCheckbox: View {
                         .foregroundStyle(Color(hex: "1F2937"))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    if let badge {
+                        Text(badge)
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(Color(hex: "2563EB"))
+                            .padding(.horizontal, 6)
+                            .frame(height: 16)
+                            .background(Color(hex: "DBEAFE"))
+                            .clipShape(Capsule())
+                    }
                 }
 
                 if let description, !description.isEmpty {

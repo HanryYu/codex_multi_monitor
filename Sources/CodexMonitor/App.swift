@@ -32,6 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             PreferencesKeys.usageWarningNotificationEnabled: true,
             PreferencesKeys.limitNotificationEnabled: true,
             PreferencesKeys.recoveryNotificationEnabled: true,
+            PreferencesKeys.quotaActivationEnabled: false,
             PreferencesKeys.autoImportEnabled: true,
             PreferencesKeys.automaticUpdatesEnabled: true,
             PreferencesKeys.alertThreshold: 80,
