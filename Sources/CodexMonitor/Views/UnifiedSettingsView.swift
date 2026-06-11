@@ -12,40 +12,63 @@ struct UnifiedSettingsView: View {
     enum SettingsTab: String, CaseIterable {
         case accounts
         case preferences
+        case about
 
         var label: String {
             switch self {
-            case .accounts: return L10n.accountManagement
-            case .preferences: return L10n.preferences
+            case .accounts: return L10n.settingsTabAccounts
+            case .preferences: return L10n.settingsTabPreferences
+            case .about: return L10n.settingsTabAbout
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .accounts: return "person.2"
+            case .preferences: return "gearshape"
+            case .about: return "info.circle"
             }
         }
     }
 
+    init(accountStore: AccountStore, initialTab: SettingsTab = .accounts) {
+        self.accountStore = accountStore
+        self._selectedTab = State(initialValue: initialTab)
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Tab picker
-            Picker("", selection: $selectedTab) {
-                ForEach(SettingsTab.allCases, id: \.self) { tab in
-                    Text(tab.label).tag(tab)
+        ZStack(alignment: .topLeading) {
+            VStack(spacing: 0) {
+                SettingsTopToolbar(selectedTab: $selectedTab)
+
+                Divider()
+                    .opacity(0.8)
+
+                Group {
+                    switch selectedTab {
+                    case .accounts:
+                        AccountManagementContentView(accountStore: accountStore)
+                    case .preferences:
+                        PreferencesContentView()
+                    case .about:
+                        AboutSettingsContentView()
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.white)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
 
-            Divider().opacity(0.5)
-
-            // Tab content (conditional rendering to avoid native title bar tab switcher)
-            if selectedTab == .accounts {
-                AccountManagementContentView(accountStore: accountStore)
-            } else {
-                PreferencesContentView()
-            }
+            TrafficLightsView()
+                .padding(.top, 16)
+                .padding(.leading, 16)
         }
-        .frame(width: 460, height: 480)
-        .background(.ultraThinMaterial)
+        .frame(width: 540, height: 640)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.black.opacity(0.08), lineWidth: 0.5)
+        }
         .onChange(of: localeManager.currentLanguage) { _, _ in
             if let window = NSApp.windows.first(where: {
                 $0.title.contains("Codex Monitor") || $0.title.contains("CodexMonitor")
@@ -54,6 +77,77 @@ struct UnifiedSettingsView: View {
                 window.title = L10n.codexMonitorSettings
             }
         }
+    }
+}
+
+// MARK: - Settings Toolbar
+
+struct SettingsTopToolbar: View {
+    @Binding var selectedTab: UnifiedSettingsView.SettingsTab
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ForEach(UnifiedSettingsView.SettingsTab.allCases, id: \.self) { tab in
+                Button {
+                    selectedTab = tab
+                } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 25, weight: selectedTab == tab ? .medium : .regular))
+                            .symbolRenderingMode(.monochrome)
+                            .frame(height: 26)
+
+                        Text(tab.label)
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                    .foregroundStyle(selectedTab == tab ? Color(hex: "111827") : Color(hex: "6B7280"))
+                    .frame(width: 64, height: 52)
+                    .background {
+                        if selectedTab == tab {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color(hex: "F3F4F6").opacity(0.9))
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tab.label)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 24)
+        .padding(.bottom, 12)
+        .background(Color.white)
+    }
+}
+
+struct TrafficLightsView: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            trafficLight(color: Color(hex: "FF5F56"), border: Color(hex: "E0443E")) {
+                NSApp.keyWindow?.close()
+            }
+            trafficLight(color: Color(hex: "FFBD2E"), border: Color(hex: "DEA123")) {
+                NSApp.keyWindow?.miniaturize(nil)
+            }
+            trafficLight(color: Color(hex: "27C93F"), border: Color(hex: "1AAB29")) {
+                NSApp.keyWindow?.zoom(nil)
+            }
+        }
+    }
+
+    private func trafficLight(color: Color, border: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Circle()
+                .fill(color)
+                .overlay {
+                    Circle()
+                        .stroke(border.opacity(0.55), lineWidth: 1)
+                }
+                .frame(width: 12, height: 12)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -67,165 +161,75 @@ struct AccountManagementContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                Label(L10n.monitoredAccountList, systemImage: "person.2")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
+            HStack(alignment: .center) {
+                Text(L10n.monitoredAccountList)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color(hex: "1F2937"))
 
                 Spacer()
 
-                // Backup / Import
-                HStack(spacing: 6) {
-                    Button(action: { BackupService.exportBackup(from: accountStore) }) {
-                        Label(L10n.exportBackup, systemImage: "square.and.arrow.up")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(accountStore.accounts.isEmpty)
-
-                    Button(action: { BackupService.importBackup(into: accountStore) }) {
-                        Label(L10n.importBackup, systemImage: "square.and.arrow.down")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-
                 Button(action: { showingAddForm = true }) {
-                    Label(L10n.addAccount, systemImage: "plus")
-                        .font(.system(size: 12, weight: .medium))
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .medium))
+                        Text(L10n.addAccount)
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Color(hex: "3B82F6"))
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 24)
+            .padding(.top, 18)
+            .padding(.bottom, 16)
 
-            Divider().opacity(0.5)
+            Divider()
+                .opacity(0.55)
+                .padding(.horizontal, 24)
 
-            // Account list
             if accountStore.accounts.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "person.badge.plus")
-                        .font(.system(size: 28, weight: .light))
+                        .font(.system(size: 30, weight: .light))
                         .foregroundStyle(.tertiary)
                     Text(L10n.noAccountsYet)
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
-                    Button(L10n.addAccount) { showingAddForm = true }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
+                    Button(action: { showingAddForm = true }) {
+                        Text(L10n.addAccount)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Color(hex: "3B82F6"))
+                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List {
-                    ForEach(accountStore.accounts) { account in
-                        HStack(spacing: 12) {
-                            Image(systemName: "person.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(.secondary)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 4) {
-                                    Text(account.name)
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(.primary)
-                                    if account.source == .localAuth {
-                                        Text(L10n.sourceLocalBadge)
-                                            .font(.system(size: 9, weight: .medium))
-                                            .foregroundStyle(.blue)
-                                            .padding(.horizontal, 5)
-                                            .padding(.vertical, 1)
-                                            .background(Color.blue.opacity(0.1))
-                                            .clipShape(Capsule())
-                                    }
-                                }
-                                Text(maskedToken(account.authToken))
-                                    .font(.system(size: 11).monospaced())
-                                    .foregroundStyle(.tertiary)
-                                    .lineLimit(1)
-                                if let email = account.accountEmail, !email.isEmpty {
-                                    Text(email)
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-                                }
-                                if account.source == .localAuth && account.localAuthInvalid {
-                                    Text(L10n.localAuthInvalid)
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.red)
-                                }
-                            }
-
-                            Spacer()
-
-                            // Status indicator
-                            if let result = accountStore.usageData[account.id] {
-                                switch result {
-                                case .success(let usage):
-                                    if let label = resolvedLimitLabel(for: usage) {
-                                        Text(label)
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(.red)
-                                    } else if let percent = usage.rateLimit?.primaryWindow?.usedPercent {
-                                        Text("\(percent)%")
-                                            .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                            .foregroundStyle(percent >= 80 ? .orange : .green)
-                                    } else if let credits = usage.credits {
-                                        if credits.unlimited {
-                                            Text("∞")
-                                                .font(.system(size: 12, weight: .semibold))
-                                                .foregroundStyle(.green)
-                                        } else if let balance = credits.balance {
-                                            Text(balance)
-                                                .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                                .foregroundStyle(credits.hasCredits ? .green : .red)
-                                        } else {
-                                            Text("—")
-                                                .font(.system(size: 12))
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    } else {
-                                        Text("—")
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(.tertiary)
-                                    }
-                                case .failure:
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.red)
-                                }
-                            }
-
-                            Button(action: {
-                                editingAccount = account
-                            }) {
-                                Image(systemName: "pencil")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .help(L10n.editAccount)
-
-                            Button(action: {
-                                accountStore.deleteAccount(id: account.id)
-                            }) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.red.opacity(0.7))
-                            }
-                            .buttonStyle(.plain)
-                            .help(L10n.deleteAccount)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
+                            AccountSettingsRow(
+                                account: account,
+                                status: accountStatus(for: account),
+                                showDivider: index != accountStore.accounts.count - 1,
+                                editAction: { editingAccount = account },
+                                deleteAction: { accountStore.deleteAccount(id: account.id) }
+                            )
                         }
-                        .padding(.vertical, 4)
                     }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
                 }
-                .listStyle(.inset)
             }
         }
+        .background(Color.white)
         .sheet(isPresented: $showingAddForm) {
             AddAccountSheet(accountStore: accountStore, isPresented: $showingAddForm)
         }
@@ -258,6 +262,142 @@ struct AccountManagementContentView: View {
         }
         return nil
     }
+
+    private func accountStatus(for account: Account) -> AccountSettingsStatus? {
+        guard let result = accountStore.usageData[account.id] else { return nil }
+
+        switch result {
+        case .success(let usage):
+            if let label = resolvedLimitLabel(for: usage) {
+                return AccountSettingsStatus(text: label, color: Color(hex: "EF4444"))
+            } else if let percent = usage.rateLimit?.primaryWindow?.usedPercent {
+                return AccountSettingsStatus(
+                    text: "\(percent)%",
+                    color: percent >= 80 ? Color(hex: "F97316") : Color(hex: "22C55E")
+                )
+            } else if let credits = usage.credits {
+                if credits.unlimited {
+                    return AccountSettingsStatus(text: "∞", color: Color(hex: "22C55E"))
+                } else if let balance = credits.balance {
+                    return AccountSettingsStatus(
+                        text: balance,
+                        color: credits.hasCredits ? Color(hex: "22C55E") : Color(hex: "EF4444")
+                    )
+                }
+            }
+            return AccountSettingsStatus(text: "—", color: Color(hex: "9CA3AF"))
+        case .failure:
+            return AccountSettingsStatus(text: "!", color: Color(hex: "EF4444"))
+        }
+    }
+}
+
+private struct AccountSettingsStatus {
+    let text: String
+    let color: Color
+}
+
+private struct AccountSettingsRow: View {
+    let account: Account
+    let status: AccountSettingsStatus?
+    let showDivider: Bool
+    let editAction: () -> Void
+    let deleteAction: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(Color(hex: "F3F4F6"))
+                    .frame(width: 36, height: 36)
+                    .overlay {
+                        Image(systemName: "person.2")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Color(hex: "6B7280"))
+                    }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(primaryLabel)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color(hex: "111827"))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Text(detailLabel)
+                        .font(.system(size: 11).monospaced())
+                        .foregroundStyle(Color(hex: "9CA3AF"))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+
+                Spacer(minLength: 12)
+
+                if let status {
+                    Text(status.text)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(status.color)
+                        .lineLimit(1)
+                        .frame(minWidth: 62, alignment: .trailing)
+                }
+
+                HStack(spacing: 1) {
+                    Button(action: editAction) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 16, weight: .regular))
+                            .frame(width: 26, height: 26)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color(hex: "9CA3AF"))
+                    .help(L10n.editAccount)
+
+                    Button(action: deleteAction) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 16, weight: .regular))
+                            .frame(width: 26, height: 26)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color(hex: "9CA3AF"))
+                    .help(L10n.deleteAccount)
+                }
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(Color(hex: "F9FAFB"))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(Color(hex: "E5E7EB"), lineWidth: 0.5)
+                }
+            }
+            .padding(.vertical, 14)
+
+            if showDivider {
+                Divider()
+                    .opacity(0.45)
+            }
+        }
+    }
+
+    private var primaryLabel: String {
+        if let email = account.accountEmail, !email.isEmpty {
+            return email
+        }
+        return account.name
+    }
+
+    private var detailLabel: String {
+        var parts = [maskedToken(account.authToken)]
+        if let email = account.accountEmail, !email.isEmpty {
+            parts.append(email)
+        } else {
+            parts.append(account.name)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func maskedToken(_ token: String) -> String {
+        guard token.count > 12 else { return "••••••••" }
+        return "\(token.prefix(4))...\(token.suffix(4))"
+    }
 }
 
 // MARK: - Preferences Content (no Done button, no window close logic)
@@ -282,383 +422,248 @@ struct PreferencesContentView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
-
-                // ── Display Card ──
-                VStack(alignment: .leading, spacing: 8) {
-                SectionHeader(label: L10n.displaySection, systemImage: "eye")
-
-                // Display Mode Toggle
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(L10n.displayModeLabel, systemImage: "eye")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-
-                    Text(L10n.displayModeDesc)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-
-                    Picker("", selection: $displayMode) {
-                        Text(L10n.remaining).tag(DisplayMode.remaining)
-                        Text(L10n.used).tag(DisplayMode.used)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-                    .onChange(of: displayMode) { _, newValue in
-                        UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.displayMode)
-                        NotificationCenter.default.post(name: .displayModeChanged, object: nil)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                CompactDivider()
-
-                // Menu Bar Text Toggle
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Label(L10n.showTextInMenuBar, systemImage: "text.alignleft")
-                            .font(.system(size: 12, weight: .medium))
-                        Spacer()
-                        Toggle("", isOn: $showMenuBarText)
-                            .labelsHidden()
-                    }
-                    .onChange(of: showMenuBarText) { _, newValue in
-                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showMenuBarText)
-                        NotificationCenter.default.post(name: .menuBarTextChanged, object: nil)
-                    }
-
-                    Text(L10n.showTextInMenuBarDesc)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                CompactDivider()
-
-                // Reset Time Format
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(L10n.resetTimeFormat, systemImage: "clock.arrow.circlepath")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-
-                    Text(L10n.resetTimeFormatDesc)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-
-                    Picker("", selection: $resetTimeFormat) {
-                        Text(L10n.relativeTime).tag(ResetTimeFormat.relative)
-                        Text(L10n.absoluteTime).tag(ResetTimeFormat.absolute)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-                    .onChange(of: resetTimeFormat) { _, newValue in
-                        UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.resetTimeFormat)
-                        NotificationCenter.default.post(name: .resetTimeFormatChanged, object: nil)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(.quaternary.opacity(0.3))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                // ── Notifications Card ──
-                VStack(alignment: .leading, spacing: 8) {
-                SectionHeader(label: L10n.notificationSection, systemImage: "bell")
-
-                // Limit Notification Toggle
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Label(L10n.limitNotificationLabel, systemImage: "bell.badge.fill")
-                            .font(.system(size: 12, weight: .medium))
-                        Spacer()
-                        Toggle("", isOn: $limitNotificationEnabled)
-                            .labelsHidden()
-                    }
-                    .onChange(of: limitNotificationEnabled) { _, newValue in
-                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.limitNotificationEnabled)
-                        if newValue { requestNotificationPermissionIfNeeded() }
-                    }
-
-                    Text(L10n.limitNotificationDesc)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                CompactDivider()
-
-                // Usage Warning Toggle
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Label(L10n.usageWarningNotificationLabel, systemImage: "bell.fill")
-                            .font(.system(size: 12, weight: .medium))
-                        Spacer()
-                        Toggle("", isOn: $usageWarningNotificationEnabled)
-                            .labelsHidden()
-                    }
-                    .onChange(of: usageWarningNotificationEnabled) { _, newValue in
-                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.usageWarningNotificationEnabled)
-                        if newValue { requestNotificationPermissionIfNeeded() }
-                    }
-
-                    Text(L10n.usageWarningNotificationDesc)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                // Alert Threshold (conditionally visible)
-                if usageWarningNotificationEnabled {
-                    CompactDivider()
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Label(L10n.usageAlertThreshold, systemImage: "slider.horizontal.3")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text("\(Int(alertThreshold))%")
-                                .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Text(L10n.usageAlertThresholdDesc)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-
-                        Slider(value: $alertThreshold, in: 50...95, step: 5)
-                            .onChange(of: alertThreshold) { _, newValue in
-                                UserDefaults.standard.set(Int(newValue), forKey: PreferencesKeys.alertThreshold)
-                            }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                CompactDivider()
-
-                // Recovery Notification Toggle
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Label(L10n.recoveryNotificationLabel, systemImage: "arrow.clockwise.circle")
-                            .font(.system(size: 12, weight: .medium))
-                        Spacer()
-                        Toggle("", isOn: $recoveryNotificationEnabled)
-                            .labelsHidden()
-                    }
-                    .onChange(of: recoveryNotificationEnabled) { _, newValue in
-                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.recoveryNotificationEnabled)
-                        NotificationCenter.default.post(name: .recoveryNotificationEnabledChanged, object: nil)
-                        if newValue { requestNotificationPermissionIfNeeded() }
-                    }
-
-                    Text(L10n.recoveryNotificationDesc)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                CompactDivider()
-
-                HStack(spacing: 8) {
-                    Button(action: sendTestNotification) {
-                        Label(L10n.testNotificationButton, systemImage: "paperplane.fill")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-
-                    if notificationNeedsSettings {
-                        Button(action: openNotificationSettings) {
-                            Label(L10n.openNotificationSettingsButton, systemImage: "gear")
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-                    Spacer()
-                }
-
-                if let notificationTestStatus {
-                    Text(notificationTestStatus)
-                        .font(.system(size: 10))
-                        .foregroundStyle(notificationNeedsSettings ? Color.red : Color.secondary)
-                        .lineLimit(3)
-                }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(.quaternary.opacity(0.3))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                // ── General Card ──
-                VStack(alignment: .leading, spacing: 8) {
-                SectionHeader(label: L10n.generalSection, systemImage: "gear")
-
-                // Data Refresh Interval
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(L10n.dataRefreshInterval, systemImage: "arrow.clockwise")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-
-                    Text(L10n.dataRefreshIntervalDesc)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-
-                    Picker("", selection: $refreshInterval) {
-                        ForEach(RefreshInterval.allCases) { interval in
-                            Text(interval.label).tag(interval)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .onChange(of: refreshInterval) { _, newValue in
-                        UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.refreshInterval)
-                        NotificationCenter.default.post(name: .refreshIntervalChanged, object: nil)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                CompactDivider()
-
-                // Auto Import Local Accounts
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Label(L10n.autoImportLocalAccounts, systemImage: "arrow.down.doc")
-                            .font(.system(size: 12, weight: .medium))
-                        Spacer()
-                        Toggle("", isOn: $autoImportEnabled)
-                            .labelsHidden()
-                    }
-                    .onChange(of: autoImportEnabled) { _, newValue in
-                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.autoImportEnabled)
-                        NotificationCenter.default.post(name: .autoImportChanged, object: nil)
-                    }
-
-                    Text(L10n.autoImportLocalAccountsDesc)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                CompactDivider()
-
-                // Launch at Login
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Label(L10n.launchAtLogin, systemImage: "power")
-                            .font(.system(size: 12, weight: .medium))
-                        Spacer()
-                        Toggle("", isOn: $launchAtLogin)
-                            .labelsHidden()
-                    }
-                    .onChange(of: launchAtLogin) { _, newValue in
-                        toggleLaunchAtLogin(enable: newValue)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                CompactDivider()
-
-                // Language
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(L10n.language, systemImage: "globe")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-
-                    Picker("", selection: $selectedLanguage) {
-                        ForEach(LanguageOption.allCases, id: \.self) { option in
-                            Text(option.displayName)
-                                .tag(option)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .onChange(of: selectedLanguage) { _, newValue in
-                        LocaleManager.shared.setLanguage(newValue)
-                    }
-                }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(.quaternary.opacity(0.3))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                // ── Updates Card ──
-                VStack(alignment: .leading, spacing: 8) {
-                    SectionHeader(label: L10n.updateSection, systemImage: "arrow.down.circle")
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Label(L10n.automaticUpdates, systemImage: "sparkles")
-                                .font(.system(size: 12, weight: .medium))
-                            Spacer()
-                            Toggle("", isOn: $automaticUpdatesEnabled)
-                                .labelsHidden()
-                        }
-                        .onChange(of: automaticUpdatesEnabled) { _, newValue in
-                            UserDefaults.standard.set(newValue, forKey: PreferencesKeys.automaticUpdatesEnabled)
-                            if newValue {
-                                GitHubReleaseUpdater.shared.checkAutomaticallyIfNeeded()
-                            }
-                        }
-
-                        Text(updater.statusText)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(2)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    CompactDivider()
-
-                    HStack(spacing: 8) {
-                        Button(action: {
-                            Task {
-                                await updater.checkForUpdates(downloadIfAvailable: true, userInitiated: true)
-                            }
-                        }) {
-                            if updater.isChecking || updater.isDownloading {
-                                Label(L10n.updateCheckingButton, systemImage: "arrow.clockwise")
-                                    .font(.system(size: 12, weight: .medium))
-                            } else {
-                                Label(L10n.checkForUpdatesButton, systemImage: "arrow.clockwise")
-                                    .font(.system(size: 12, weight: .medium))
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .disabled(updater.isChecking || updater.isDownloading)
-
-                        Button(action: {
-                            updater.installDownloadedUpdate()
-                        }) {
-                            Label(L10n.installUpdateButton, systemImage: "square.and.arrow.down")
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .disabled(updater.downloadedURL == nil)
-
-                        Spacer()
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(.quaternary.opacity(0.3))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+            VStack(alignment: .leading, spacing: 0) {
+                displaySettingsSection
+                notificationSettingsSection
+                generalSettingsSection
+                updateSettingsSection
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
         }
+        .background(Color.white)
         .onAppear {
             loadPreferences()
         }
         .onChange(of: localeManager.currentLanguage) { _, _ in
             selectedLanguage = localeManager.currentLanguageOption
+        }
+    }
+
+    private var displaySettingsSection: some View {
+        SettingGroupCard(label: L10n.displaySection, systemImage: "eye") {
+            SettingsCheckbox(
+                title: L10n.showTextInMenuBar,
+                description: L10n.showTextInMenuBarDesc,
+                isChecked: $showMenuBarText
+            )
+            .onChange(of: showMenuBarText) { _, newValue in
+                UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showMenuBarText)
+                NotificationCenter.default.post(name: .menuBarTextChanged, object: nil)
+            }
+
+            CardDivider()
+
+            HStack(alignment: .center, spacing: 16) {
+                SettingTextBlock(
+                    title: L10n.resetTimeFormat,
+                    description: L10n.resetTimeFormatDesc
+                )
+
+                Spacer(minLength: 12)
+
+                SettingsSegmentedControl(
+                    selection: $resetTimeFormat,
+                    options: [
+                        .init(label: L10n.relativeTime, value: .relative),
+                        .init(label: L10n.absoluteTime, value: .absolute)
+                    ]
+                )
+                .onChange(of: resetTimeFormat) { _, newValue in
+                    UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.resetTimeFormat)
+                    NotificationCenter.default.post(name: .resetTimeFormatChanged, object: nil)
+                }
+            }
+        }
+    }
+
+    private var notificationSettingsSection: some View {
+        SettingGroupCard(label: L10n.notificationSection, systemImage: "bell") {
+            SettingsCheckbox(
+                title: L10n.limitNotificationLabel,
+                description: L10n.limitNotificationDesc,
+                isChecked: $limitNotificationEnabled
+            )
+            .onChange(of: limitNotificationEnabled) { _, newValue in
+                UserDefaults.standard.set(newValue, forKey: PreferencesKeys.limitNotificationEnabled)
+                if newValue { requestNotificationPermissionIfNeeded() }
+            }
+
+            CardDivider()
+
+            SettingsCheckbox(
+                title: L10n.usageWarningNotificationLabel,
+                description: L10n.usageWarningNotificationDesc,
+                isChecked: $usageWarningNotificationEnabled
+            )
+            .onChange(of: usageWarningNotificationEnabled) { _, newValue in
+                UserDefaults.standard.set(newValue, forKey: PreferencesKeys.usageWarningNotificationEnabled)
+                if newValue { requestNotificationPermissionIfNeeded() }
+            }
+
+            if usageWarningNotificationEnabled {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(L10n.usageAlertThreshold)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color(hex: "4B5563"))
+
+                        Spacer()
+
+                        Text("\(Int(alertThreshold))%")
+                            .font(.system(size: 13, weight: .bold).monospacedDigit())
+                            .foregroundStyle(Color(hex: "3B82F6"))
+                    }
+
+                    Slider(value: $alertThreshold, in: 50...95, step: 5)
+                        .tint(Color(hex: "3B82F6"))
+                        .onChange(of: alertThreshold) { _, newValue in
+                            UserDefaults.standard.set(Int(newValue), forKey: PreferencesKeys.alertThreshold)
+                        }
+
+                    Text(L10n.usageAlertThresholdDesc)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color(hex: "9CA3AF"))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 24)
+                .padding(.top, 1)
+            }
+
+            CardDivider()
+
+            HStack(alignment: .center, spacing: 12) {
+                SettingsCheckbox(
+                    title: L10n.recoveryNotificationLabel,
+                    description: L10n.recoveryNotificationDesc,
+                    isChecked: $recoveryNotificationEnabled
+                )
+                .onChange(of: recoveryNotificationEnabled) { _, newValue in
+                    UserDefaults.standard.set(newValue, forKey: PreferencesKeys.recoveryNotificationEnabled)
+                    NotificationCenter.default.post(name: .recoveryNotificationEnabledChanged, object: nil)
+                    if newValue { requestNotificationPermissionIfNeeded() }
+                }
+
+                Spacer(minLength: 12)
+
+                SettingsActionButton(title: L10n.testNotificationButton, action: sendTestNotification)
+            }
+
+            if notificationNeedsSettings {
+                SettingsActionButton(title: L10n.openNotificationSettingsButton, action: openNotificationSettings)
+            }
+
+            if let notificationTestStatus {
+                Text(notificationTestStatus)
+                    .font(.system(size: 10))
+                    .foregroundStyle(notificationNeedsSettings ? Color.red : Color(hex: "6B7280"))
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var generalSettingsSection: some View {
+        SettingGroupCard(label: L10n.generalSection, systemImage: "display") {
+            SettingsCheckbox(
+                title: L10n.launchAtLogin,
+                description: nil,
+                isChecked: $launchAtLogin
+            )
+            .onChange(of: launchAtLogin) { _, newValue in
+                toggleLaunchAtLogin(enable: newValue)
+            }
+
+            CardDivider()
+
+            SettingsCheckbox(
+                title: L10n.autoImportLocalAccounts,
+                description: L10n.autoImportLocalAccountsDesc,
+                isChecked: $autoImportEnabled
+            )
+            .onChange(of: autoImportEnabled) { _, newValue in
+                UserDefaults.standard.set(newValue, forKey: PreferencesKeys.autoImportEnabled)
+                NotificationCenter.default.post(name: .autoImportChanged, object: nil)
+            }
+
+            CardDivider()
+
+            HStack(alignment: .center, spacing: 16) {
+                SettingTextBlock(
+                    title: L10n.dataRefreshInterval,
+                    description: L10n.dataRefreshIntervalDesc
+                )
+
+                Spacer(minLength: 12)
+
+                SettingsDropdown(selection: $refreshInterval, options: RefreshInterval.allCases.map {
+                    .init(label: $0.label, value: $0)
+                })
+                .onChange(of: refreshInterval) { _, newValue in
+                    UserDefaults.standard.set(newValue.rawValue, forKey: PreferencesKeys.refreshInterval)
+                    NotificationCenter.default.post(name: .refreshIntervalChanged, object: nil)
+                }
+            }
+
+            CardDivider()
+
+            HStack(alignment: .center, spacing: 16) {
+                Text(L10n.language)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color(hex: "1F2937"))
+
+                Spacer(minLength: 12)
+
+                SettingsDropdown(selection: $selectedLanguage, options: LanguageOption.allCases.map {
+                    .init(label: $0.displayName, value: $0)
+                })
+                .onChange(of: selectedLanguage) { _, newValue in
+                    LocaleManager.shared.setLanguage(newValue)
+                }
+            }
+        }
+    }
+
+    private var updateSettingsSection: some View {
+        SettingGroupCard(label: L10n.updateSection, systemImage: "arrow.clockwise") {
+            HStack(alignment: .top, spacing: 12) {
+                SettingsCheckbox(
+                    title: L10n.automaticUpdates,
+                    description: updater.statusText,
+                    isChecked: $automaticUpdatesEnabled
+                )
+                .onChange(of: automaticUpdatesEnabled) { _, newValue in
+                    UserDefaults.standard.set(newValue, forKey: PreferencesKeys.automaticUpdatesEnabled)
+                    if newValue {
+                        GitHubReleaseUpdater.shared.checkAutomaticallyIfNeeded()
+                    }
+                }
+
+                Spacer(minLength: 12)
+
+                HStack(spacing: 8) {
+                    SettingsActionButton(
+                        title: updater.isChecking || updater.isDownloading
+                            ? L10n.updateCheckingButton
+                            : L10n.checkForUpdatesButton,
+                        disabled: updater.isChecking || updater.isDownloading
+                    ) {
+                        Task {
+                            await updater.checkForUpdates(downloadIfAvailable: true, userInitiated: true)
+                        }
+                    }
+
+                    SettingsActionButton(
+                        title: L10n.installUpdateButton,
+                        disabled: updater.downloadedURL == nil
+                    ) {
+                        updater.installDownloadedUpdate()
+                    }
+                }
+                .padding(.top, 2)
+            }
         }
     }
 
@@ -804,31 +809,269 @@ struct PreferencesContentView: View {
     }
 }
 
-// MARK: - Section Header
+// MARK: - About Content
 
-struct SectionHeader: View {
-    let label: String
-    let systemImage: String
-
+struct AboutSettingsContentView: View {
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary)
-            Text(label)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
+        VStack(spacing: 0) {
+            Spacer(minLength: 76)
+
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: "3B82F6"), Color(hex: "2563EB")],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 80, height: 80)
+                .overlay {
+                    Image(systemName: "waveform.path.ecg")
+                        .font(.system(size: 36, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color(hex: "60A5FA").opacity(0.5), lineWidth: 1)
+                }
+
+            Text("Codex Monitor")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(Color(hex: "1F2937"))
+                .padding(.top, 20)
+
+            Text(L10n.aboutVersion(version: AppVersion.current))
+                .font(.system(size: 12))
+                .foregroundStyle(Color(hex: "6B7280"))
+                .padding(.top, 4)
+
             Spacer()
+
+            Text(L10n.aboutCopyright)
+                .font(.system(size: 11))
+                .foregroundStyle(Color(hex: "9CA3AF"))
+                .multilineTextAlignment(.center)
+                .padding(.bottom, 28)
         }
-        .padding(.top, 6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white)
     }
 }
 
-// MARK: - Compact Divider
+// MARK: - TSX Settings Components
 
-struct CompactDivider: View {
+struct SettingGroupCard<Content: View>: View {
+    let label: String
+    let systemImage: String
+    private let content: Content
+
+    init(label: String, systemImage: String, @ViewBuilder content: () -> Content) {
+        self.label = label
+        self.systemImage = systemImage
+        self.content = content()
+    }
+
     var body: some View {
-        Divider().opacity(0.3)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color(hex: "F3F4F6"))
+                    .frame(width: 24, height: 24)
+                    .overlay {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(Color(hex: "4B5563"))
+                    }
+
+                Text(label)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color(hex: "111827"))
+            }
+            .padding(.leading, 1)
+
+            VStack(alignment: .leading, spacing: 12) {
+                content
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(hex: "F9FAFB").opacity(0.72))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color(hex: "E5E7EB").opacity(0.8), lineWidth: 0.6)
+            }
+        }
+        .padding(.bottom, 24)
+    }
+}
+
+struct SettingsCheckbox: View {
+    let title: String
+    let description: String?
+    @Binding var isChecked: Bool
+
+    var body: some View {
+        Button {
+            isChecked.toggle()
+        } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(isChecked ? Color(hex: "3B82F6") : Color.white)
+                        .frame(width: 16, height: 16)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .stroke(isChecked ? Color(hex: "3B82F6") : Color(hex: "D1D5DB"), lineWidth: 1)
+                        }
+                        .overlay {
+                            if isChecked {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
+                        }
+
+                    Text(title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color(hex: "1F2937"))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let description, !description.isEmpty {
+                    Text(description)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color(hex: "6B7280"))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, 24)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct SettingTextBlock: View {
+    let title: String
+    let description: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color(hex: "1F2937"))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let description, !description.isEmpty {
+                Text(description)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(hex: "6B7280"))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+struct SettingsOption<Value: Hashable>: Identifiable {
+    let label: String
+    let value: Value
+    var id: Value { value }
+}
+
+struct SettingsSegmentedControl<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [SettingsOption<Value>]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(options) { option in
+                Button {
+                    selection = option.value
+                } label: {
+                    Text(option.label)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(selection == option.value ? Color(hex: "111827") : Color(hex: "6B7280"))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .padding(.horizontal, 13)
+                        .frame(height: 28)
+                        .background {
+                            if selection == option.value {
+                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    .fill(Color.white)
+                                    .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                            .stroke(Color(hex: "E5E7EB").opacity(0.8), lineWidth: 0.5)
+                                    }
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(Color(hex: "F3F4F6"))
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(Color(hex: "E5E7EB").opacity(0.65), lineWidth: 0.6)
+        }
+    }
+}
+
+struct SettingsDropdown<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [SettingsOption<Value>]
+
+    var body: some View {
+        Picker("", selection: $selection) {
+            ForEach(options) { option in
+                Text(option.label).tag(option.value)
+            }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
+        .font(.system(size: 12, weight: .medium))
+        .frame(width: 118)
+        .background(Color(hex: "F3F4F6"))
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+}
+
+struct SettingsActionButton: View {
+    let title: String
+    var disabled = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: disabled ? {} : action) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(disabled ? Color(hex: "9CA3AF") : Color(hex: "1F2937"))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .padding(.horizontal, 13)
+                .frame(height: 32)
+                .background(disabled ? Color(hex: "F9FAFB") : Color(hex: "F3F4F6"))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(disabled ? Color(hex: "F3F4F6") : Color(hex: "E5E7EB"), lineWidth: 0.8)
+                }
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+}
+
+struct CardDivider: View {
+    var body: some View {
+        Divider()
+            .opacity(0.55)
     }
 }

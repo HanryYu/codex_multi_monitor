@@ -1,6 +1,11 @@
 import SwiftUI
 import AppKit
 
+private final class SettingsWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
 /// Centralized window manager — all extra windows live here instead of as free variables.
 final class WindowManager {
     static let shared = WindowManager()
@@ -15,19 +20,28 @@ final class WindowManager {
         guard let accountStore = accountStore else { return }
 
         if let existing = settingsWindow, existing.isVisible {
+            existing.contentView = NSHostingView(
+                rootView: UnifiedSettingsView(accountStore: accountStore, initialTab: initialTab)
+            )
             existing.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
 
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 460, height: 480),
-            styleMask: [.titled, .closable],
+        let window = SettingsWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 540, height: 640),
+            styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
         window.title = L10n.codexMonitorSettings
-        window.contentView = NSHostingView(rootView: UnifiedSettingsView(accountStore: accountStore))
+        window.contentView = NSHostingView(
+            rootView: UnifiedSettingsView(accountStore: accountStore, initialTab: initialTab)
+        )
+        window.backgroundColor = .clear
+        window.isOpaque = false
+        window.hasShadow = true
+        window.isMovableByWindowBackground = true
         window.center()
         window.isReleasedWhenClosed = false
         window.level = .floating

@@ -505,6 +505,33 @@ enum L10n {
 
     // MARK: - Settings Tabs
 
+    static var settingsTabAccounts: String {
+        switch lang {
+        case .en:    return "Accounts"
+        case .ja:    return "アカウント"
+        case .zhHans: return "账号"
+        case .zhHant: return "帳號"
+        }
+    }
+
+    static var settingsTabPreferences: String {
+        switch lang {
+        case .en:    return "Settings"
+        case .ja:    return "設定"
+        case .zhHans: return "设置"
+        case .zhHant: return "設定"
+        }
+    }
+
+    static var settingsTabAbout: String {
+        switch lang {
+        case .en:    return "About"
+        case .ja:    return "情報"
+        case .zhHans: return "关于"
+        case .zhHant: return "關於"
+        }
+    }
+
     static var accountManagement: String {
         switch lang {
         case .en:    return "Accounts"
@@ -520,6 +547,24 @@ enum L10n {
         case .ja:    return "設定"
         case .zhHans: return "偏好设置"
         case .zhHant: return "偏好設定"
+        }
+    }
+
+    static func aboutVersion(version: String) -> String {
+        switch lang {
+        case .en:    return "Version \(version)"
+        case .ja:    return "バージョン \(version)"
+        case .zhHans: return "版本 \(version)"
+        case .zhHant: return "版本 \(version)"
+        }
+    }
+
+    static var aboutCopyright: String {
+        switch lang {
+        case .en:    return "© 2026 Codex Team. All rights reserved."
+        case .ja:    return "© 2026 Codex Team. All rights reserved."
+        case .zhHans: return "© 2026 Codex Team. 保留所有权利。"
+        case .zhHant: return "© 2026 Codex Team. 保留所有權利。"
         }
     }
 

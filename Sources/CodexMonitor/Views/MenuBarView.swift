@@ -594,7 +594,7 @@ struct MenuBarView: View {
             }
 
             Button(action: {
-                WindowManager.shared.openSettingsWindow()
+                WindowManager.shared.openSettingsWindow(initialTab: .accounts)
             }) {
                 Label(L10n.addAccount, systemImage: "plus")
                     .font(.system(size: 12, weight: .medium))
@@ -718,7 +718,7 @@ struct MenuBarView: View {
         VStack(spacing: 0) {
             HStack {
                 Button(action: {
-                    WindowManager.shared.openSettingsWindow()
+                    WindowManager.shared.openSettingsWindow(initialTab: .preferences)
                 }) {
                     Text(L10n.settings)
                         .font(.system(size: 11))

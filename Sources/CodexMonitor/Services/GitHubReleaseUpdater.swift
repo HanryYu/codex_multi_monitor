@@ -3,7 +3,7 @@ import Foundation
 import UserNotifications
 
 enum AppVersion {
-    static let fallback = "0.6.3"
+    static let fallback = "0.6.5"
 
     static var current: String {
         let info = Bundle.main.infoDictionary
