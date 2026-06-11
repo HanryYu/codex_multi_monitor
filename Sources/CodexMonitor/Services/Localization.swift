@@ -387,6 +387,24 @@ enum L10n {
         }
     }
 
+    static var exportBackup: String {
+        switch lang {
+        case .en:    return "Export Backup"
+        case .ja:    return "バックアップ書き出し"
+        case .zhHans: return "导出备份"
+        case .zhHant: return "匯出備份"
+        }
+    }
+
+    static var importBackup: String {
+        switch lang {
+        case .en:    return "Import Backup"
+        case .ja:    return "バックアップ取り込み"
+        case .zhHans: return "导入备份"
+        case .zhHant: return "匯入備份"
+        }
+    }
+
     static var noAccountsYet: String {
         switch lang {
         case .en:    return "No accounts yet"

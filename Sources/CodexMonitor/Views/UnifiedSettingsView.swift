@@ -75,6 +75,22 @@ struct AccountManagementContentView: View {
 
                 Spacer()
 
+                // Backup / Import
+                Button(action: { BackupService.exportBackup(from: accountStore) }) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .help(L10n.exportBackup)
+                .disabled(accountStore.accounts.isEmpty)
+
+                Button(action: { BackupService.importBackup(into: accountStore) }) {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .help(L10n.importBackup)
+
                 Button(action: { showingAddForm = true }) {
                     Label(L10n.addAccount, systemImage: "plus")
                         .font(.system(size: 12, weight: .medium))
