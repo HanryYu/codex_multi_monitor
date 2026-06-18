@@ -6,7 +6,6 @@ actor CodexQuotaActivationService {
     enum Availability {
         case ready
         case codexNotFound
-        case authUnavailable
     }
 
     private static let prompt = "Please reply with \"Hi\" directly."
@@ -15,7 +14,6 @@ actor CodexQuotaActivationService {
 
     nonisolated static func availability() -> Availability {
         guard codexExecutableURL() != nil else { return .codexNotFound }
-        guard activeCodexAccountID() != nil else { return .authUnavailable }
         return .ready
     }
 
@@ -28,14 +26,20 @@ actor CodexQuotaActivationService {
             || normalizedStateID.contains("week")
     }
 
+    nonisolated static func hasUsableAuthBundle(for account: Account) -> Bool {
+        authBundleData(for: account) != nil
+    }
+
     func activate(account: Account) async {
         guard UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled) else { return }
 
-        guard let accountID = account.accountID,
-              let activeAccountID = Self.activeCodexAccountID(),
-              accountID.caseInsensitiveCompare(activeAccountID) == .orderedSame
-        else {
-            print("[CodexMonitor] Quota activation skipped: recovered account is not the active local Codex account")
+        guard let accountID = account.accountID else {
+            print("[CodexMonitor] Quota activation skipped: account has no Codex account ID")
+            return
+        }
+
+        guard let authBundleData = Self.authBundleData(for: account) else {
+            print("[CodexMonitor] Quota activation skipped: no full Codex auth bundle saved for " + account.name)
             return
         }
 
@@ -50,25 +54,65 @@ actor CodexQuotaActivationService {
             return
         }
 
-        let succeeded = await Self.runCodex(executableURL: executableURL)
-        if succeeded {
+        let result = await Self.runCodex(
+            executableURL: executableURL,
+            accountID: accountID,
+            authBundleData: authBundleData
+        )
+        if result.succeeded {
             lastActivationAtByAccountID[accountID] = Date()
+            if let refreshedAuthBundleData = result.refreshedAuthBundleData {
+                CodexAuthBundleStore.save(accountID: account.id, authJSONData: refreshedAuthBundleData)
+            }
             print("[CodexMonitor] Quota activation request completed for " + account.name)
         } else {
             print("[CodexMonitor] Quota activation request failed for " + account.name)
         }
     }
 
-    private nonisolated static func activeCodexAccountID() -> String? {
+    private nonisolated static func authBundleData(for account: Account) -> Data? {
+        let autoImportEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.autoImportEnabled)
+
+        if autoImportEnabled,
+           let savedData = CodexAuthBundleStore.load(accountID: account.id),
+           accountID(fromAuthBundleData: savedData)?.caseInsensitiveCompare(account.accountID ?? "") == .orderedSame {
+            return savedData
+        }
+
+        guard let accountID = account.accountID,
+              let activeAuthData = activeCodexAuthBundleData(),
+              Self.accountID(fromAuthBundleData: activeAuthData)?.caseInsensitiveCompare(accountID) == .orderedSame
+        else { return nil }
+
+        if autoImportEnabled {
+            CodexAuthBundleStore.save(accountID: account.id, authJSONData: activeAuthData)
+        }
+        return activeAuthData
+    }
+
+    private nonisolated static func activeCodexAuthBundleData() -> Data? {
         let authURL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".codex/auth.json")
 
         guard let data = try? Data(contentsOf: authURL),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              accountID(fromAuthBundleData: data) != nil
+        else {
+            return nil
+        }
+
+        return data
+    }
+
+    private nonisolated static func accountID(fromAuthBundleData data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let tokens = object["tokens"] as? [String: Any],
               let accountID = tokens["account_id"] as? String,
-              !accountID.isEmpty
-        else { return nil }
+              !accountID.isEmpty,
+              tokens["id_token"] is String,
+              tokens["refresh_token"] is String
+        else {
+            return nil
+        }
 
         return accountID
     }
@@ -88,25 +132,47 @@ actor CodexQuotaActivationService {
             .first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 
-    private nonisolated static func runCodex(executableURL: URL) async -> Bool {
+    private struct CodexRunResult {
+        let succeeded: Bool
+        let refreshedAuthBundleData: Data?
+    }
+
+    private nonisolated static func runCodex(
+        executableURL: URL,
+        accountID: String,
+        authBundleData: Data
+    ) async -> CodexRunResult {
         await Task.detached(priority: .utility) {
-            runCodexBlocking(executableURL: executableURL)
+            runCodexBlocking(
+                executableURL: executableURL,
+                accountID: accountID,
+                authBundleData: authBundleData
+            )
         }.value
     }
 
-    private nonisolated static func runCodexBlocking(executableURL: URL) -> Bool {
+    private nonisolated static func runCodexBlocking(
+        executableURL: URL,
+        accountID: String,
+        authBundleData: Data
+    ) -> CodexRunResult {
         let fileManager = FileManager.default
-        let workingDirectory = fileManager.temporaryDirectory
+        let tempRoot = fileManager.temporaryDirectory
             .appendingPathComponent("CodexMonitor-QuotaActivation-\(UUID().uuidString)", isDirectory: true)
+        let codexHomeDirectory = tempRoot.appendingPathComponent("codex-home", isDirectory: true)
+        let workingDirectory = tempRoot.appendingPathComponent("workspace", isDirectory: true)
+        let authURL = codexHomeDirectory.appendingPathComponent("auth.json")
         let logURL = workingDirectory.appendingPathComponent("codex.log")
 
         do {
+            try fileManager.createDirectory(at: codexHomeDirectory, withIntermediateDirectories: true)
             try fileManager.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
+            try authBundleData.write(to: authURL, options: .atomic)
             _ = fileManager.createFile(atPath: logURL.path, contents: nil)
             let logHandle = try FileHandle(forWritingTo: logURL)
             defer {
                 try? logHandle.close()
-                try? fileManager.removeItem(at: workingDirectory)
+                try? fileManager.removeItem(at: tempRoot)
             }
 
             let process = Process()
@@ -136,6 +202,7 @@ actor CodexQuotaActivationService {
             ]
             let inheritedPath = environment["PATH"].map { [$0] } ?? []
             environment["PATH"] = (requiredPaths + inheritedPath).joined(separator: ":")
+            environment["CODEX_HOME"] = codexHomeDirectory.path
             process.environment = environment
 
             let completion = DispatchSemaphore(value: 0)
@@ -145,14 +212,26 @@ actor CodexQuotaActivationService {
             if completion.wait(timeout: .now() + activationTimeout) == .timedOut {
                 process.terminate()
                 _ = completion.wait(timeout: .now() + 5)
-                return false
+                return CodexRunResult(succeeded: false, refreshedAuthBundleData: nil)
             }
 
-            return process.terminationStatus == 0
+            let refreshedAuthBundleData = try? Data(contentsOf: authURL)
+            let safeRefreshedAuthBundleData: Data?
+            if let refreshedAuthBundleData,
+               Self.accountID(fromAuthBundleData: refreshedAuthBundleData)?.caseInsensitiveCompare(accountID) == .orderedSame {
+                safeRefreshedAuthBundleData = refreshedAuthBundleData
+            } else {
+                safeRefreshedAuthBundleData = nil
+            }
+
+            return CodexRunResult(
+                succeeded: process.terminationStatus == 0,
+                refreshedAuthBundleData: safeRefreshedAuthBundleData
+            )
         } catch {
             print("[CodexMonitor] Failed to launch Codex quota activation: \(error)")
-            try? fileManager.removeItem(at: workingDirectory)
-            return false
+            try? fileManager.removeItem(at: tempRoot)
+            return CodexRunResult(succeeded: false, refreshedAuthBundleData: nil)
         }
     }
 }

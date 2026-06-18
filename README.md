@@ -35,7 +35,7 @@ A lightweight macOS menu bar app for monitoring ChatGPT Codex quotas across mult
 - **Multi-Language** — English, 简体中文, 繁體中文, 日本語
 - **Automatic Updates** — Check, download, and install new versions from GitHub Releases
 
-> Weekly Cycle Activation only runs when the recovered monitored account matches the account currently signed in to Codex on this Mac.
+> Weekly Cycle Activation requires Auto Account Sync to capture full Codex login bundles as accounts are switched, including with [cc-switch](https://github.com/HanryYu/cc-switch). Without Auto Account Sync, activation can only use the currently signed-in Codex account.
 
 ## Requirements
 
@@ -88,7 +88,7 @@ open /Applications/CodexMonitor.app
 
 CodexMonitor can automatically detect and manage your Codex accounts. Simply launch the app — it will scan local auth data, import accounts, and handle token refresh and deduplication automatically.
 
-> If you use [cc-switch](https://github.com/HanryYu/cc-switch) or rotate tokens manually, CodexMonitor will keep accounts in sync without extra steps.
+> If you use [cc-switch](https://github.com/HanryYu/cc-switch) or rotate tokens manually, keep Auto Account Sync enabled so CodexMonitor can save each switched account's full login bundle for all-account Weekly Cycle Activation.
 
 ### Method 2: Browser Network Tab
 

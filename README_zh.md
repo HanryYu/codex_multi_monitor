@@ -30,9 +30,12 @@
 - **用量可视化** — 带颜色编码的状态指标显示额度使用情况
 - **限额提醒** — 5 小时或周额度用尽时显示视觉遮罩和重置倒计时
 - **智能通知** — 额度过低或账户恢复时收到通知
+- **周额度周期启动 (Beta)** — 周额度恢复后发送一次简短 Codex 请求，启动新的周订阅额度周期
 - **自动账户同步** — 启动时自动检测本地 Codex 账户并添加
 - **多语言** — English、中文、日本語
 - **版本更新提醒** — GitHub 有新版本时自动提醒
+
+> 周额度周期启动需要开启“自动账户同步”，这样 CodexMonitor 才能在你使用 [cc-switch](https://github.com/HanryYu/cc-switch) 等工具切换账号时捕获每个账号的完整 Codex 登录凭证。未开启时，只能使用当前 Codex 已登录账号执行刷新。
 
 ## 系统要求
 
@@ -85,7 +88,7 @@ open /Applications/CodexMonitor.app
 
 CodexMonitor 可以自动检测和管理你的 Codex 账户。只需启动应用 — 它会自动扫描本地认证数据、导入账户，并处理 token 刷新和去重。
 
-> 如果你使用 [cc-switch](https://github.com/HanryYu/cc-switch) 或手动切换 token，CodexMonitor 会自动保持账户同步，无需额外操作。
+> 如果你使用 [cc-switch](https://github.com/HanryYu/cc-switch) 或手动切换 token，请保持“自动账户同步”开启；CodexMonitor 会保存每个切换过账号的完整登录凭证，用于全账号周额度周期启动。
 
 ### 方式 2：浏览器 Network 面板
 
@@ -135,4 +138,4 @@ cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); pr
 
 ## 开源协议
 
-[GPLv3](LICENSE) — © 2025 Henry Yu
+[GPLv3](LICENSE) — © 2026 Ryan Hansen

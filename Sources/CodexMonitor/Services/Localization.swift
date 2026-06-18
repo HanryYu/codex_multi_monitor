@@ -1045,10 +1045,10 @@ enum L10n {
 
     static var autoImportLocalAccountsDesc: String {
         switch lang {
-        case .en:    return "Monitor ~/.codex/auth.json for changes, automatically import and update accounts"
-        case .ja:    return "~/.codex/auth.json の変更を監視し、アカウントを自動インポート・更新"
-        case .zhHans: return "监听 ~/.codex/auth.json 变化，自动导入和更新账户"
-        case .zhHant: return "監聽 ~/.codex/auth.json 變化，自動匯入和更新帳戶"
+        case .en:    return "Monitor ~/.codex/auth.json changes, including cc-switch, and save full login bundles for all-account weekly activation"
+        case .ja:    return "cc-switch を含む ~/.codex/auth.json の変更を監視し、全アカウントの週間サイクル開始に必要なログイン情報を保存"
+        case .zhHans: return "监听 ~/.codex/auth.json 变化，包括 cc-switch 切换，并保存用于全账号周额度刷新的完整登录凭证"
+        case .zhHant: return "監聽 ~/.codex/auth.json 變化，包括 cc-switch 切換，並保存用於全帳戶週額度刷新的完整登入憑證"
         }
     }
 
@@ -1184,10 +1184,10 @@ enum L10n {
 
     static var quotaActivationScopeNote: String {
         switch lang {
-        case .en:    return "Only applies to the currently signed-in account when its account ID matches."
-        case .ja:    return "現在サインイン中で、アカウント ID が一致するアカウントにのみ適用されます。"
-        case .zhHans: return "仅对当前登录且账号 ID 配对的账号生效。"
-        case .zhHant: return "僅對目前登入且帳戶 ID 配對的帳戶生效。"
+        case .en:    return "Enable Auto Import Local Accounts to capture every switched Codex login. Otherwise only the currently signed-in Codex account can be activated."
+        case .ja:    return "切り替えたすべての Codex ログインを保存するには、ローカルアカウント自動インポートを有効にしてください。無効時は現在サインイン中の Codex アカウントのみ開始できます。"
+        case .zhHans: return "需开启“自动导入本地账户”以捕获每次切换的完整 Codex 登录凭证；否则只能触发当前 Codex 已登录账号。"
+        case .zhHant: return "需開啟「自動匯入本地帳戶」以捕捉每次切換的完整 Codex 登入憑證；否則只能觸發目前 Codex 已登入帳戶。"
         }
     }
 
@@ -1197,15 +1197,6 @@ enum L10n {
         case .ja:    return "この Mac に Codex CLI が見つかりません。"
         case .zhHans: return "本机未找到 Codex CLI。"
         case .zhHant: return "本機未找到 Codex CLI。"
-        }
-    }
-
-    static var quotaActivationAuthUnavailable: String {
-        switch lang {
-        case .en:    return "No active Codex login was found at ~/.codex/auth.json."
-        case .ja:    return "~/.codex/auth.json に有効な Codex ログインが見つかりません。"
-        case .zhHans: return "未在 ~/.codex/auth.json 找到当前 Codex 登录。"
-        case .zhHant: return "未在 ~/.codex/auth.json 找到目前 Codex 登入。"
         }
     }
 

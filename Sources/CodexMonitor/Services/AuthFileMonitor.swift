@@ -236,6 +236,10 @@ final class AuthFileMonitor {
                     accountStore.accounts[index].localAuthInvalid = false
                     hasChanges = true
                 }
+
+                if let authBundleData = entry.authBundleData {
+                    CodexAuthBundleStore.save(accountID: accountStore.accounts[index].id, authJSONData: authBundleData)
+                }
             } else {
                 // 新账户：自动添加
                 let newAccount = Account(
@@ -246,6 +250,9 @@ final class AuthFileMonitor {
                     accountEmail: entry.accountEmail
                 )
                 accountStore.accounts.append(newAccount)
+                if let authBundleData = entry.authBundleData {
+                    CodexAuthBundleStore.save(accountID: newAccount.id, authJSONData: authBundleData)
+                }
                 hasChanges = true
                 sendNotification(
                     title: "CodexMonitor",
@@ -359,7 +366,8 @@ final class AuthFileMonitor {
                 accountID: accountID,
                 accountEmail: email,
                 displayName: localAccountDisplayName(accountID: accountID, email: email),
-                authToken: accessToken
+                authToken: accessToken,
+                authBundleData: data
             )]
         }
 
@@ -372,7 +380,8 @@ final class AuthFileMonitor {
                     accountID: accountID,
                     accountEmail: identity.email,
                     displayName: localAccountDisplayName(accountID: accountID, email: identity.email),
-                    authToken: trimmedToken
+                    authToken: trimmedToken,
+                    authBundleData: nil
                 )
             }
             return entries.isEmpty ? nil : entries
@@ -418,4 +427,5 @@ private struct LocalAuthEntry {
     let accountEmail: String?
     let displayName: String
     let authToken: String
+    let authBundleData: Data?
 }

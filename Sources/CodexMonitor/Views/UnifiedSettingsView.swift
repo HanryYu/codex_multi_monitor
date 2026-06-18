@@ -846,8 +846,6 @@ struct PreferencesContentView: View {
             return nil
         case .codexNotFound:
             return L10n.quotaActivationCodexNotFound
-        case .authUnavailable:
-            return L10n.quotaActivationAuthUnavailable
         }
     }
 }
