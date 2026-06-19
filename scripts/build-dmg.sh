@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="CodexMonitor"
 DMG_NAME="CodexMonitor"
-VERSION="${1:-0.6.8}"
+VERSION="${1:-0.6.9}"
 BUNDLE_ID="com.henry.codex-monitor"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -92,11 +92,25 @@ fi
 TEAM_IDENTIFIER_PREFIX="${TEAM_IDENTIFIER_PREFIX:-}"
 if [[ -z "$TEAM_IDENTIFIER_PREFIX" && -n "$CODE_SIGN_IDENTITY" ]]; then
     TEAM_IDENTIFIER_PREFIX="$(
-        security find-certificate -c "$CODE_SIGN_IDENTITY" -p 2>/dev/null \
-            | openssl x509 -noout -subject 2>/dev/null \
-            | sed -n 's/.*OU[ =]\([^,\/]*\).*/\1./p' \
+        printf "%s" "$CODE_SIGN_IDENTITY" \
+            | sed -nE 's/.*\(([A-Z0-9]{10})\).*/\1/p' \
             | head -n 1
     )"
+fi
+if [[ -z "$TEAM_IDENTIFIER_PREFIX" && -n "$CODE_SIGN_IDENTITY" ]]; then
+    TEAM_IDENTIFIER_PREFIX="$(
+        security find-certificate -c "$CODE_SIGN_IDENTITY" -p 2>/dev/null \
+            | openssl x509 -noout -subject 2>/dev/null \
+            | sed -nE 's/.*OU[[:space:]]*=[[:space:]]*([^,\/]*).*/\1/p' \
+            | head -n 1
+    )"
+fi
+TEAM_IDENTIFIER_PREFIX="$(
+    printf "%s" "$TEAM_IDENTIFIER_PREFIX" \
+        | sed -E 's/^[[:space:]=]+//; s/[[:space:]]+$//; s/\.+$//'
+)"
+if [[ -n "$TEAM_IDENTIFIER_PREFIX" ]]; then
+    TEAM_IDENTIFIER_PREFIX="$TEAM_IDENTIFIER_PREFIX."
 fi
 sed "s/\$(TeamIdentifierPrefix)/$TEAM_IDENTIFIER_PREFIX/g" "$ENTITLEMENTS_TEMPLATE" > "$ENTITLEMENTS_SRC"
 
