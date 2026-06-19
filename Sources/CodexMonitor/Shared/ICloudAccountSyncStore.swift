@@ -27,7 +27,10 @@ final class ICloudAccountSyncStore {
         do {
             let data = try encoder.encode(payload)
             store.set(data, forKey: Self.accountPayloadKey)
-            store.synchronize()
+            guard store.synchronize() else {
+                print("[CodexMonitor] iCloud account sync is unavailable or not permitted for this build.")
+                return nil
+            }
             return payload.revision
         } catch {
             print("[CodexMonitor] Failed to encode iCloud account payload: \(error)")

@@ -3,9 +3,11 @@ set -euo pipefail
 
 APP_NAME="CodexMonitor"
 DMG_NAME="CodexMonitor"
-VERSION="${1:-0.6.9}"
+VERSION="${1:-0.6.10}"
 BUNDLE_ID="com.henry.codex-monitor"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-}"
+MAC_PROVISIONING_PROFILE="${MAC_PROVISIONING_PROFILE:-}"
+MAC_PROVISIONING_PROFILE_BASE64="${MAC_PROVISIONING_PROFILE_BASE64:-}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 ARM64_BUILD_DIR="$PROJECT_DIR/.build/arm64/arm64-apple-macosx/release"
@@ -76,6 +78,8 @@ PLIST
 ICON_SRC="$PROJECT_DIR/Sources/CodexMonitor/Resources/AppIcon.icns"
 ENTITLEMENTS_TEMPLATE="$PROJECT_DIR/Sources/CodexMonitor/CodexMonitor.entitlements"
 ENTITLEMENTS_SRC="$UNIVERSAL_BUILD_DIR/CodexMonitor.entitlements"
+EMBEDDED_PROFILE="$APP_BUNDLE/Contents/embedded.provisionprofile"
+ENTITLEMENTS_TO_SIGN=""
 if [ -f "$ICON_SRC" ]; then
     cp "$ICON_SRC" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
     echo "   ✅ App icon copied"
@@ -109,36 +113,57 @@ TEAM_IDENTIFIER_PREFIX="$(
     printf "%s" "$TEAM_IDENTIFIER_PREFIX" \
         | sed -E 's/^[[:space:]=]+//; s/[[:space:]]+$//; s/\.+$//'
 )"
-if [[ -n "$TEAM_IDENTIFIER_PREFIX" ]]; then
-    TEAM_IDENTIFIER_PREFIX="$TEAM_IDENTIFIER_PREFIX."
+if [[ -n "$MAC_PROVISIONING_PROFILE_BASE64" ]]; then
+    printf "%s" "$MAC_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$EMBEDDED_PROFILE"
+    echo "   ✅ Embedded provisioning profile from MAC_PROVISIONING_PROFILE_BASE64"
+elif [[ -n "$MAC_PROVISIONING_PROFILE" ]]; then
+    if [[ ! -f "$MAC_PROVISIONING_PROFILE" ]]; then
+        echo "❌ MAC_PROVISIONING_PROFILE does not exist: $MAC_PROVISIONING_PROFILE"
+        exit 1
+    fi
+    cp "$MAC_PROVISIONING_PROFILE" "$EMBEDDED_PROFILE"
+    echo "   ✅ Embedded provisioning profile from $MAC_PROVISIONING_PROFILE"
 fi
-sed "s/\$(TeamIdentifierPrefix)/$TEAM_IDENTIFIER_PREFIX/g" "$ENTITLEMENTS_TEMPLATE" > "$ENTITLEMENTS_SRC"
+
+if [[ -f "$EMBEDDED_PROFILE" ]]; then
+    if [[ -n "$TEAM_IDENTIFIER_PREFIX" ]]; then
+        TEAM_IDENTIFIER_PREFIX="$TEAM_IDENTIFIER_PREFIX."
+    fi
+    sed "s/\$(TeamIdentifierPrefix)/$TEAM_IDENTIFIER_PREFIX/g" "$ENTITLEMENTS_TEMPLATE" > "$ENTITLEMENTS_SRC"
+    ENTITLEMENTS_TO_SIGN="$ENTITLEMENTS_SRC"
+else
+    echo "   ⚠️  No provisioning profile supplied; skipping restricted iCloud entitlements so the app can launch under Developer ID"
+fi
+
+codesign_app_bundle() {
+    local identity="$1"
+    local include_timestamp="$2"
+    local args=(--force --identifier "$BUNDLE_ID")
+
+    if [[ -n "$ENTITLEMENTS_TO_SIGN" ]]; then
+        args+=(--entitlements "$ENTITLEMENTS_TO_SIGN")
+    fi
+
+    args+=(--options runtime)
+
+    if [[ "$include_timestamp" == "true" ]]; then
+        args+=(--timestamp)
+    fi
+
+    args+=(--sign "$identity" "$APP_BUNDLE")
+    codesign "${args[@]}"
+}
 
 echo "🔏 Signing .app bundle..."
 if [[ -n "$CODE_SIGN_IDENTITY" ]]; then
     if [[ "$CODE_SIGN_IDENTITY" == Developer\ ID\ Application:* ]]; then
-        codesign --force \
-            --identifier "$BUNDLE_ID" \
-            --entitlements "$ENTITLEMENTS_SRC" \
-            --options runtime \
-            --timestamp \
-            --sign "$CODE_SIGN_IDENTITY" \
-            "$APP_BUNDLE"
+        codesign_app_bundle "$CODE_SIGN_IDENTITY" true
     else
-        codesign --force \
-            --identifier "$BUNDLE_ID" \
-            --entitlements "$ENTITLEMENTS_SRC" \
-            --options runtime \
-            --sign "$CODE_SIGN_IDENTITY" \
-            "$APP_BUNDLE"
+        codesign_app_bundle "$CODE_SIGN_IDENTITY" false
     fi
     echo "   ✅ Signed with $CODE_SIGN_IDENTITY"
 else
-    codesign --force \
-        --identifier "$BUNDLE_ID" \
-        --entitlements "$ENTITLEMENTS_SRC" \
-        --sign - \
-        "$APP_BUNDLE"
+    codesign_app_bundle - false
     echo "   ⚠️  No Developer ID identity supplied; created an ad-hoc signed local build"
 fi
 
