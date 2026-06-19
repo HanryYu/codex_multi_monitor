@@ -129,13 +129,98 @@ struct SpendControl: Codable {
 
 struct RateLimitResetCredits: Codable {
     let availableCount: Int
+    let credits: [RateLimitResetCredit]
     
     enum CodingKeys: String, CodingKey {
         case availableCount = "available_count"
+        case credits
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         availableCount = (try? container.decode(Int.self, forKey: .availableCount)) ?? 0
+        credits = (try? container.decodeIfPresent([RateLimitResetCredit].self, forKey: .credits)) ?? []
+    }
+
+    var availableCredits: [RateLimitResetCredit] {
+        let available = credits.filter { $0.isAvailable }
+        return available.sortedByExpiration()
+    }
+
+    var displayCredits: [RateLimitResetCredit] {
+        let available = availableCredits
+        if !available.isEmpty {
+            return available
+        }
+        return credits.sortedByExpiration()
+    }
+
+    var nearestExpirationDate: Date? {
+        displayCredits.compactMap(\.expiresDate).min()
+    }
+}
+
+struct RateLimitResetCredit: Codable {
+    let id: String?
+    let resetType: String?
+    let status: String?
+    let grantedAt: String?
+    let expiresAt: String?
+    let redeemedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case resetType = "reset_type"
+        case status
+        case grantedAt = "granted_at"
+        case expiresAt = "expires_at"
+        case redeemedAt = "redeemed_at"
+    }
+
+    var isAvailable: Bool {
+        (status ?? "available").lowercased() == "available"
+    }
+
+    var grantedDate: Date? {
+        Self.parseISODate(grantedAt)
+    }
+
+    var expiresDate: Date? {
+        Self.parseISODate(expiresAt)
+    }
+
+    var redeemedDate: Date? {
+        Self.parseISODate(redeemedAt)
+    }
+
+    private static func parseISODate(_ value: String?) -> Date? {
+        guard let value, !value.isEmpty else { return nil }
+
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalFormatter.date(from: value) {
+            return date
+        }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+}
+
+private extension Array where Element == RateLimitResetCredit {
+    func sortedByExpiration() -> [RateLimitResetCredit] {
+        sorted { lhs, rhs in
+            switch (lhs.expiresDate, rhs.expiresDate) {
+            case let (left?, right?):
+                return left < right
+            case (.some, nil):
+                return true
+            case (nil, .some):
+                return false
+            case (nil, nil):
+                return (lhs.grantedDate ?? .distantFuture) < (rhs.grantedDate ?? .distantFuture)
+            }
+        }
     }
 }

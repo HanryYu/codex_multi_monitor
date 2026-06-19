@@ -378,10 +378,111 @@ struct CreditsCardView: View {
     }
 }
 
+// MARK: - Reset Credits Compact Row
+
+struct ResetCreditsCompactView: View {
+    let credits: RateLimitResetCredits
+    @ObservedObject var localeManager = LocaleManager.shared
+    @State private var isExpanded = false
+
+    private var visibleCredits: [RateLimitResetCredit] {
+        Array(credits.displayCredits.prefix(4))
+    }
+
+    private var hiddenCreditCount: Int {
+        max(0, credits.displayCredits.count - visibleCredits.count)
+    }
+
+    private var isExpiringSoon: Bool {
+        guard let date = credits.nearestExpirationDate else { return false }
+        return date.timeIntervalSinceNow < 72 * 60 * 60
+    }
+
+    private var tint: Color {
+        isExpiringSoon ? Color.orange : Color.accentColor
+    }
+
+    private var helpText: String {
+        var lines = [L10n.resetCreditsAvailable(count: credits.availableCount)]
+        let detailLines = credits.displayCredits.map { credit in
+            dateLine(for: credit)
+        }
+        lines.append(contentsOf: detailLines)
+        return lines.joined(separator: "\n")
+    }
+
+    var body: some View {
+        if credits.availableCount > 0 {
+            VStack(alignment: .leading, spacing: 4) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.counterclockwise.circle.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(tint)
+
+                        Text(L10n.resetCreditsAvailable(count: credits.availableCount))
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(Color.primary.opacity(0.85))
+                            .lineLimit(1)
+
+                        Spacer(minLength: 6)
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(Color.secondary.opacity(0.7))
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if isExpanded {
+                    if visibleCredits.isEmpty {
+                        Text(L10n.resetCreditDatesUnavailable)
+                            .font(.system(size: 9.5, weight: .regular))
+                            .foregroundStyle(Color.secondary)
+                            .lineLimit(1)
+                    } else {
+                        ForEach(Array(visibleCredits.enumerated()), id: \.offset) { _, credit in
+                            Text(dateLine(for: credit))
+                                .font(.system(size: 9.5, weight: .regular).monospacedDigit())
+                                .foregroundStyle(isExpiringSoon ? Color.orange.opacity(0.85) : Color.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                        }
+
+                        if hiddenCreditCount > 0 {
+                            Text(L10n.resetCreditsMore(count: hiddenCreditCount))
+                                .font(.system(size: 9.5, weight: .medium))
+                                .foregroundStyle(Color.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 6)
+            .padding(.bottom, 8)
+            .help(helpText)
+        }
+    }
+
+    private func dateLine(for credit: RateLimitResetCredit) -> String {
+        let granted = credit.grantedDate.map(L10n.compactDateTime) ?? L10n.resetCreditDatesUnavailable
+        let expires = credit.expiresDate.map(L10n.compactDateTime) ?? L10n.resetCreditDatesUnavailable
+        return "\(L10n.resetCreditGranted(date: granted)) · \(L10n.resetCreditExpires(date: expires))"
+    }
+}
+
 // MARK: - Limit Overlay View (shows limit type + reset time)
 
 struct LimitOverlayView: View {
     let usage: UsageResponse
+    let resetCredits: RateLimitResetCredits?
     var resetTimeFormat: ResetTimeFormat = .relative
     @ObservedObject var localeManager = LocaleManager.shared
 
@@ -470,6 +571,11 @@ struct LimitOverlayView: View {
         }
     }
 
+    private var resetCreditText: String? {
+        guard let resetCredits, resetCredits.availableCount > 0 else { return nil }
+        return L10n.resetCreditsAvailable(count: resetCredits.availableCount)
+    }
+
     private func limitLabel(seconds: Int) -> String {
         let hours = seconds / 3600
         if hours >= 168 {
@@ -505,6 +611,19 @@ struct LimitOverlayView: View {
                         .font(.system(size: 11, weight: .medium).monospacedDigit())
                         .foregroundStyle(Color(hex: "ff3b30").opacity(0.7))
                         .padding(.top, 2)
+                }
+
+                if let resetCreditText {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.counterclockwise.circle.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(resetCreditText)
+                            .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                    .foregroundStyle(Color.orange.opacity(0.85))
+                    .padding(.top, 1)
                 }
             }
         }
@@ -562,6 +681,13 @@ struct MenuBarView: View {
         if let rl = usage.rateLimit, rl.limitReached { return true }
         if let credits = usage.credits, credits.overageLimitReached { return true }
         return false
+    }
+
+    private func resetCredits(for accountID: UUID) -> RateLimitResetCredits? {
+        guard case .success(let credits) = accountStore.resetCreditsData[accountID],
+              credits.availableCount > 0
+        else { return nil }
+        return credits
     }
 
     // MARK: - Loading Placeholder
@@ -625,6 +751,7 @@ struct MenuBarView: View {
 
                 ForEach(accountStore.accounts) { account in
                     let usageResult = accountStore.usageData[account.id]
+                    let resetCredits = resetCredits(for: account.id)
                     let limited = usageResult.flatMap { result -> Bool? in
                         if case .success(let u) = result { return isRateLimited(u) }
                         return nil
@@ -662,7 +789,20 @@ struct MenuBarView: View {
                         if let usageResult {
                             switch usageResult {
                             case .success(let usage):
-                                QuotaCardsGridView(usage: usage, displayMode: displayMode, isLimited: limited, resetTimeFormat: resetTimeFormat)
+                                VStack(spacing: 0) {
+                                    QuotaCardsGridView(
+                                        usage: usage,
+                                        displayMode: displayMode,
+                                        isLimited: limited,
+                                        resetTimeFormat: resetTimeFormat
+                                    )
+
+                                    if let resetCredits {
+                                        Divider().opacity(0.25)
+                                            .padding(.horizontal, 14)
+                                        ResetCreditsCompactView(credits: resetCredits)
+                                    }
+                                }
                             case .failure(let error):
                                 HStack(spacing: 6) {
                                     Image(systemName: "exclamationmark.triangle.fill")
@@ -693,7 +833,11 @@ struct MenuBarView: View {
                     .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
                     .overlay {
                         if limited, let usageResult, case .success(let usage) = usageResult {
-                            LimitOverlayView(usage: usage, resetTimeFormat: resetTimeFormat)
+                            LimitOverlayView(
+                                usage: usage,
+                                resetCredits: resetCredits,
+                                resetTimeFormat: resetTimeFormat
+                            )
                         }
                     }
                 }

@@ -7,6 +7,7 @@ import UserNotifications
 class AccountStore: ObservableObject {
     @Published var accounts: [Account] = []
     @Published var usageData: [UUID: Result<UsageResponse, APIError>] = [:]
+    @Published var resetCreditsData: [UUID: Result<RateLimitResetCredits, APIError>] = [:]
     @Published var isLoading = false
     @Published var lastRefreshTime: Date?
     
@@ -233,6 +234,7 @@ class AccountStore: ObservableObject {
             SecureTokenStore.delete(accountID: account.id.uuidString)
             CodexAuthBundleStore.delete(accountID: account.id)
             usageData.removeValue(forKey: account.id)
+            resetCreditsData.removeValue(forKey: account.id)
         }
         accounts.remove(atOffsets: offsets)
         saveAccounts()
@@ -243,6 +245,7 @@ class AccountStore: ObservableObject {
             SecureTokenStore.delete(accountID: id.uuidString)
             CodexAuthBundleStore.delete(accountID: id)
             usageData.removeValue(forKey: id)
+            resetCreditsData.removeValue(forKey: id)
             accounts.remove(at: index)
             saveAccounts()
         }
@@ -254,25 +257,50 @@ class AccountStore: ObservableObject {
         isLoading = true
         print("[CodexMonitor] refreshAll: refreshing \(accounts.count) accounts")
         
-        await withTaskGroup(of: (UUID, Result<UsageResponse, APIError>).self) { group in
+        await withTaskGroup(of: AccountRefreshResult.self) { group in
             for account in accounts {
                 group.addTask {
+                    let usageResult: Result<UsageResponse, APIError>
+                    let resetCreditsResult: Result<RateLimitResetCredits, APIError>
+
                     do {
                         let usage = try await APIService.shared.fetchUsage(authToken: account.authToken)
                         print("[CodexMonitor] refreshAll: [\(account.name)] success — plan=\(usage.planType), rateLimit=\(usage.rateLimit != nil ? "yes" : "nil"), credits=\(usage.credits != nil ? "yes" : "nil")")
-                        return (account.id, .success(usage))
+                        usageResult = .success(usage)
                     } catch let error as APIError {
                         print("[CodexMonitor] refreshAll: [\(account.name)] APIError: \(error.localizedDescription)")
-                        return (account.id, .failure(error))
+                        usageResult = .failure(error)
                     } catch {
                         print("[CodexMonitor] refreshAll: [\(account.name)] unexpected error: \(error)")
-                        return (account.id, .failure(.invalidResponse))
+                        usageResult = .failure(.invalidResponse)
                     }
+
+                    do {
+                        let resetCredits = try await APIService.shared.fetchRateLimitResetCredits(
+                            authToken: account.authToken,
+                            accountID: account.accountID
+                        )
+                        print("[CodexMonitor] refreshAll: [\(account.name)] reset credits available=\(resetCredits.availableCount)")
+                        resetCreditsResult = .success(resetCredits)
+                    } catch let error as APIError {
+                        print("[CodexMonitor] refreshAll: [\(account.name)] reset credits APIError: \(error.localizedDescription)")
+                        resetCreditsResult = .failure(error)
+                    } catch {
+                        print("[CodexMonitor] refreshAll: [\(account.name)] reset credits unexpected error: \(error)")
+                        resetCreditsResult = .failure(.invalidResponse)
+                    }
+
+                    return AccountRefreshResult(
+                        accountID: account.id,
+                        usage: usageResult,
+                        resetCredits: resetCreditsResult
+                    )
                 }
             }
             
-            for await (id, result) in group {
-                usageData[id] = result
+            for await result in group {
+                usageData[result.accountID] = result.usage
+                resetCreditsData[result.accountID] = result.resetCredits
             }
         }
         
@@ -696,4 +724,10 @@ private struct PersistedLimitState: Codable {
     var resetKey: String {
         resetAt.map(String.init) ?? "unknown"
     }
+}
+
+private struct AccountRefreshResult {
+    let accountID: UUID
+    let usage: Result<UsageResponse, APIError>
+    let resetCredits: Result<RateLimitResetCredits, APIError>
 }

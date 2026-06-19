@@ -171,6 +171,27 @@ enum L10n {
         return "\(formatter.string(from: date)) \(resetWord)"
     }
 
+    static func compactDateTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+
+        switch lang {
+        case .en:
+            formatter.locale = Locale(identifier: "en_US")
+            formatter.dateFormat = "M/d HH:mm"
+        case .ja:
+            formatter.locale = Locale(identifier: "ja_JP")
+            formatter.dateFormat = "M月d日 HH:mm"
+        case .zhHans:
+            formatter.locale = Locale(identifier: "zh_CN")
+            formatter.dateFormat = "M月d日 HH:mm"
+        case .zhHant:
+            formatter.locale = Locale(identifier: "zh_TW")
+            formatter.dateFormat = "M月d日 HH:mm"
+        }
+
+        return formatter.string(from: date)
+    }
+
     // MARK: - Credits Card
 
     static var credits: String { "Credits" }
@@ -438,6 +459,53 @@ enum L10n {
         case .ja:    return "データなし"
         case .zhHans: return "无数据"
         case .zhHant: return "無資料"
+        }
+    }
+
+    // MARK: - Reset Credits
+
+    static func resetCreditsAvailable(count: Int) -> String {
+        switch lang {
+        case .en:    return count == 1 ? "1 reset available" : "\(count) resets available"
+        case .ja:    return "リセット \(count) 回利用可"
+        case .zhHans: return "\(count) 次重置可用"
+        case .zhHant: return "\(count) 次重置可用"
+        }
+    }
+
+    static func resetCreditGranted(date: String) -> String {
+        switch lang {
+        case .en:    return "Granted \(date)"
+        case .ja:    return "付与 \(date)"
+        case .zhHans: return "授予 \(date)"
+        case .zhHant: return "授予 \(date)"
+        }
+    }
+
+    static func resetCreditExpires(date: String) -> String {
+        switch lang {
+        case .en:    return "Expires \(date)"
+        case .ja:    return "期限 \(date)"
+        case .zhHans: return "到期 \(date)"
+        case .zhHant: return "到期 \(date)"
+        }
+    }
+
+    static var resetCreditDatesUnavailable: String {
+        switch lang {
+        case .en:    return "Dates unavailable"
+        case .ja:    return "日時不明"
+        case .zhHans: return "暂无日期"
+        case .zhHant: return "暫無日期"
+        }
+    }
+
+    static func resetCreditsMore(count: Int) -> String {
+        switch lang {
+        case .en:    return "+\(count) more"
+        case .ja:    return "ほか \(count) 件"
+        case .zhHans: return "另有 \(count) 次"
+        case .zhHant: return "另有 \(count) 次"
         }
     }
 
