@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import CryptoKit
 import UserNotifications
 
 /// 监听 ~/.codex/auth.json 文件变化，自动导入和更新本地账户
@@ -202,9 +203,6 @@ final class AuthFileMonitor {
             }
         }
 
-        let remoteAccountIDs = Set(entries.map(\.accountID))
-        let remoteEmails = Set(entries.compactMap(\.accountEmail))
-
         // 更新或添加账户
         for entry in entries {
             let accountID = entry.accountID
@@ -262,17 +260,17 @@ final class AuthFileMonitor {
             }
         }
 
-        // 移除 auth.json 中不再存在的 localAuth 账户
+        // Do not remove localAuth accounts that are absent from the current
+        // auth.json. Modern Codex auth files usually contain only the currently
+        // selected account, and account switchers replace the file in place.
         let beforeCount = accountStore.accounts.count
         let accountSnapshot = accountStore.accounts
         accountStore.accounts.removeAll { account in
             guard account.source == .localAuth else { return false }
-            let accountIDMissing = !remoteAccountIDs.contains(account.accountID ?? "")
-            let emailMissing = account.accountEmail.map { !remoteEmails.contains($0) } ?? true
             let duplicatedByManualAccount = accountSnapshot.contains { other in
                 other.id != account.id && other.source != .localAuth && identifiersMatch(lhs: account, rhs: other)
             }
-            return (accountIDMissing && emailMissing) || duplicatedByManualAccount
+            return duplicatedByManualAccount
         }
         if beforeCount != accountStore.accounts.count {
             hasChanges = true
@@ -357,10 +355,23 @@ final class AuthFileMonitor {
                 accessToken: accessToken,
                 idToken: tokens["id_token"] as? String
             )
-            let accountID = (tokens["account_id"] as? String)
-                ?? identity.accountID
-                ?? "codex-local-auth"
+            let tokenAccountID = tokens["account_id"] as? String
+            let accountID = firstNonEmptyString([
+                identity.accountID,
+                tokenAccountID,
+                fallbackAccountID(
+                    accessToken: accessToken,
+                    idToken: tokens["id_token"] as? String,
+                    refreshToken: tokens["refresh_token"] as? String
+                ),
+            ]) ?? "codex-local-auth"
             let email = identity.email
+
+            if let tokenAccountID,
+               let identityAccountID = identity.accountID,
+               tokenAccountID != identityAccountID {
+                print("[AuthFileMonitor] Ignoring stale tokens.account_id \(tokenAccountID); using token identity \(identityAccountID)")
+            }
 
             return [LocalAuthEntry(
                 accountID: accountID,
@@ -391,23 +402,65 @@ final class AuthFileMonitor {
     }
 
     private func matchingAccountIndex(for entry: LocalAuthEntry) -> Int? {
-        if let email = entry.accountEmail,
-           let index = accountStore.accounts.firstIndex(where: { $0.accountEmail == email }) {
+        if !isPlaceholderAccountID(entry.accountID),
+           let index = accountStore.accounts.firstIndex(where: { account in
+               account.accountID == entry.accountID && !hasConflictingEmail(account: account, entry: entry)
+           }) {
             return index
         }
 
-        if let index = accountStore.accounts.firstIndex(where: { $0.accountID == entry.accountID }) {
+        if let email = entry.accountEmail,
+           let index = accountStore.accounts.firstIndex(where: { account in
+               account.accountEmail == email && shouldMatchByEmail(account: account, entry: entry)
+           }) {
             return index
         }
 
         return nil
     }
 
-    private func identifiersMatch(lhs: Account, rhs: Account) -> Bool {
-        if let lhsEmail = lhs.accountEmail, let rhsEmail = rhs.accountEmail, lhsEmail == rhsEmail {
+    private func hasConflictingEmail(account: Account, entry: LocalAuthEntry) -> Bool {
+        guard let existingEmail = account.accountEmail,
+              let entryEmail = entry.accountEmail
+        else { return false }
+        return existingEmail != entryEmail
+    }
+
+    private func shouldMatchByEmail(account: Account, entry: LocalAuthEntry) -> Bool {
+        guard let existingAccountID = account.accountID else { return true }
+
+        if existingAccountID == entry.accountID {
             return true
         }
-        if let lhsAccountID = lhs.accountID, let rhsAccountID = rhs.accountID, lhsAccountID == rhsAccountID {
+
+        if isPlaceholderAccountID(existingAccountID) {
+            return true
+        }
+
+        return isPlaceholderAccountID(entry.accountID)
+    }
+
+    private func isPlaceholderAccountID(_ accountID: String) -> Bool {
+        accountID == "codex-local-auth" || accountID.hasPrefix("codex-local-auth:")
+    }
+
+    private func identifiersMatch(lhs: Account, rhs: Account) -> Bool {
+        if let lhsEmail = lhs.accountEmail,
+           let rhsEmail = rhs.accountEmail,
+           lhsEmail != rhsEmail {
+            return false
+        }
+
+        if let lhsAccountID = lhs.accountID, let rhsAccountID = rhs.accountID {
+            if lhsAccountID == rhsAccountID {
+                return true
+            }
+            if !isPlaceholderAccountID(lhsAccountID) && !isPlaceholderAccountID(rhsAccountID) {
+                return false
+            }
+        }
+
+        if let lhsEmail = lhs.accountEmail, let rhsEmail = rhs.accountEmail, lhsEmail == rhsEmail {
             return true
         }
         return false
@@ -419,6 +472,24 @@ final class AuthFileMonitor {
         }
         let shortID = accountID.count > 8 ? String(accountID.prefix(8)) : accountID
         return "Codex \(shortID)"
+    }
+
+    private func fallbackAccountID(accessToken: String, idToken: String?, refreshToken: String?) -> String? {
+        guard let seed = firstNonEmptyString([refreshToken, idToken, accessToken]) else { return nil }
+        let digest = SHA256.hash(data: Data(seed.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return "codex-local-auth:\(digest.prefix(16))"
+    }
+
+    private func firstNonEmptyString(_ values: [String?]) -> String? {
+        for value in values {
+            let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
     }
 }
 
