@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="CodexMonitor"
 DMG_NAME="CodexMonitor"
-VERSION="${1:-0.6.5}"
+VERSION="${1:-0.6.8}"
 BUNDLE_ID="com.henry.codex-monitor"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -74,6 +74,8 @@ PLIST
 
 # Copy app icon
 ICON_SRC="$PROJECT_DIR/Sources/CodexMonitor/Resources/AppIcon.icns"
+ENTITLEMENTS_TEMPLATE="$PROJECT_DIR/Sources/CodexMonitor/CodexMonitor.entitlements"
+ENTITLEMENTS_SRC="$UNIVERSAL_BUILD_DIR/CodexMonitor.entitlements"
 if [ -f "$ICON_SRC" ]; then
     cp "$ICON_SRC" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
     echo "   ✅ App icon copied"
@@ -87,11 +89,23 @@ if [ -f "$GITHUB_ICON_SRC" ]; then
     echo "   ✅ GitHub icon copied"
 fi
 
+TEAM_IDENTIFIER_PREFIX="${TEAM_IDENTIFIER_PREFIX:-}"
+if [[ -z "$TEAM_IDENTIFIER_PREFIX" && -n "$CODE_SIGN_IDENTITY" ]]; then
+    TEAM_IDENTIFIER_PREFIX="$(
+        security find-certificate -c "$CODE_SIGN_IDENTITY" -p 2>/dev/null \
+            | openssl x509 -noout -subject 2>/dev/null \
+            | sed -n 's/.*OU[ =]\([^,\/]*\).*/\1./p' \
+            | head -n 1
+    )"
+fi
+sed "s/\$(TeamIdentifierPrefix)/$TEAM_IDENTIFIER_PREFIX/g" "$ENTITLEMENTS_TEMPLATE" > "$ENTITLEMENTS_SRC"
+
 echo "🔏 Signing .app bundle..."
 if [[ -n "$CODE_SIGN_IDENTITY" ]]; then
     if [[ "$CODE_SIGN_IDENTITY" == Developer\ ID\ Application:* ]]; then
         codesign --force \
             --identifier "$BUNDLE_ID" \
+            --entitlements "$ENTITLEMENTS_SRC" \
             --options runtime \
             --timestamp \
             --sign "$CODE_SIGN_IDENTITY" \
@@ -99,6 +113,7 @@ if [[ -n "$CODE_SIGN_IDENTITY" ]]; then
     else
         codesign --force \
             --identifier "$BUNDLE_ID" \
+            --entitlements "$ENTITLEMENTS_SRC" \
             --options runtime \
             --sign "$CODE_SIGN_IDENTITY" \
             "$APP_BUNDLE"
@@ -107,6 +122,7 @@ if [[ -n "$CODE_SIGN_IDENTITY" ]]; then
 else
     codesign --force \
         --identifier "$BUNDLE_ID" \
+        --entitlements "$ENTITLEMENTS_SRC" \
         --sign - \
         "$APP_BUNDLE"
     echo "   ⚠️  No Developer ID identity supplied; created an ad-hoc signed local build"

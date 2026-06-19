@@ -15,6 +15,9 @@ class AccountStore: ObservableObject {
     private let limitedStateKey = "CodexMonitor.limitedNotificationState.v1"
     private let sentNotificationKeysKey = "CodexMonitor.sentNotificationKeys.v1"
     private let weeklyQuotaActivationStateKey = "CodexMonitor.weeklyQuotaActivationState.v1"
+    private let cloudRevisionKey = "CodexMonitor.iCloudAccountRevision.v1"
+    private let cloudSyncStore = ICloudAccountSyncStore()
+    private var cloudSyncObserver: NSObjectProtocol?
     
     enum OverallStatus {
         case healthy, warning, critical, noAccounts
@@ -67,6 +70,17 @@ class AccountStore: ObservableObject {
     
     init() {
         loadAccounts()
+        reconcileAccountsFromICloudOnLaunch()
+        startICloudAccountSync()
+        if !accounts.isEmpty {
+            publishAccountsToICloud()
+        }
+    }
+
+    deinit {
+        if let cloudSyncObserver {
+            cloudSyncStore.removeObserver(cloudSyncObserver)
+        }
     }
     
     func loadAccounts() {
@@ -95,7 +109,7 @@ class AccountStore: ObservableObject {
         }
     }
     
-    func saveAccounts() {
+    func saveAccounts(syncToCloud: Bool = true) {
         do {
             let encoder = JSONEncoder()
             let data = try encoder.encode(accounts)
@@ -105,8 +119,78 @@ class AccountStore: ObservableObject {
             for account in accounts {
                 SecureTokenStore.save(accountID: account.id.uuidString, token: account.authToken)
             }
+
+            if syncToCloud {
+                publishAccountsToICloud()
+            }
         } catch {
             print("Failed to save accounts: \(error)")
+        }
+    }
+
+    private func reconcileAccountsFromICloudOnLaunch() {
+        cloudSyncStore.synchronize()
+        guard let payload = cloudSyncStore.loadPayload() else { return }
+
+        let lastRevision = userDefaults.object(forKey: cloudRevisionKey) as? Date ?? .distantPast
+        if accounts.isEmpty || payload.revision > lastRevision {
+            applyCloudPayload(payload)
+        }
+    }
+
+    private func startICloudAccountSync() {
+        cloudSyncObserver = cloudSyncStore.observeRemoteChanges { [weak self] payload in
+            Task { @MainActor in
+                self?.applyRemoteCloudPayloadIfNewer(payload)
+            }
+        }
+    }
+
+    private func applyRemoteCloudPayloadIfNewer(_ payload: CloudAccountSyncPayload?) {
+        guard let payload else { return }
+        let lastRevision = userDefaults.object(forKey: cloudRevisionKey) as? Date ?? .distantPast
+        guard payload.revision > lastRevision else { return }
+        applyCloudPayload(payload)
+    }
+
+    private func applyCloudPayload(_ payload: CloudAccountSyncPayload) {
+        accounts = payload.accounts
+            .sorted { $0.createdAt < $1.createdAt }
+            .map { synced in
+                Account(
+                    id: synced.id,
+                    name: synced.name,
+                    authToken: synced.authToken,
+                    createdAt: synced.createdAt,
+                    source: AccountSource(rawValue: synced.source) ?? .manual,
+                    accountID: synced.accountID,
+                    accountEmail: synced.accountEmail,
+                    localAuthInvalid: synced.localAuthInvalid
+                )
+            }
+
+        userDefaults.set(payload.revision, forKey: cloudRevisionKey)
+        saveAccounts(syncToCloud: false)
+    }
+
+    private func publishAccountsToICloud() {
+        let revision = Date()
+        let syncedAccounts = accounts.map { account in
+            CloudSyncedAccount(
+                id: account.id,
+                name: account.name,
+                authToken: account.authToken,
+                createdAt: account.createdAt,
+                source: account.source.rawValue,
+                accountID: account.accountID,
+                accountEmail: account.accountEmail,
+                localAuthInvalid: account.localAuthInvalid,
+                updatedAt: revision
+            )
+        }
+
+        if let savedRevision = cloudSyncStore.saveAccounts(syncedAccounts, revision: revision) {
+            userDefaults.set(savedRevision, forKey: cloudRevisionKey)
         }
     }
 
