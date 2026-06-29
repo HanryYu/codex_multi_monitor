@@ -4,7 +4,7 @@
 
 [English](README.md) | [中文](README_zh.md) | [日本語](README_ja.md)
 
-A lightweight macOS menu bar app for monitoring ChatGPT Codex quotas across multiple accounts.
+A lightweight macOS menu bar app for monitoring ChatGPT Codex quotas, reset credits, and weekly-cycle activation across multiple accounts.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/HanryYu/codex_multi_monitor/main/assets/codexmonitor-screenshot.png" alt="CodexMonitor Screenshot" width="420">
@@ -27,15 +27,16 @@ A lightweight macOS menu bar app for monitoring ChatGPT Codex quotas across mult
 
 - **Real-Time Monitoring** — Track your Codex usage directly from the macOS menu bar
 - **Multi-Account Support** — Monitor multiple Codex accounts with easy switching
-- **Usage Visualization** — See quota usage with color-coded status indicators
+- **Usage Visualization** — See 5-hour and weekly quota usage with reset countdowns or absolute reset times
 - **Limit Reached Alert** — Visual overlay when 5-hour or weekly limit is reached, with reset countdown
+- **Reset Credit Tracking** — Show available reset credits, grant times, and expiration times directly on each account card
 - **Smart Notifications** — Receive matching test and live alerts when usage is high, exhausted, or restored
-- **Weekly Cycle Activation (Beta)** — After weekly quota recovery, send one short Codex request to start the next weekly subscription cycle
+- **Weekly Cycle Activation (Beta)** — After weekly quota recovery, or when the weekly quota is detected at 100% remaining after a server-side reset, send one short Codex request to start the next weekly subscription cycle
 - **Auto Account Sync** — Automatically detect and add local Codex accounts on launch
 - **Multi-Language** — English, 简体中文, 繁體中文, 日本語
 - **Automatic Updates** — Check, download, and install new versions from GitHub Releases
 
-> Weekly Cycle Activation requires Auto Account Sync to capture full Codex login bundles as accounts are switched, including with [cc-switch](https://github.com/HanryYu/cc-switch). Without Auto Account Sync, activation can only use the currently signed-in Codex account.
+> Weekly Cycle Activation requires Auto Account Sync to capture full Codex login bundles as accounts are switched, including with [cc-switch](https://github.com/HanryYu/cc-switch). Without Auto Account Sync, activation can only use the currently signed-in Codex account. The activation request is deduplicated per account and weekly reset key.
 
 ## Requirements
 
@@ -116,6 +117,8 @@ Treat access tokens and `~/.codex/auth.json` like passwords. Do not commit or sh
 2. Click the menu bar icon to see your accounts
 3. Accounts are auto-detected on launch — or click **+** to add manually
 4. Choose a refresh interval in Settings; the default is 5 minutes
+5. Enable **Weekly Quota Cycle** in Settings if you want CodexMonitor to send the one-time activation request after weekly quota recovery or a 100% weekly reset
+6. Expand the reset-credit row on an account card to inspect grant and expiration times
 
 ## Status Colors
 
@@ -127,6 +130,8 @@ Treat access tokens and `~/.codex/auth.json` like passwords. Do not commit or sh
 
 When a limit is reached (5-hour or weekly), the status area shows a "Limit Reached" overlay with the estimated reset time.
 
+Available reset credits appear below the quota cards. Expanding the row shows when each credit was granted and when it expires.
+
 ## Troubleshooting
 
 **Menu bar icon not showing?**
@@ -134,6 +139,9 @@ When a limit is reached (5-hour or weekly), the status area shows a "Limit Reach
 
 **"No accounts found" on first launch?**
 - Make sure you've used Codex locally at least once, or add your token manually via the **+** button.
+
+**Weekly Cycle Activation did not run?**
+- Confirm **Weekly Quota Cycle** and **Auto Account Sync** are enabled, the Codex CLI is installed, and the account has a saved full Codex login bundle. CodexMonitor deduplicates activation requests and also skips repeat runs within five minutes for the same account.
 
 **DMG won't open / "unidentified developer"?**
 - Download the latest notarized DMG from the official [Releases](https://github.com/HanryYu/codex_multi_monitor/releases/latest) page and reinstall it.

@@ -16,6 +16,7 @@ class AccountStore: ObservableObject {
     private let limitedStateKey = "CodexMonitor.limitedNotificationState.v1"
     private let sentNotificationKeysKey = "CodexMonitor.sentNotificationKeys.v1"
     private let weeklyQuotaActivationStateKey = "CodexMonitor.weeklyQuotaActivationState.v1"
+    private let weeklyQuotaFullActivationStateKey = "CodexMonitor.weeklyQuotaFullActivationState.v1"
     private let cloudRevisionKey = "CodexMonitor.iCloudAccountRevision.v1"
     private let cloudSyncStore = ICloudAccountSyncStore()
     private var cloudSyncObserver: NSObjectProtocol?
@@ -321,9 +322,11 @@ class AccountStore: ObservableObject {
         var sentKeys = loadSentNotificationKeys()
         var nextLimitedState = loadLimitedNotificationState()
         var weeklyQuotaActivationState = loadWeeklyQuotaActivationState()
+        var weeklyQuotaFullActivationState = loadWeeklyQuotaFullActivationState()
         let activeAccountIDs = Set(accounts.map { $0.id.uuidString })
         nextLimitedState = nextLimitedState.filter { activeAccountIDs.contains($0.key) }
         weeklyQuotaActivationState = weeklyQuotaActivationState.filter { activeAccountIDs.contains($0.key) }
+        weeklyQuotaFullActivationState = weeklyQuotaFullActivationState.filter { activeAccountIDs.contains($0.key) }
 
         for account in accounts {
             guard case .success(let usage) = usageData[account.id] else { continue }
@@ -354,7 +357,8 @@ class AccountStore: ObservableObject {
             scheduleWeeklyQuotaActivationIfNeeded(
                 account: account,
                 windows: windows,
-                activationState: &weeklyQuotaActivationState
+                activationState: &weeklyQuotaActivationState,
+                fullActivationState: &weeklyQuotaFullActivationState
             )
 
             nextLimitedState[account.id.uuidString] = currentLimited.isEmpty ? nil : currentLimited
@@ -363,6 +367,7 @@ class AccountStore: ObservableObject {
         saveSentNotificationKeys(sentKeys)
         saveLimitedNotificationState(nextLimitedState)
         saveWeeklyQuotaActivationState(weeklyQuotaActivationState)
+        saveWeeklyQuotaFullActivationState(weeklyQuotaFullActivationState)
     }
 
     private func sendWarningNotificationsIfNeeded(
@@ -442,7 +447,8 @@ class AccountStore: ObservableObject {
     private func scheduleWeeklyQuotaActivationIfNeeded(
         account: Account,
         windows: [UsageNotificationWindow],
-        activationState: inout [String: String]
+        activationState: inout [String: String],
+        fullActivationState: inout [String: String]
     ) {
         guard let weeklyWindow = windows.first(where: {
             CodexQuotaActivationService.isWeeklyRecovery(stateID: $0.id)
@@ -453,6 +459,25 @@ class AccountStore: ObservableObject {
 
         let accountKey = account.id.uuidString
         let previousResetKey = activationState[accountKey]
+        let weeklyQuotaFullyReset = weeklyWindow.usedPercent == 0
+
+        if weeklyQuotaFullyReset, fullActivationState[accountKey] != currentResetKey {
+            switch requestWeeklyQuotaActivation(
+                account: account,
+                currentResetKey: currentResetKey,
+                reason: "weekly quota is fully reset"
+            ) {
+            case .scheduled:
+                activationState[accountKey] = currentResetKey
+                fullActivationState[accountKey] = currentResetKey
+            case .disabled:
+                activationState[accountKey] = currentResetKey
+            case .missingAuthBundle:
+                break
+            }
+            return
+        }
+
         guard previousResetKey != currentResetKey else { return }
 
         guard let previousResetKey else {
@@ -460,21 +485,39 @@ class AccountStore: ObservableObject {
             return
         }
 
-        guard UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled) else {
+        switch requestWeeklyQuotaActivation(
+            account: account,
+            currentResetKey: currentResetKey,
+            reason: "\(previousResetKey) -> \(currentResetKey)"
+        ) {
+        case .scheduled:
             activationState[accountKey] = currentResetKey
+        case .disabled:
+            activationState[accountKey] = currentResetKey
+        case .missingAuthBundle:
             return
+        }
+    }
+
+    private func requestWeeklyQuotaActivation(
+        account: Account,
+        currentResetKey: String,
+        reason: String
+    ) -> WeeklyQuotaActivationScheduleResult {
+        guard UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled) else {
+            return .disabled
         }
 
         guard CodexQuotaActivationService.hasUsableAuthBundle(for: account) else {
             print("[CodexMonitor] Weekly quota activation pending for \(account.name): missing full Codex auth bundle")
-            return
+            return .missingAuthBundle
         }
 
         Task {
             await CodexQuotaActivationService.shared.activate(account: account)
         }
-        activationState[accountKey] = currentResetKey
-        print("[CodexMonitor] Weekly quota activation scheduled for \(account.name): \(previousResetKey) -> \(currentResetKey)")
+        print("[CodexMonitor] Weekly quota activation scheduled for \(account.name): \(reason), resetKey=\(currentResetKey)")
+        return .scheduled
     }
 
     private func notificationWindows(for usage: UsageResponse) -> [UsageNotificationWindow] {
@@ -703,6 +746,14 @@ class AccountStore: ObservableObject {
     private func saveWeeklyQuotaActivationState(_ state: [String: String]) {
         userDefaults.set(state, forKey: weeklyQuotaActivationStateKey)
     }
+
+    private func loadWeeklyQuotaFullActivationState() -> [String: String] {
+        userDefaults.dictionary(forKey: weeklyQuotaFullActivationStateKey) as? [String: String] ?? [:]
+    }
+
+    private func saveWeeklyQuotaFullActivationState(_ state: [String: String]) {
+        userDefaults.set(state, forKey: weeklyQuotaFullActivationStateKey)
+    }
 }
 
 private struct UsageNotificationWindow {
@@ -724,6 +775,12 @@ private struct PersistedLimitState: Codable {
     var resetKey: String {
         resetAt.map(String.init) ?? "unknown"
     }
+}
+
+private enum WeeklyQuotaActivationScheduleResult {
+    case scheduled
+    case disabled
+    case missingAuthBundle
 }
 
 private struct AccountRefreshResult {
