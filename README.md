@@ -49,13 +49,22 @@ A lightweight macOS menu bar app for monitoring ChatGPT Codex quotas, reset cred
 ### Homebrew (Recommended)
 
 ```bash
-brew tap HanryYu/tap
-brew install --cask codexmonitor
+brew install --cask HanryYu/tap/codex-multi-monitor
 ```
+
+Use the fully qualified tap token above. Homebrew's official cask repository
+also has a separate `codexmonitor` cask, so `brew install --cask codexmonitor`
+may install the wrong app.
 
 To upgrade:
 ```bash
-brew upgrade --cask codexmonitor
+brew upgrade --cask HanryYu/tap/codex-multi-monitor
+```
+
+If you previously installed the old tap token:
+```bash
+brew uninstall --cask HanryYu/tap/codexmonitor
+brew install --cask HanryYu/tap/codex-multi-monitor
 ```
 
 ### Download DMG

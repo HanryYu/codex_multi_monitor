@@ -49,13 +49,21 @@
 ### Homebrew（推荐）
 
 ```bash
-brew tap HanryYu/tap
-brew install --cask codexmonitor
+brew install --cask HanryYu/tap/codex-multi-monitor
 ```
+
+请使用上面的完整 tap token。Homebrew 官方 cask 仓库里也有另一个
+`codexmonitor` cask，直接运行 `brew install --cask codexmonitor` 可能会安装到错误应用。
 
 升级：
 ```bash
-brew upgrade --cask codexmonitor
+brew upgrade --cask HanryYu/tap/codex-multi-monitor
+```
+
+如果之前安装过旧的 tap token：
+```bash
+brew uninstall --cask HanryYu/tap/codexmonitor
+brew install --cask HanryYu/tap/codex-multi-monitor
 ```
 
 ### 下载 DMG

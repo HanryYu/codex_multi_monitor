@@ -49,13 +49,22 @@ ChatGPT Codex の使用量、リセットクレジット、週間サイクル開
 ### Homebrew（推奨）
 
 ```bash
-brew tap HanryYu/tap
-brew install --cask codexmonitor
+brew install --cask HanryYu/tap/codex-multi-monitor
 ```
+
+上記の完全修飾 tap token を使用してください。Homebrew 公式 cask
+リポジトリにも別の `codexmonitor` cask があるため、
+`brew install --cask codexmonitor` では違うアプリがインストールされる可能性があります。
 
 アップグレード：
 ```bash
-brew upgrade --cask codexmonitor
+brew upgrade --cask HanryYu/tap/codex-multi-monitor
+```
+
+以前の tap token をインストール済みの場合：
+```bash
+brew uninstall --cask HanryYu/tap/codexmonitor
+brew install --cask HanryYu/tap/codex-multi-monitor
 ```
 
 ### DMG ダウンロード
