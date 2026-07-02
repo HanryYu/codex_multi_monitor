@@ -30,18 +30,16 @@ class APIService {
         switch httpResponse.statusCode {
         case 200:
             do {
-                // Debug: log raw JSON for Team plan investigation
-                if let jsonString = String(data: data, encoding: .utf8) {
-                    print("[CodexMonitor] API response (\(httpResponse.statusCode)): \(jsonString.prefix(2000))")
-                }
+#if DEBUG
+                print("[CodexMonitor] API response \(httpResponse.statusCode), bytes: \(data.count)")
+#endif
                 let decoder = JSONDecoder()
                 return try decoder.decode(UsageResponse.self, from: data)
             } catch {
-                // Debug: log raw data on decode failure
-                if let jsonString = String(data: data, encoding: .utf8) {
-                    print("[CodexMonitor] Decode failed. Raw JSON: \(jsonString.prefix(2000))")
-                }
+#if DEBUG
+                print("[CodexMonitor] Decode failed, bytes: \(data.count)")
                 print("[CodexMonitor] Decode error: \(error)")
+#endif
                 throw APIError.decodingError(error)
             }
         case 401:
@@ -49,9 +47,9 @@ class APIService {
         case 429:
             throw APIError.rateLimited
         default:
-            if let body = String(data: data, encoding: .utf8) {
-                print("[CodexMonitor] HTTP \(httpResponse.statusCode) response: \(body.prefix(1000))")
-            }
+#if DEBUG
+            print("[CodexMonitor] HTTP \(httpResponse.statusCode), bytes: \(data.count)")
+#endif
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
     }
