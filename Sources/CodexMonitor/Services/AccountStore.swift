@@ -15,11 +15,14 @@ class AccountStore: ObservableObject {
     private let accountsKey = "saved_accounts"
     private let limitedStateKey = "CodexMonitor.limitedNotificationState.v1"
     private let sentNotificationKeysKey = "CodexMonitor.sentNotificationKeys.v1"
+    private let scheduledRecoveryNotificationPrefix = "quota_recovery_"
+    private let scheduledRecoverySentKeyPrefix = "scheduled-recovery:"
     private let weeklyQuotaActivationStateKey = "CodexMonitor.weeklyQuotaActivationState.v1"
     private let weeklyQuotaFullActivationStateKey = "CodexMonitor.weeklyQuotaFullActivationState.v1"
     private let cloudRevisionKey = "CodexMonitor.iCloudAccountRevision.v1"
     private let cloudSyncStore = ICloudAccountSyncStore()
     private var cloudSyncObserver: NSObjectProtocol?
+    private var recoveryNotificationObserver: NSObjectProtocol?
     
     enum OverallStatus {
         case healthy, warning, critical, noAccounts
@@ -77,11 +80,24 @@ class AccountStore: ObservableObject {
         if !accounts.isEmpty {
             publishAccountsToICloud()
         }
+
+        recoveryNotificationObserver = NotificationCenter.default.addObserver(
+            forName: .recoveryNotificationEnabledChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleRecoveryNotificationPreferenceChanged()
+            }
+        }
     }
 
     deinit {
         if let cloudSyncObserver {
             cloudSyncStore.removeObserver(cloudSyncObserver)
+        }
+        if let recoveryNotificationObserver {
+            NotificationCenter.default.removeObserver(recoveryNotificationObserver)
         }
     }
     
@@ -236,6 +252,8 @@ class AccountStore: ObservableObject {
             CodexAuthBundleStore.delete(accountID: account.id)
             usageData.removeValue(forKey: account.id)
             resetCreditsData.removeValue(forKey: account.id)
+            cancelScheduledRecoveryNotifications(for: account.id)
+            removeScheduledRecoverySentKeys(for: account.id)
         }
         accounts.remove(atOffsets: offsets)
         saveAccounts()
@@ -247,6 +265,8 @@ class AccountStore: ObservableObject {
             CodexAuthBundleStore.delete(accountID: id)
             usageData.removeValue(forKey: id)
             resetCreditsData.removeValue(forKey: id)
+            cancelScheduledRecoveryNotifications(for: id)
+            removeScheduledRecoverySentKeys(for: id)
             accounts.remove(at: index)
             saveAccounts()
         }
@@ -343,7 +363,7 @@ class AccountStore: ObservableObject {
                 windows: windows,
                 sentKeys: &sentKeys
             )
-            sendLimitReachedNotificationsIfNeeded(
+            scheduleLimitRecoveryNotificationsIfNeeded(
                 account: account,
                 windows: windows,
                 sentKeys: &sentKeys
@@ -368,6 +388,30 @@ class AccountStore: ObservableObject {
         saveLimitedNotificationState(nextLimitedState)
         saveWeeklyQuotaActivationState(weeklyQuotaActivationState)
         saveWeeklyQuotaFullActivationState(weeklyQuotaFullActivationState)
+    }
+
+    private func handleRecoveryNotificationPreferenceChanged() {
+        if userDefaults.bool(forKey: PreferencesKeys.recoveryNotificationEnabled) {
+            scheduleRecoveryNotificationsForCurrentUsage()
+        } else {
+            cancelScheduledRecoveryNotifications()
+            removeScheduledRecoverySentKeys()
+        }
+    }
+
+    private func scheduleRecoveryNotificationsForCurrentUsage() {
+        var sentKeys = loadSentNotificationKeys()
+
+        for account in accounts {
+            guard case .success(let usage) = usageData[account.id] else { continue }
+            scheduleLimitRecoveryNotificationsIfNeeded(
+                account: account,
+                windows: notificationWindows(for: usage),
+                sentKeys: &sentKeys
+            )
+        }
+
+        saveSentNotificationKeys(sentKeys)
     }
 
     private func sendWarningNotificationsIfNeeded(
@@ -400,21 +444,29 @@ class AccountStore: ObservableObject {
         }
     }
 
-    private func sendLimitReachedNotificationsIfNeeded(
+    private func scheduleLimitRecoveryNotificationsIfNeeded(
         account: Account,
         windows: [UsageNotificationWindow],
         sentKeys: inout Set<String>
     ) {
-        guard UserDefaults.standard.bool(forKey: PreferencesKeys.limitNotificationEnabled) else { return }
+        guard UserDefaults.standard.bool(forKey: PreferencesKeys.recoveryNotificationEnabled) else { return }
 
         for window in windows where window.isLimited {
-            let key = "limit:\(account.id.uuidString):\(window.id):\(window.resetKey)"
+            guard let resetAt = window.resetAt, resetAt > 0 else { continue }
+
+            let key = scheduledRecoverySentKey(
+                accountID: account.id,
+                stateID: window.id,
+                resetKey: window.resetKey
+            )
             guard !sentKeys.contains(key) else { continue }
 
-            sendLimitReachedNotification(
+            scheduleRecoveryNotification(
+                accountID: account.id,
                 accountName: account.name,
                 limitType: window.limitType,
-                resetAt: window.resetAt
+                stateID: window.id,
+                resetAt: resetAt
             )
             sentKeys.insert(key)
         }
@@ -430,7 +482,23 @@ class AccountStore: ObservableObject {
             let key = "recovery:\(account.id.uuidString):\(stateID):\(previousState.resetKey)"
             guard !sentKeys.contains(key) else { continue }
 
-            if UserDefaults.standard.bool(forKey: PreferencesKeys.recoveryNotificationEnabled) {
+            cancelScheduledRecoveryNotification(
+                accountID: account.id,
+                stateID: stateID,
+                resetKey: previousState.resetKey
+            )
+
+            let scheduledKey = scheduledRecoverySentKey(
+                accountID: account.id,
+                stateID: stateID,
+                resetKey: previousState.resetKey
+            )
+            let scheduledRecoveryWasQueued = sentKeys.contains(scheduledKey)
+            let hasFixedRecoveryTime = previousState.resetAt != nil
+
+            if UserDefaults.standard.bool(forKey: PreferencesKeys.recoveryNotificationEnabled),
+               hasFixedRecoveryTime,
+               !scheduledRecoveryWasQueued {
                 sendRecoveryNotification(accountName: account.name, limitType: previousState.limitType)
             }
 
@@ -628,18 +696,18 @@ class AccountStore: ObservableObject {
     private func limitTypeLabel(seconds: Int) -> String {
         let hours = seconds / 3600
         if hours >= 168 {
-            return L10n.weeklyLimitReached()
+            return L10n.weeklyLimit()
         }
-        return L10n.fiveHourLimitReached()
+        return L10n.hourlyLimit(hours: max(hours, 1))
     }
 
     private func limitTypeLabel(reachedType: String) -> String {
         let type = reachedType.lowercased()
         if type.contains("5h") || type.contains("5hour") || type.contains("hour") || type == "primary" {
-            return L10n.fiveHourLimitReached()
+            return L10n.hourlyLimit(hours: 5)
         }
         if type.contains("weekly") || type.contains("7d") || type.contains("week") || type == "secondary" {
-            return L10n.weeklyLimitReached()
+            return L10n.weeklyLimit()
         }
         return L10n.limitReached
     }
@@ -668,43 +736,106 @@ class AccountStore: ObservableObject {
         }
     }
 
-    private func sendLimitReachedNotification(accountName: String, limitType: String, resetAt: Int?) {
-        let content = UNMutableNotificationContent()
-        content.title = "CodexMonitor"
-        content.body = L10n.limitReachedNotification(
-            accountName: accountName,
-            limitType: limitType,
-            resetTime: resetTimeString(resetAt)
-        )
-        content.sound = .default
-
-        let request = UNNotificationRequest(
-            identifier: "limit_reached_\(UUID().uuidString)",
-            content: content,
-            trigger: nil
-        )
-
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error {
-                print("[CodexMonitor] Failed to send limit notification: \(error)")
-            }
-        }
-    }
-
     private func sendRecoveryNotification(accountName: String, limitType: String) {
         let content = RecoveryNotificationContent.make(accountName: accountName, limitType: limitType)
-        
+
         let request = UNNotificationRequest(
             identifier: "limit_recovered_\(accountName)_\(Date().timeIntervalSince1970)",
             content: content,
             trigger: nil
         )
-        
+
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
                 print("[CodexMonitor] Failed to send recovery notification: \(error)")
             }
         }
+    }
+
+    private func scheduleRecoveryNotification(
+        accountID: UUID,
+        accountName: String,
+        limitType: String,
+        stateID: String,
+        resetAt: Int
+    ) {
+        let recoveryDate = Date(timeIntervalSince1970: TimeInterval(resetAt))
+        let timeInterval = max(recoveryDate.timeIntervalSinceNow, 1)
+        let content = RecoveryNotificationContent.make(accountName: accountName, limitType: limitType)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: timeInterval, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: scheduledRecoveryNotificationIdentifier(
+                accountID: accountID,
+                stateID: stateID,
+                resetKey: String(resetAt)
+            ),
+            content: content,
+            trigger: trigger
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                print("[CodexMonitor] Failed to schedule recovery notification: \(error)")
+            } else {
+                print("[CodexMonitor] Scheduled recovery notification for \(accountName) at \(recoveryDate)")
+            }
+        }
+    }
+
+    private func cancelScheduledRecoveryNotification(accountID: UUID, stateID: String, resetKey: String) {
+        let identifier = scheduledRecoveryNotificationIdentifier(
+            accountID: accountID,
+            stateID: stateID,
+            resetKey: resetKey
+        )
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
+    }
+
+    private func cancelScheduledRecoveryNotifications(for accountID: UUID? = nil) {
+        let prefix: String
+        if let accountID {
+            prefix = "\(scheduledRecoveryNotificationPrefix)\(accountID.uuidString)_"
+        } else {
+            prefix = scheduledRecoveryNotificationPrefix
+        }
+
+        UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+            let identifiers = requests
+                .map(\.identifier)
+                .filter { $0.hasPrefix(prefix) }
+
+            if !identifiers.isEmpty {
+                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+            }
+        }
+    }
+
+    private func scheduledRecoveryNotificationIdentifier(
+        accountID: UUID,
+        stateID: String,
+        resetKey: String
+    ) -> String {
+        let safeStateID = stateID
+            .replacingOccurrences(of: ":", with: "_")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+        return "\(scheduledRecoveryNotificationPrefix)\(accountID.uuidString)_\(safeStateID)_\(resetKey)"
+    }
+
+    private func scheduledRecoverySentKey(accountID: UUID, stateID: String, resetKey: String) -> String {
+        "\(scheduledRecoverySentKeyPrefix)\(accountID.uuidString):\(stateID):\(resetKey)"
+    }
+
+    private func removeScheduledRecoverySentKeys(for accountID: UUID? = nil) {
+        let prefix: String
+        if let accountID {
+            prefix = "\(scheduledRecoverySentKeyPrefix)\(accountID.uuidString):"
+        } else {
+            prefix = scheduledRecoverySentKeyPrefix
+        }
+
+        let filtered = loadSentNotificationKeys().filter { !$0.hasPrefix(prefix) }
+        saveSentNotificationKeys(filtered)
     }
 
     private func resetTimeString(_ resetAt: Int?) -> String? {

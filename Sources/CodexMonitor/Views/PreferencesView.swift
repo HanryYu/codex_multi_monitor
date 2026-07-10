@@ -21,7 +21,9 @@ enum RefreshInterval: Int, CaseIterable, Identifiable {
     case off = 0
     case oneMinute = 60
     case fiveMinutes = 300
+    case tenMinutes = 600
     case fifteenMinutes = 900
+    case twentyMinutes = 1200
     case thirtyMinutes = 1800
 
     var id: Int { rawValue }
@@ -31,7 +33,9 @@ enum RefreshInterval: Int, CaseIterable, Identifiable {
         case .off: return L10n.refreshOff
         case .oneMinute: return L10n.refresh1Minute
         case .fiveMinutes: return L10n.refresh5Minutes
+        case .tenMinutes: return L10n.refresh10Minutes
         case .fifteenMinutes: return L10n.refresh15Minutes
+        case .twentyMinutes: return L10n.refresh20Minutes
         case .thirtyMinutes: return L10n.refresh30Minutes
         }
     }
@@ -41,7 +45,9 @@ enum RefreshInterval: Int, CaseIterable, Identifiable {
         case .off: return "pause.circle"
         case .oneMinute: return "clock.arrow.1"
         case .fiveMinutes: return "clock"
+        case .tenMinutes: return "clock.badge"
         case .fifteenMinutes: return "clock.badge"
+        case .twentyMinutes: return "clock.badge.2"
         case .thirtyMinutes: return "clock.badge.2"
         }
     }
@@ -60,7 +66,6 @@ enum PreferencesKeys {
     static let autoImportEnabled = "auto_import_enabled"
     static let usageAlertEnabled = "usageAlertEnabled"
     static let usageWarningNotificationEnabled = "usageWarningNotificationEnabled"
-    static let limitNotificationEnabled = "limitNotificationEnabled"
     static let recoveryNotificationEnabled = "recoveryNotificationEnabled"
     static let quotaActivationEnabled = "quotaActivationEnabled"
     static let automaticUpdatesEnabled = "automaticUpdatesEnabled"

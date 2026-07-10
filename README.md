@@ -28,9 +28,9 @@ A lightweight macOS menu bar app for monitoring ChatGPT Codex quotas, reset cred
 - **Real-Time Monitoring** — Track your Codex usage directly from the macOS menu bar
 - **Multi-Account Support** — Monitor multiple Codex accounts with easy switching
 - **Usage Visualization** — See 5-hour and weekly quota usage with reset countdowns or absolute reset times
-- **Limit Reached Alert** — Visual overlay when 5-hour or weekly limit is reached, with reset countdown
+- **Limit Status** — Visual overlay when 5-hour or weekly limit is reached, with reset countdown
 - **Reset Credit Tracking** — Show available reset credits, grant times, and expiration times directly on each account card
-- **Smart Notifications** — Receive matching test and live alerts when usage is high, exhausted, or restored
+- **Smart Notifications** — Receive usage warnings and scheduled recovery alerts at fixed 5-hour or weekly quota reset times
 - **Weekly Cycle Activation (Beta)** — After weekly quota recovery, or when the weekly quota is detected at 100% remaining after a server-side reset, send one short Codex request to start the next weekly subscription cycle
 - **Auto Account Sync** — Automatically detect and add local Codex accounts on launch
 - **Multi-Language** — English, 简体中文, 繁體中文, 日本語
@@ -138,6 +138,7 @@ Treat access tokens and `~/.codex/auth.json` like passwords. Do not commit or sh
 | 🔴 Red | < 20% quota remaining |
 
 When a limit is reached (5-hour or weekly), the status area shows a "Limit Reached" overlay with the estimated reset time.
+If recovery notifications are enabled, CodexMonitor schedules a system notification for that reset time instead of waiting for the next usage refresh.
 
 Available reset credits appear below the quota cards. Expanding the row shows when each credit was granted and when it expires.
 

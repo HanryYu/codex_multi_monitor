@@ -415,7 +415,6 @@ struct PreferencesContentView: View {
     @State private var selectedLanguage: LanguageOption = .system
     @State private var autoImportEnabled: Bool = false
     @State private var usageWarningNotificationEnabled: Bool = true
-    @State private var limitNotificationEnabled: Bool = true
     @State private var recoveryNotificationEnabled: Bool = true
     @State private var quotaActivationEnabled: Bool = false
     @State private var automaticUpdatesEnabled: Bool = true
@@ -483,18 +482,6 @@ struct PreferencesContentView: View {
 
     private var notificationSettingsSection: some View {
         SettingGroupCard(label: L10n.notificationSection, systemImage: "bell") {
-            SettingsCheckbox(
-                title: L10n.limitNotificationLabel,
-                description: L10n.limitNotificationDesc,
-                isChecked: $limitNotificationEnabled
-            )
-            .onChange(of: limitNotificationEnabled) { _, newValue in
-                UserDefaults.standard.set(newValue, forKey: PreferencesKeys.limitNotificationEnabled)
-                if newValue { requestNotificationPermissionIfNeeded() }
-            }
-
-            CardDivider()
-
             SettingsCheckbox(
                 title: L10n.usageWarningNotificationLabel,
                 description: L10n.usageWarningNotificationDesc,
@@ -731,9 +718,6 @@ struct PreferencesContentView: View {
         } else {
             usageWarningNotificationEnabled = (UserDefaults.standard.object(forKey: PreferencesKeys.usageAlertEnabled) as? Bool) ?? true
         }
-
-        let limitVal = UserDefaults.standard.object(forKey: PreferencesKeys.limitNotificationEnabled) as? Bool
-        limitNotificationEnabled = limitVal ?? true
 
         let recoveryVal = UserDefaults.standard.object(forKey: PreferencesKeys.recoveryNotificationEnabled) as? Bool
         recoveryNotificationEnabled = recoveryVal ?? true

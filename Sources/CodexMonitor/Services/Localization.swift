@@ -263,10 +263,10 @@ enum L10n {
 
     static func limitRecovered(accountName: String, limitType: String) -> String {
         switch lang {
-        case .en:    return "\(accountName)'s \(limitType) limit has reset"
-        case .ja:    return "\(accountName)の\(limitType)上限がリセットされました"
-        case .zhHans: return "\(accountName) 的 \(limitType) 限额已刷新，现在可用"
-        case .zhHant: return "\(accountName) 的 \(limitType) 限額已刷新，現在可用"
+        case .en:    return "\(accountName)'s \(limitType) has reset"
+        case .ja:    return "\(accountName)の\(limitType)がリセットされました"
+        case .zhHans: return "\(accountName) 的 \(limitType) 已刷新，现在可用"
+        case .zhHant: return "\(accountName) 的 \(limitType) 已刷新，現在可用"
         }
     }
 
@@ -324,31 +324,6 @@ enum L10n {
                 return "\(accountName) 的 \(limitType) 已使用 \(usedPercent)%，將在 \(resetTime) 重置。"
             }
             return "\(accountName) 的 \(limitType) 已使用 \(usedPercent)%."
-        }
-    }
-
-    static func limitReachedNotification(accountName: String, limitType: String, resetTime: String?) -> String {
-        switch lang {
-        case .en:
-            if let resetTime {
-                return "\(accountName)'s \(limitType) is exhausted. Resets at \(resetTime)."
-            }
-            return "\(accountName)'s \(limitType) is exhausted."
-        case .ja:
-            if let resetTime {
-                return "\(accountName)の\(limitType)が上限に達しました。\(resetTime)にリセットされます。"
-            }
-            return "\(accountName)の\(limitType)が上限に達しました。"
-        case .zhHans:
-            if let resetTime {
-                return "\(accountName) 的 \(limitType) 已用尽，将在 \(resetTime) 重置。"
-            }
-            return "\(accountName) 的 \(limitType) 已用尽。"
-        case .zhHant:
-            if let resetTime {
-                return "\(accountName) 的 \(limitType) 已用盡，將在 \(resetTime) 重置。"
-            }
-            return "\(accountName) 的 \(limitType) 已用盡。"
         }
     }
 
@@ -723,10 +698,10 @@ enum L10n {
 
     static var dataRefreshIntervalDesc: String {
         switch lang {
-        case .en:    return "Periodically fetch latest cloud quota usage in the background"
-        case .ja:    return "定期的にクラウドの最新使用量をバックグラウンドで取得"
-        case .zhHans: return "定期静默拉取最新云端配额用量"
-        case .zhHant: return "定期靜默拉取最新雲端配額用量"
+        case .en:    return "Periodically fetch latest cloud quota usage. Refreshing too often may trigger rate limits."
+        case .ja:    return "クラウドの最新使用量を定期的に取得します。更新頻度が高すぎるとレート制限される場合があります。"
+        case .zhHans: return "定期静默拉取最新云端配额用量，刷新过于频繁可能触发限流。"
+        case .zhHant: return "定期靜默拉取最新雲端配額用量，重新整理過於頻繁可能觸發限流。"
         }
     }
 
@@ -988,12 +963,30 @@ enum L10n {
         }
     }
 
+    static var refresh10Minutes: String {
+        switch lang {
+        case .en:    return "10 Minutes"
+        case .ja:    return "10分"
+        case .zhHans: return "10 分钟"
+        case .zhHant: return "10 分鐘"
+        }
+    }
+
     static var refresh15Minutes: String {
         switch lang {
         case .en:    return "15 Minutes"
         case .ja:    return "15分"
         case .zhHans: return "15 分钟"
         case .zhHant: return "15 分鐘"
+        }
+    }
+
+    static var refresh20Minutes: String {
+        switch lang {
+        case .en:    return "20 Minutes"
+        case .ja:    return "20分"
+        case .zhHans: return "20 分钟"
+        case .zhHant: return "20 分鐘"
         }
     }
 
@@ -1157,24 +1150,6 @@ enum L10n {
     }
 
     // MARK: - Notification Toggles
-
-    static var limitNotificationLabel: String {
-        switch lang {
-        case .en:    return "Limit Reached Alert"
-        case .ja:    return "上限到達通知"
-        case .zhHans: return "限额达到提醒"
-        case .zhHant: return "限額達到提醒"
-        }
-    }
-
-    static var limitNotificationDesc: String {
-        switch lang {
-        case .en:    return "Notify when a 5-hour, weekly, credit, or spend limit is exhausted"
-        case .ja:    return "5時間、週間、クレジット、支出の上限到達時に通知"
-        case .zhHans: return "当 5 小时、每周、额度或消费限额用尽时通知"
-        case .zhHant: return "當 5 小時、每週、額度或消費限額用盡時通知"
-        }
-    }
 
     static var usageWarningNotificationLabel: String {
         switch lang {
@@ -1342,10 +1317,10 @@ enum L10n {
 
     static var recoveryNotificationDesc: String {
         switch lang {
-        case .en:    return "Notify when a rate-limited account becomes available again"
-        case .ja:    return "レート制限が解除されたアカウントを通知"
-        case .zhHans: return "当限额账户恢复可用时发送系统通知"
-        case .zhHant: return "當限額帳戶恢復可用時發送系統通知"
+        case .en:    return "Schedule a notification for the fixed 5-hour or weekly quota reset time"
+        case .ja:    return "5時間または週間クォータの固定リセット時刻に通知"
+        case .zhHans: return "按 5 小时或每周额度的固定重置时间发送系统通知"
+        case .zhHant: return "按 5 小時或每週額度的固定重置時間傳送系統通知"
         }
     }
 

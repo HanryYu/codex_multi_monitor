@@ -30,7 +30,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // before the user opens Settings for the first time.
         UserDefaults.standard.register(defaults: [
             PreferencesKeys.usageWarningNotificationEnabled: true,
-            PreferencesKeys.limitNotificationEnabled: true,
             PreferencesKeys.recoveryNotificationEnabled: true,
             PreferencesKeys.quotaActivationEnabled: false,
             PreferencesKeys.autoImportEnabled: true,
