@@ -21,6 +21,7 @@ enum BackupService {
         let source: AccountSource
         let accountID: String?
         let accountEmail: String?
+        let provider: AccountProvider?
     }
 
     // MARK: - Export
@@ -40,7 +41,8 @@ enum BackupService {
                     authToken: account.authToken,
                     source: account.source,
                     accountID: account.accountID,
-                    accountEmail: account.accountEmail
+                    accountEmail: account.accountEmail,
+                    provider: account.provider
                 )
             }
         )
@@ -122,7 +124,7 @@ enum BackupService {
         for backupAccount in backup.accounts {
             // Check for duplicate by accountID
             if let accountID = backupAccount.accountID,
-               accountStore.accounts.contains(where: { $0.accountID == accountID }) {
+               accountStore.accounts.contains(where: { $0.provider == (backupAccount.provider ?? .codex) && $0.accountID == accountID }) {
                 skipped += 1
                 continue
             }
@@ -130,7 +132,7 @@ enum BackupService {
             // Check for duplicate by email
             if let email = backupAccount.accountEmail,
                !email.isEmpty,
-               accountStore.accounts.contains(where: { $0.accountEmail == email }) {
+               accountStore.accounts.contains(where: { $0.provider == (backupAccount.provider ?? .codex) && $0.accountEmail == email }) {
                 skipped += 1
                 continue
             }
@@ -146,7 +148,8 @@ enum BackupService {
                 authToken: backupAccount.authToken,
                 source: backupAccount.source,
                 accountID: backupAccount.accountID,
-                accountEmail: backupAccount.accountEmail
+                accountEmail: backupAccount.accountEmail,
+                provider: backupAccount.provider ?? .codex
             )
             accountStore.addAccount(account)
             imported += 1

@@ -824,6 +824,74 @@ enum L10n {
 
     // MARK: - Add/Edit Account Sheet
 
+    static var agentType: String {
+        switch lang {
+        case .en: return "Agent Type"
+        case .ja: return "エージェント種類"
+        case .zhHans: return "Agent 类型"
+        case .zhHant: return "Agent 類型"
+        }
+    }
+
+    static func accountSheetTitle(provider: AccountProvider, editing: Bool) -> String {
+        switch lang {
+        case .en: return "\(editing ? "Edit" : "Add") \(provider.displayName) Account"
+        case .ja: return "\(provider.displayName) アカウントを\(editing ? "編集" : "追加")"
+        case .zhHans: return "\(editing ? "编辑" : "添加") \(provider.displayName) 账户"
+        case .zhHant: return "\(editing ? "編輯" : "新增") \(provider.displayName) 帳戶"
+        }
+    }
+
+    static func providerAccountName(_ provider: AccountProvider) -> String {
+        "\(provider.displayName) \(accountName)"
+    }
+
+    static func providerAccountNamePlaceholder(_ provider: AccountProvider) -> String {
+        switch lang {
+        case .en: return "e.g., Work \(provider.displayName)"
+        case .ja: return "例: 仕事用 \(provider.displayName)"
+        case .zhHans: return "例如：工作 \(provider.displayName)"
+        case .zhHant: return "例如：工作 \(provider.displayName)"
+        }
+    }
+
+    static func providerAccountEmail(_ provider: AccountProvider) -> String {
+        "\(provider.displayName) Email"
+    }
+
+    static func credentialLabel(_ provider: AccountProvider) -> String {
+        switch provider {
+        case .codex: return "ChatGPT Bearer Token"
+        case .claude: return "Claude OAuth Token / Auth JSON"
+        case .grok: return "Grok Token / Cookie / Auth JSON"
+        }
+    }
+
+    static func credentialPlaceholder(_ provider: AccountProvider) -> String {
+        switch provider {
+        case .codex: return "Bearer eyJ..."
+        case .claude: return "sk-ant-oat01-... or Claude auth JSON"
+        case .grok: return "Bearer token, Cookie header, or Grok auth JSON"
+        }
+    }
+
+    static func credentialHint(_ provider: AccountProvider) -> String {
+        switch (lang, provider) {
+        case (.en, .codex): return "Copy the Bearer token from the ChatGPT usage request."
+        case (.en, .claude): return "Paste a Claude Bearer token or auth JSON; local Claude login is imported automatically."
+        case (.en, .grok): return "Paste a Grok token/auth JSON, or the full Cookie header from GetGrokCreditsConfig."
+        case (.ja, .codex): return "ChatGPT の使用量リクエストから Bearer トークンをコピーします。"
+        case (.ja, .claude): return "Claude のトークンまたは auth JSON を貼り付けます。ローカルログインは自動インポートされます。"
+        case (.ja, .grok): return "Grok のトークン/auth JSON、または GetGrokCreditsConfig の Cookie を貼り付けます。"
+        case (.zhHans, .codex): return "从 ChatGPT 用量请求中复制 Bearer Token。"
+        case (.zhHans, .claude): return "粘贴 Claude Token 或 auth JSON；本地 Claude 登录会自动导入。"
+        case (.zhHans, .grok): return "粘贴 Grok Token/auth JSON，或 GetGrokCreditsConfig 的完整 Cookie。"
+        case (.zhHant, .codex): return "從 ChatGPT 用量請求中複製 Bearer Token。"
+        case (.zhHant, .claude): return "貼上 Claude Token 或 auth JSON；本機 Claude 登入會自動匯入。"
+        case (.zhHant, .grok): return "貼上 Grok Token/auth JSON，或 GetGrokCreditsConfig 的完整 Cookie。"
+        }
+    }
+
     static var accountName: String {
         switch lang {
         case .en:    return "Account Name"

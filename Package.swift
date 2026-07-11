@@ -10,7 +10,8 @@ let package = Package(
         .executableTarget(
             name: "CodexMonitor",
             path: "Sources/CodexMonitor",
-            exclude: ["Info.plist", "Resources", "CodexMonitor.entitlements"],
+            exclude: ["Info.plist", "CodexMonitor.entitlements"],
+            resources: [.process("Resources")],
             swiftSettings: [
                 .swiftLanguageMode(.v5)
             ]

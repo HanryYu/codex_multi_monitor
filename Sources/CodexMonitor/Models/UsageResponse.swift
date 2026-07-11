@@ -16,6 +16,22 @@ struct UsageResponse: Codable {
         case spendControl = "spend_control"
         case rateLimitResetCredits = "rate_limit_reset_credits"
     }
+
+    init(
+        planType: String,
+        rateLimit: RateLimit?,
+        credits: Credits? = nil,
+        rateLimitReachedType: RateLimitReached? = nil,
+        spendControl: SpendControl? = nil,
+        rateLimitResetCredits: RateLimitResetCredits? = nil
+    ) {
+        self.planType = planType
+        self.rateLimit = rateLimit
+        self.credits = credits
+        self.rateLimitReachedType = rateLimitReachedType
+        self.spendControl = spendControl
+        self.rateLimitResetCredits = rateLimitResetCredits
+    }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -32,6 +48,8 @@ struct UsageResponse: Codable {
 
 struct RateLimitReached: Codable {
     let type: String
+
+    init(type: String) { self.type = type }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -44,6 +62,13 @@ struct RateLimit: Codable {
     let limitReached: Bool
     let primaryWindow: WindowUsage?
     let secondaryWindow: WindowUsage?
+
+    init(allowed: Bool, limitReached: Bool, primaryWindow: WindowUsage?, secondaryWindow: WindowUsage?) {
+        self.allowed = allowed
+        self.limitReached = limitReached
+        self.primaryWindow = primaryWindow
+        self.secondaryWindow = secondaryWindow
+    }
     
     enum CodingKeys: String, CodingKey {
         case allowed
@@ -66,6 +91,13 @@ struct WindowUsage: Codable {
     let limitWindowSeconds: Int
     let resetAfterSeconds: Int
     let resetAt: Int
+
+    init(usedPercent: Int, limitWindowSeconds: Int, resetAfterSeconds: Int, resetAt: Int) {
+        self.usedPercent = min(max(usedPercent, 0), 100)
+        self.limitWindowSeconds = limitWindowSeconds
+        self.resetAfterSeconds = resetAfterSeconds
+        self.resetAt = resetAt
+    }
     
     enum CodingKeys: String, CodingKey {
         case usedPercent = "used_percent"

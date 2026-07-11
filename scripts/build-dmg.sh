@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="CodexMonitor"
 DMG_NAME="CodexMonitor"
-VERSION="${1:-0.6.13}"
+VERSION="${1:-0.7.0}"
 BUNDLE_ID="com.henry.codex-monitor"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-}"
 MAC_PROVISIONING_PROFILE="${MAC_PROVISIONING_PROFILE:-}"
@@ -92,6 +92,13 @@ if [ -f "$GITHUB_ICON_SRC" ]; then
     cp "$GITHUB_ICON_SRC" "$APP_BUNDLE/Contents/Resources/GitHub_Invertocat_Black.png"
     echo "   ✅ GitHub icon copied"
 fi
+
+for PROVIDER_ICON in ProviderCodex.png ProviderClaude.png ProviderGrok.png; do
+    PROVIDER_ICON_SRC="$PROJECT_DIR/Sources/CodexMonitor/Resources/$PROVIDER_ICON"
+    if [ -f "$PROVIDER_ICON_SRC" ]; then
+        cp "$PROVIDER_ICON_SRC" "$APP_BUNDLE/Contents/Resources/$PROVIDER_ICON"
+    fi
+done
 
 TEAM_IDENTIFIER_PREFIX="${TEAM_IDENTIFIER_PREFIX:-}"
 if [[ -z "$TEAM_IDENTIFIER_PREFIX" && -n "$CODE_SIGN_IDENTITY" ]]; then

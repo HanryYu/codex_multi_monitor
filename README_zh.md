@@ -117,6 +117,18 @@ cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); pr
 
 复制输出结果并粘贴到 CodexMonitor。
 
+### Claude 与 Grok
+
+CodexMonitor 支持 Codex、Claude 和 Grok 三种账户类型：
+
+- **本地自动导入**：Claude Code 从 macOS 钥匙串中的 `Claude Code-credentials`（或 `~/.claude/.credentials.json`）读取；Grok Build 从 `~/.grok/auth.json` 读取。Claude access token 过期时会使用官方 OAuth refresh 流程，并把轮换后的 access/refresh token 写回原凭证存储，保持 Claude Code 登录有效。
+- **手动添加**：先选择 Agent 类型，再粘贴 Bearer token。输入框也接受完整的 `Authorization: Bearer ...` 文本，以及 Claude/Grok 的本地 auth JSON。
+- **Claude 网页 token**：登录 Claude 后，在开发者工具 Network 中打开 usage 请求，复制 `Authorization` 请求头中的 Bearer token。
+- **Grok token**：可从 Grok CLI 请求的 `Authorization` 请求头复制 Bearer token，或直接把 `~/.grok/auth.json` 内容粘贴到 Grok 类型的 token 输入框。
+- **Grok 网页登录态**：打开 `https://grok.com/?_s=usage`，在开发者工具 Network 中选择 `GetGrokCreditsConfig` 请求，复制完整的 `Cookie` 请求头并粘贴。网页模式读取与设置页面一致的共享周额度。
+
+Claude 额度来自 `https://api.anthropic.com/api/oauth/usage`；Grok 本地模式读取 CLI billing，网页模式读取 `GetGrokCreditsConfig` 的共享周额度。应用会尝试自动刷新本地 Claude/Grok 凭证；刷新凭证无效时，再运行 `claude` 或 `grok login` 重新登录。
+
 ## 使用说明
 
 1. 从应用程序文件夹启动 **CodexMonitor**

@@ -9,6 +9,7 @@ struct AddAccountSheet: View {
     @State private var name: String = ""
     @State private var accountEmail: String = ""
     @State private var authToken: String = ""
+    @State private var provider: AccountProvider = .codex
     @State private var showError = false
     @State private var errorMessage = ""
     @FocusState private var focusedField: Field?
@@ -25,11 +26,9 @@ struct AddAccountSheet: View {
         VStack(spacing: 20) {
             // Icon + Title
             VStack(spacing: 8) {
-                Image(systemName: isEditing ? "pencil.circle.fill" : "person.badge.plus")
-                    .font(.system(size: 32, weight: .light))
-                    .foregroundStyle(.secondary)
+                ProviderIconView(provider: provider, size: 34)
 
-                Text(isEditing ? L10n.editAccount : L10n.addAccount)
+                Text(L10n.accountSheetTitle(provider: provider, editing: isEditing))
                     .font(.system(size: 16, weight: .semibold))
             }
             .padding(.top, 4)
@@ -37,17 +36,30 @@ struct AddAccountSheet: View {
             // Form fields
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label(L10n.accountName, systemImage: "person")
+                    Text(L10n.agentType)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    TextField(L10n.accountNamePlaceholder, text: $name)
+                    Picker(L10n.agentType, selection: $provider) {
+                        ForEach(AccountProvider.allCases) { item in
+                            Text(item.displayName).tag(item)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(L10n.providerAccountName(provider), systemImage: "person")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    TextField(L10n.providerAccountNamePlaceholder(provider), text: $name)
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .name)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Label(L10n.accountEmail, systemImage: "envelope")
+                    Label(L10n.providerAccountEmail(provider), systemImage: "envelope")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
 
@@ -57,18 +69,18 @@ struct AddAccountSheet: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Label(L10n.authToken, systemImage: "key")
+                    Label(L10n.credentialLabel(provider), systemImage: "key")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    TextField(L10n.authTokenPlaceholder, text: $authToken)
+                    TextField(L10n.credentialPlaceholder(provider), text: $authToken)
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .token)
                         .onChange(of: authToken) { _, newValue in
                             autofillIdentity(from: newValue)
                         }
 
-                    Text(L10n.getAuthTokenHint)
+                    Text(tokenHint)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
@@ -112,6 +124,7 @@ struct AddAccountSheet: View {
                 name = account.name
                 accountEmail = account.accountEmail ?? ""
                 authToken = account.authToken
+                provider = account.provider
             } else {
                 focusedField = .name
             }
@@ -120,7 +133,7 @@ struct AddAccountSheet: View {
     }
 
     func saveAccount() {
-        let trimmedToken = authToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedToken = extractedToken(from: authToken, provider: provider)
         guard !trimmedToken.isEmpty else {
             withAnimation {
                 showError = true
@@ -141,13 +154,15 @@ struct AddAccountSheet: View {
                 updatedAccount.accountID = accountID
             }
             updatedAccount.authToken = trimmedToken
+            updatedAccount.provider = provider
             accountStore.updateAccount(updatedAccount)
         } else {
             let newAccount = Account(
                 name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                 authToken: trimmedToken,
                 accountID: accountID,
-                accountEmail: email
+                accountEmail: email,
+                provider: provider
             )
             accountStore.addAccount(newAccount)
         }
@@ -159,11 +174,42 @@ struct AddAccountSheet: View {
         }
     }
 
+    private var tokenHint: String {
+        L10n.credentialHint(provider)
+    }
+
     private func autofillIdentity(from token: String) {
         guard accountEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let identity = AuthTokenIdentityParser.parse(accessToken: token)
         if let email = identity.email {
             accountEmail = email
         }
+    }
+
+    private func extractedToken(from input: String, provider: AccountProvider) -> String {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let data = trimmed.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if provider == .claude,
+               let oauth = object["claudeAiOauth"] as? [String: Any],
+               let token = oauth["accessToken"] as? String {
+                return token
+            }
+            if provider == .grok {
+                for case let value as [String: Any] in object.values {
+                    if let token = value["key"] as? String, !token.isEmpty { return token }
+                }
+            }
+        }
+
+        if let range = trimmed.range(of: "Bearer ", options: [.caseInsensitive]) {
+            return String(trimmed[range.upperBound...])
+                .split(whereSeparator: { $0.isWhitespace || $0 == "\"" })
+                .first.map(String.init) ?? trimmed
+        }
+        if trimmed.lowercased().hasPrefix("cookie:") {
+            return String(trimmed.dropFirst(7)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return trimmed
     }
 }

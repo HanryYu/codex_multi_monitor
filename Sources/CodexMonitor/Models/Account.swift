@@ -7,6 +7,30 @@ enum AccountSource: String, Codable {
     case localAuth   // 本地 auth.json 导入
 }
 
+enum AccountProvider: String, Codable, CaseIterable, Identifiable {
+    case codex
+    case claude
+    case grok
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .codex: return "Codex"
+        case .claude: return "Claude"
+        case .grok: return "Grok"
+        }
+    }
+
+    var assetName: String {
+        switch self {
+        case .codex: return "ProviderCodex"
+        case .claude: return "ProviderClaude"
+        case .grok: return "ProviderGrok"
+        }
+    }
+}
+
 struct Account: Codable, Identifiable {
     let id: UUID
     var name: String
@@ -19,6 +43,7 @@ struct Account: Codable, Identifiable {
     var accountEmail: String?
     /// 本地认证文件是否已失效（文件被删除时标记）
     var localAuthInvalid: Bool
+    var provider: AccountProvider
 
     init(
         id: UUID = UUID(),
@@ -28,7 +53,8 @@ struct Account: Codable, Identifiable {
         source: AccountSource = .manual,
         accountID: String? = nil,
         accountEmail: String? = nil,
-        localAuthInvalid: Bool = false
+        localAuthInvalid: Bool = false,
+        provider: AccountProvider = .codex
     ) {
         self.id = id
         self.name = name
@@ -38,6 +64,7 @@ struct Account: Codable, Identifiable {
         self.accountID = accountID
         self.accountEmail = AuthTokenIdentityParser.normalizedEmail(accountEmail)
         self.localAuthInvalid = localAuthInvalid
+        self.provider = provider
     }
 
     // Custom decoder for backward compatibility with v0.4.x JSON
@@ -52,5 +79,6 @@ struct Account: Codable, Identifiable {
         accountID = try container.decodeIfPresent(String.self, forKey: .accountID)
         accountEmail = AuthTokenIdentityParser.normalizedEmail(try container.decodeIfPresent(String.self, forKey: .accountEmail))
         localAuthInvalid = try container.decodeIfPresent(Bool.self, forKey: .localAuthInvalid) ?? false
+        provider = try container.decodeIfPresent(AccountProvider.self, forKey: .provider) ?? .codex
     }
 }

@@ -197,7 +197,7 @@ final class AuthFileMonitor {
 
         // 恢复之前因文件删除而失效的账户
         for i in 0..<accountStore.accounts.count {
-            if accountStore.accounts[i].source == .localAuth && accountStore.accounts[i].localAuthInvalid {
+            if accountStore.accounts[i].provider == .codex && accountStore.accounts[i].source == .localAuth && accountStore.accounts[i].localAuthInvalid {
                 accountStore.accounts[i].localAuthInvalid = false
                 hasChanges = true
             }
@@ -224,13 +224,14 @@ final class AuthFileMonitor {
                     hasChanges = true
                 }
 
-                if accountStore.accounts[index].source == .localAuth,
+                if accountStore.accounts[index].provider == .codex,
+                   accountStore.accounts[index].source == .localAuth,
                    accountStore.accounts[index].name.hasPrefix("Codex ") || accountStore.accounts[index].name == accountID {
                     accountStore.accounts[index].name = entry.displayName
                     hasChanges = true
                 }
 
-                if accountStore.accounts[index].source == .localAuth && accountStore.accounts[index].localAuthInvalid {
+                if accountStore.accounts[index].provider == .codex && accountStore.accounts[index].source == .localAuth && accountStore.accounts[index].localAuthInvalid {
                     accountStore.accounts[index].localAuthInvalid = false
                     hasChanges = true
                 }
@@ -266,7 +267,7 @@ final class AuthFileMonitor {
         let beforeCount = accountStore.accounts.count
         let accountSnapshot = accountStore.accounts
         accountStore.accounts.removeAll { account in
-            guard account.source == .localAuth else { return false }
+            guard account.provider == .codex && account.source == .localAuth else { return false }
             let duplicatedByManualAccount = accountSnapshot.contains { other in
                 other.id != account.id && other.source != .localAuth && identifiersMatch(lhs: account, rhs: other)
             }
@@ -288,7 +289,7 @@ final class AuthFileMonitor {
     private func handleFileDeleted() {
         var hasChanges = false
         for i in 0..<accountStore.accounts.count {
-            if accountStore.accounts[i].source == .localAuth {
+            if accountStore.accounts[i].provider == .codex && accountStore.accounts[i].source == .localAuth {
                 accountStore.accounts[i].localAuthInvalid = true
                 hasChanges = true
             }
@@ -404,14 +405,14 @@ final class AuthFileMonitor {
     private func matchingAccountIndex(for entry: LocalAuthEntry) -> Int? {
         if !isPlaceholderAccountID(entry.accountID),
            let index = accountStore.accounts.firstIndex(where: { account in
-               account.accountID == entry.accountID && !hasConflictingEmail(account: account, entry: entry)
+               account.provider == .codex && account.accountID == entry.accountID && !hasConflictingEmail(account: account, entry: entry)
            }) {
             return index
         }
 
         if let email = entry.accountEmail,
            let index = accountStore.accounts.firstIndex(where: { account in
-               account.accountEmail == email && shouldMatchByEmail(account: account, entry: entry)
+               account.provider == .codex && account.accountEmail == email && shouldMatchByEmail(account: account, entry: entry)
            }) {
             return index
         }

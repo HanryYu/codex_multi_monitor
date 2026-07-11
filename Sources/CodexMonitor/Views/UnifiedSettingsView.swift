@@ -311,9 +311,7 @@ private struct AccountSettingsRow: View {
                     .fill(Color(hex: "F3F4F6"))
                     .frame(width: 36, height: 36)
                     .overlay {
-                        Image(systemName: "person.2")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(Color(hex: "6B7280"))
+                        ProviderIconView(provider: account.provider, size: 19)
                     }
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -385,7 +383,7 @@ private struct AccountSettingsRow: View {
     }
 
     private var detailLabel: String {
-        var parts = [maskedToken(account.authToken)]
+        var parts = [account.provider.displayName, maskedToken(account.authToken)]
         if let email = account.accountEmail, !email.isEmpty {
             parts.append(email)
         } else {

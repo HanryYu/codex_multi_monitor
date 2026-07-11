@@ -183,7 +183,8 @@ class AccountStore: ObservableObject {
                     source: AccountSource(rawValue: synced.source) ?? .manual,
                     accountID: synced.accountID,
                     accountEmail: synced.accountEmail,
-                    localAuthInvalid: synced.localAuthInvalid
+                    localAuthInvalid: synced.localAuthInvalid,
+                    provider: AccountProvider(rawValue: synced.provider ?? "codex") ?? .codex
                 )
             }
 
@@ -203,6 +204,7 @@ class AccountStore: ObservableObject {
                 accountID: account.accountID,
                 accountEmail: account.accountEmail,
                 localAuthInvalid: account.localAuthInvalid,
+                provider: account.provider.rawValue,
                 updatedAt: revision
             )
         }
@@ -236,6 +238,46 @@ class AccountStore: ObservableObject {
     func addAccount(_ account: Account) {
         accounts.append(account)
         saveAccounts()
+    }
+
+    func syncLocalAgentAccounts() async {
+        let discovered = await AgentAuthDiscoveryService.discover()
+        var changed = false
+
+        for auth in discovered {
+            if let index = accounts.firstIndex(where: {
+                $0.provider == auth.provider && $0.source == .localAuth
+            }) {
+                if accounts[index].authToken != auth.token {
+                    accounts[index].authToken = auth.token
+                    changed = true
+                }
+                if accounts[index].accountEmail != auth.email {
+                    accounts[index].accountEmail = auth.email
+                    changed = true
+                }
+                if accounts[index].accountID != auth.accountID {
+                    accounts[index].accountID = auth.accountID
+                    changed = true
+                }
+                if accounts[index].localAuthInvalid {
+                    accounts[index].localAuthInvalid = false
+                    changed = true
+                }
+            } else {
+                accounts.append(Account(
+                    name: auth.displayName,
+                    authToken: auth.token,
+                    source: .localAuth,
+                    accountID: auth.accountID,
+                    accountEmail: auth.email,
+                    provider: auth.provider
+                ))
+                changed = true
+            }
+        }
+
+        if changed { saveAccounts() }
     }
     
     func updateAccount(_ account: Account) {
@@ -273,6 +315,9 @@ class AccountStore: ObservableObject {
     }
     
     func refreshAll() async {
+        if UserDefaults.standard.bool(forKey: PreferencesKeys.autoImportEnabled) {
+            await syncLocalAgentAccounts()
+        }
         guard !accounts.isEmpty else { return }
         
         isLoading = true
@@ -285,7 +330,7 @@ class AccountStore: ObservableObject {
                     let resetCreditsResult: Result<RateLimitResetCredits, APIError>
 
                     do {
-                        let usage = try await APIService.shared.fetchUsage(authToken: account.authToken)
+                        let usage = try await APIService.shared.fetchUsage(for: account)
                         print("[CodexMonitor] refreshAll: [\(account.name)] success — plan=\(usage.planType), rateLimit=\(usage.rateLimit != nil ? "yes" : "nil"), credits=\(usage.credits != nil ? "yes" : "nil")")
                         usageResult = .success(usage)
                     } catch let error as APIError {
@@ -297,6 +342,9 @@ class AccountStore: ObservableObject {
                     }
 
                     do {
+                        guard account.provider == .codex else {
+                            throw APIError.unsupported
+                        }
                         let resetCredits = try await APIService.shared.fetchRateLimitResetCredits(
                             authToken: account.authToken,
                             accountID: account.accountID
@@ -518,6 +566,7 @@ class AccountStore: ObservableObject {
         activationState: inout [String: String],
         fullActivationState: inout [String: String]
     ) {
+        guard account.provider == .codex else { return }
         guard let weeklyWindow = windows.first(where: {
             CodexQuotaActivationService.isWeeklyRecovery(stateID: $0.id)
         }) else { return }

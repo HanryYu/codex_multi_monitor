@@ -760,6 +760,8 @@ struct MenuBarView: View {
                     VStack(spacing: 0) {
                         // Account header: name + plan badge
                         HStack(alignment: .center) {
+                            ProviderIconView(provider: account.provider, size: 15)
+
                             Text(account.name)
                                 .font(.system(size: 11, weight: limited ? .semibold : .medium))
                                 .foregroundStyle(limited ? Color.secondary.opacity(0.5) : Color.secondary)
@@ -767,7 +769,7 @@ struct MenuBarView: View {
                                 .lineLimit(1)
 
                             if let usageResult, case .success(let usage) = usageResult {
-                                Text(usage.planType.localizedCapitalized)
+                                Text(providerPlanLabel(account: account, usage: usage))
                                     .font(.system(size: 11.5, weight: .medium))
                                     .foregroundStyle(limited ? Color.secondary.opacity(0.4) : Color.orange)
                                     .padding(.horizontal, 6)
@@ -854,6 +856,13 @@ struct MenuBarView: View {
             return L10n.updatedAt(time: formatter.string(from: time))
         }
         return L10n.notYetUpdated
+    }
+
+    private func providerPlanLabel(account: Account, usage: UsageResponse) -> String {
+        let provider = account.provider.displayName
+        let plan = usage.planType.localizedCapitalized
+        if provider.caseInsensitiveCompare(plan) == .orderedSame { return provider }
+        return "\(provider) · \(plan)"
     }
 
     // MARK: - Footer (Gemini Canvas style)

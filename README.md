@@ -4,7 +4,7 @@
 
 [English](README.md) | [中文](README_zh.md) | [日本語](README_ja.md)
 
-A lightweight macOS menu bar app for monitoring ChatGPT Codex quotas, reset credits, and weekly-cycle activation across multiple accounts.
+A lightweight macOS menu bar app for monitoring Codex, Claude, and Grok quotas across multiple accounts.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/HanryYu/codex_multi_monitor/main/assets/codexmonitor-screenshot.png" alt="CodexMonitor Screenshot" width="420">
@@ -33,6 +33,9 @@ A lightweight macOS menu bar app for monitoring ChatGPT Codex quotas, reset cred
 - **Smart Notifications** — Receive usage warnings and scheduled recovery alerts at fixed 5-hour or weekly quota reset times
 - **Weekly Cycle Activation (Beta)** — After weekly quota recovery, or when the weekly quota is detected at 100% remaining after a server-side reset, send one short Codex request to start the next weekly subscription cycle
 - **Auto Account Sync** — Automatically detect and add local Codex accounts on launch
+- **Claude Monitoring** — Import local Claude OAuth credentials, refresh rotated tokens, and show 5-hour/weekly limits
+- **Grok Monitoring** — Read local Grok billing data or the shared weekly quota from a grok.com browser session
+- **Provider-Aware UI** — Distinguish Codex, Claude, and Grok accounts with official icons and provider-specific forms
 - **Multi-Language** — English, 简体中文, 繁體中文, 日本語
 - **Automatic Updates** — Check, download, and install new versions from GitHub Releases
 
@@ -119,6 +122,26 @@ cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); pr
 Copy the output and paste it into CodexMonitor.
 
 Treat access tokens and `~/.codex/auth.json` like passwords. Do not commit or share them.
+
+### Claude and Grok
+
+Choose the agent type before adding an account. The account form changes its title, labels, placeholders, and credential instructions for the selected provider.
+
+**Claude**
+
+- Local import reads `Claude Code-credentials` from macOS Keychain, with `~/.claude/.credentials.json` as a fallback.
+- Expired access tokens are refreshed through Claude's OAuth token endpoint. Rotated access and refresh tokens are written back to the original credential store so Claude Code remains signed in.
+- Manual entry accepts an OAuth Bearer token, a full `Authorization: Bearer ...` header, or Claude auth JSON.
+- Usage is loaded from `https://api.anthropic.com/api/oauth/usage` and shows the 5-hour and 7-day windows.
+
+**Grok**
+
+- Local import reads `~/.grok/auth.json`; expired OIDC credentials are refreshed and written back atomically.
+- Manual CLI mode accepts a Grok Bearer token or the complete local auth JSON.
+- To use the same shared weekly quota shown on `https://grok.com/?_s=usage`, open Developer Tools → Network, select `GetGrokCreditsConfig`, and copy its complete `Cookie` request header into the Grok credential field.
+- The web response uses gRPC-Web/Protobuf and includes the weekly usage percentage and reset time.
+
+Tokens and browser cookies grant account access. They are stored using CodexMonitor's encrypted token storage; do not share them or include them in bug reports.
 
 ## Usage
 
