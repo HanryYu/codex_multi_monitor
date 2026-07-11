@@ -1266,6 +1266,31 @@ enum L10n {
 
     // MARK: - Quota Activation
 
+    static var quotaAutomationSection: String { localized("Quota Automation (Beta)", "クォータ自動化 (Beta)", "额度自动刷新 (Beta)", "額度自動重新整理 (Beta)") }
+    static var fiveHourRefreshLabel: String { localized("Refresh the 5-hour quota at a fixed time", "固定時刻に5時間クォータを更新", "在固定时间刷新 5 小时额度", "在固定時間重新整理 5 小時額度") }
+    static var fiveHourRefreshDesc: String { localized("Start the first 5-hour window before work, so more complete quota windows fit into your day", "仕事前に最初の5時間枠を開始し、1日に使える完全な枠を増やします", "在工作前提前开启首个 5 小时窗口，让一天内能衔接更多完整额度周期", "在工作前提前開啟首個 5 小時視窗，讓一天內能銜接更多完整額度週期") }
+    static var refreshTimeLabel: String { localized("Daily refresh time", "毎日の更新時刻", "每日刷新时间", "每日重新整理時間") }
+    static var refreshTimeDesc: String { localized("For example, refresh at 5:00 before starting work at 8:00", "例：8時に仕事を始める前の5時に更新", "例如 8 点开始工作，可设为 5 点提前刷新", "例如 8 點開始工作，可設為 5 點提前重新整理") }
+    static var advancedSettingsLabel: String { localized("Advanced settings", "詳細設定", "高级设置", "進階設定") }
+    static var advancedSettingsDesc: String { localized("Per-account time and model", "アカウント別時刻とモデル", "按账号设置时间和模型", "按帳戶設定時間和模型") }
+    static var refreshModelLabel: String { localized("Request model", "リクエストモデル", "自动请求模型", "自動請求模型") }
+    static var refreshModelDesc: String { localized("Loaded live from Codex", "Codexからリアルタイム取得", "从 Codex 实时获取", "從 Codex 即時取得") }
+    static var modelCacheUnavailable: String { localized("No models loaded", "モデル未取得", "未获取到模型", "未取得模型") }
+    static var refreshModels: String { localized("Refresh", "更新", "刷新", "重新整理") }
+    static var loadingModels: String { localized("Loading…", "取得中…", "获取中…", "取得中…") }
+    static var wakeMacLabel: String { localized("Wake Mac automatically", "Macを自動的に起動解除", "自动唤醒 Mac", "自動喚醒 Mac") }
+    static var wakeMacDesc: String { localized("Required for reliable refresh while the Mac is asleep", "Macのスリープ中も確実に更新するため必須", "必须开启，否则 Mac 睡眠时可能无法发送刷新请求", "必須開啟，否則 Mac 睡眠時可能無法傳送重新整理請求") }
+    static var wakeScheduleFailed: String { localized("Automatic wake was not enabled", "自動起動解除を有効にできませんでした", "未能启用自动唤醒", "未能啟用自動喚醒") }
+    static var wakeRequiredFailed: String { localized("Automatic wake is required to enable this feature", "この機能には自動起動解除が必要です", "启用此功能必须先开启自动唤醒", "啟用此功能必須先開啟自動喚醒") }
+    static var modelsLoadedLive: String { localized("Live model list", "リアルタイムモデル一覧", "实时模型列表", "即時模型列表") }
+    static var modelsLoadedFromCache: String { localized("Using Codex's last synced model list", "Codexの最終同期モデル一覧を使用", "正在使用 Codex 最近同步的模型列表", "正在使用 Codex 最近同步的模型列表") }
+    static var modelsUnavailable: String { localized("Open Codex once, then refresh", "Codexを一度開いてから更新してください", "请先打开一次 Codex，然后刷新", "請先開啟一次 Codex，然後重新整理") }
+    static var fiveHourRefreshScopeNote: String { localized("CodexMonitor must be running. Auto Account Sync is required to refresh saved accounts; the request is exactly “Reply only: hi”.", "CodexMonitorの起動が必要です。保存済みアカウントには自動同期が必要です。リクエストは「Reply only: hi」のみです。", "CodexMonitor 需保持运行；刷新已保存账号需开启自动账号同步。请求内容固定为“Reply only: hi”。", "CodexMonitor 需保持執行；重新整理已儲存帳戶需開啟自動帳戶同步。請求內容固定為「Reply only: hi」。") }
+
+    private static func localized(_ en: String, _ ja: String, _ zhHans: String, _ zhHant: String) -> String {
+        switch lang { case .en: en; case .ja: ja; case .zhHans: zhHans; case .zhHant: zhHant }
+    }
+
     static var quotaActivationSection: String {
         switch lang {
         case .en:    return "Weekly Quota Cycle"

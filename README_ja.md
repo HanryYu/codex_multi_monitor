@@ -1,6 +1,6 @@
 # CodexMonitor
 
-[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos/) [![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift)](https://swift.org/) [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/HanryYu/codex_multi_monitor)](https://github.com/HanryYu/codex_multi_monitor/releases/latest) [![Platform](https://img.shields.io/badge/Platform-Apple%20Silicon%20%2F%20Intel-lightgrey)](https://github.com/HanryYu/codex_multi_monitor)
+[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos/) [![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift)](https://swift.org/) [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/HanryYu/codex_multi_monitor)](https://github.com/HanryYu/codex_multi_monitor/releases/latest) [![Downloads](https://img.shields.io/github/downloads/HanryYu/codex_multi_monitor/total)](https://github.com/HanryYu/codex_multi_monitor/releases) [![Platform](https://img.shields.io/badge/Platform-Apple%20Silicon%20%2F%20Intel-lightgrey)](https://github.com/HanryYu/codex_multi_monitor)
 
 [English](README.md) | [中文](README_zh.md) | [日本語](README_ja.md)
 
@@ -32,6 +32,7 @@ ChatGPT Codex の使用量、リセットクレジット、週間サイクル開
 - **リセットクレジット表示** — 各アカウントカードに利用可能なリセット回数、付与時刻、有効期限を表示
 - **スマート通知** — クォータ低下時に警告し、5時間または週間クォータの固定リセット時刻に回復通知を送信
 - **週間サイクル開始 (Beta)** — 週間クォータ回復後、またはサーバー側リセットで週間クォータが残り100%になったことを検出した時に、短い Codex リクエストを1回送信して新しい週間サブスクリプションサイクルを開始
+- **5時間クォータ定時更新 (Beta)** — 毎日の指定時刻に最小・Low推論リクエストで新しい5時間枠を開始。詳細設定ではアカウント別の有効化、時刻、軽量モデルを設定可能
 - **アカウント自動同期** — 起動時にローカルの Codex アカウントを自動検出・追加
 - **多言語対応** — English、中文、日本語
 - **更新通知** — GitHub で新しいバージョンが利用可能になったら自動通知

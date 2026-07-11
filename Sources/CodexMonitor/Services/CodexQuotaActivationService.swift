@@ -8,7 +8,7 @@ actor CodexQuotaActivationService {
         case codexNotFound
     }
 
-    private static let prompt = "Please reply with \"Hi\" directly."
+    private static let prompt = "Reply only: hi"
     private static let activationTimeout: TimeInterval = 120
     private var lastActivationAtByAccountID: [String: Date] = [:]
 
@@ -57,7 +57,8 @@ actor CodexQuotaActivationService {
         let result = await Self.runCodex(
             executableURL: executableURL,
             accountID: accountID,
-            authBundleData: authBundleData
+            authBundleData: authBundleData,
+            model: nil
         )
         if result.succeeded {
             lastActivationAtByAccountID[accountID] = Date()
@@ -67,6 +68,21 @@ actor CodexQuotaActivationService {
             print("[CodexMonitor] Quota activation request completed for " + account.name)
         } else {
             print("[CodexMonitor] Quota activation request failed for " + account.name)
+        }
+    }
+
+    func refreshFiveHourQuota(account: Account, model: String?) async {
+        guard let accountID = account.accountID,
+              let authBundleData = Self.authBundleData(for: account),
+              let executableURL = Self.codexExecutableURL() else { return }
+        let result = await Self.runCodex(
+            executableURL: executableURL,
+            accountID: accountID,
+            authBundleData: authBundleData,
+            model: model
+        )
+        if result.succeeded, let refreshed = result.refreshedAuthBundleData {
+            CodexAuthBundleStore.save(accountID: account.id, authJSONData: refreshed)
         }
     }
 
@@ -117,7 +133,7 @@ actor CodexQuotaActivationService {
         return accountID
     }
 
-    private nonisolated static func codexExecutableURL() -> URL? {
+    nonisolated static func codexExecutableURL() -> URL? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let candidates = [
             "/opt/homebrew/bin/codex",
@@ -140,13 +156,15 @@ actor CodexQuotaActivationService {
     private nonisolated static func runCodex(
         executableURL: URL,
         accountID: String,
-        authBundleData: Data
+        authBundleData: Data,
+        model: String?
     ) async -> CodexRunResult {
         await Task.detached(priority: .utility) {
             runCodexBlocking(
                 executableURL: executableURL,
                 accountID: accountID,
-                authBundleData: authBundleData
+                authBundleData: authBundleData,
+                model: model
             )
         }.value
     }
@@ -154,7 +172,8 @@ actor CodexQuotaActivationService {
     private nonisolated static func runCodexBlocking(
         executableURL: URL,
         accountID: String,
-        authBundleData: Data
+        authBundleData: Data,
+        model: String?
     ) -> CodexRunResult {
         let fileManager = FileManager.default
         let tempRoot = fileManager.temporaryDirectory
@@ -178,16 +197,18 @@ actor CodexQuotaActivationService {
             let process = Process()
             process.executableURL = executableURL
             process.currentDirectoryURL = workingDirectory
-            process.arguments = [
+            var arguments = [
                 "exec",
                 "--ephemeral",
                 "--ignore-user-config",
                 "--ignore-rules",
                 "--sandbox", "read-only",
                 "--skip-git-repo-check",
-                "--color", "never",
-                prompt,
+                "--color", "never"
             ]
+            if let model, !model.isEmpty { arguments.append(contentsOf: ["--model", model]) }
+            arguments.append(contentsOf: ["--config", "model_reasoning_effort=\"low\"", prompt])
+            process.arguments = arguments
             process.standardInput = FileHandle.nullDevice
             process.standardOutput = logHandle
             process.standardError = logHandle

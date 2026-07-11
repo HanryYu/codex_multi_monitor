@@ -1,37 +1,27 @@
-# CodexMonitor 0.7.0
+# CodexMonitor 0.7.1
 
-This release expands CodexMonitor from a Codex-only quota utility into a multi-provider menu bar monitor for **Codex, Claude, and Grok**.
+This release adds scheduled Codex quota activation and refines the multi-provider menu bar experience.
 
-## Claude monitoring
+## Scheduled 5-hour quota refresh (Beta)
 
-- Automatically imports Claude OAuth credentials from the macOS Keychain entry `Claude Code-credentials`, with `~/.claude/.credentials.json` as a fallback.
-- Refreshes expired Claude OAuth access tokens and writes rotated access/refresh tokens back to the original credential store.
-- Displays the Claude 5-hour and 7-day usage windows with reset times.
-- Supports manual Bearer tokens, complete `Authorization` headers, and Claude auth JSON.
-
-## Grok monitoring
-
-- Automatically imports Grok credentials from `~/.grok/auth.json`.
-- Refreshes expired Grok OIDC credentials and writes them back atomically.
-- Reads Grok CLI billing usage, including the current weekly period and reset time.
-- Supports the shared weekly quota shown on grok.com through the `GetGrokCreditsConfig` gRPC-Web endpoint.
-- Adds a tested Protobuf decoder for Grok web usage responses.
-- Supports manual Grok Bearer tokens, local auth JSON, and complete browser Cookie headers.
+- Starts a fresh 5-hour Codex quota window at a user-selected daily time.
+- Uses the minimal prompt `Reply only: hi` with reasoning fixed to Low.
+- Supports per-account enablement and schedules in Advanced Settings.
+- Loads the current model list through Codex App Server, with Codex's last synced model catalog as a fallback.
+- Prefers the lightweight Mini model by default when available.
+- Requires automatic Mac wake so refresh requests can run while the computer would otherwise be asleep.
+- Uses isolated per-account Codex authentication and persistent daily deduplication.
 
 ## Interface improvements
 
-- Adds provider-specific official icons for Codex, Claude, and Grok.
-- Shortens provider names to **Claude** and **Grok** to keep account headers on one line.
-- Makes the add/edit account title, labels, placeholders, credential hints, and icon respond to the selected provider.
-- Adds localized provider form copy for English, Japanese, Simplified Chinese, and Traditional Chinese.
-- Preserves provider information through account backup and iCloud sync.
+- Groups the 5-hour refresh and weekly quota cycle controls into a clearly labeled Beta section.
+- Adds concise localized explanations in English, Japanese, Simplified Chinese, and Traditional Chinese.
+- Displays Codex, Claude, and Grok provider icons with consistent circular crops.
+- Simplifies menu bar card hierarchy by removing redundant shadows, dividers, and nested borders while preserving the existing colors.
+- Adds a cumulative GitHub Release download-count badge to all README variants.
 
-## Fixes
+## Reliability
 
-- Fixes Grok billing decoding for the current `{ "config": { ... } }` response envelope.
-- Keeps compatibility with the earlier unwrapped Grok response shape.
-- Separates provider authentication and usage fetching so a Claude or Grok failure does not break Codex accounts.
-
-## Security note
-
-Access tokens and browser cookies grant account access. CodexMonitor stores imported credentials using its encrypted local token storage. Do not share credentials or include them in bug reports.
+- Adds a grace period after wake so scheduled requests are not missed during system resume.
+- Prevents the refresh feature from remaining enabled when automatic wake cannot be configured.
+- Avoids overwriting an existing repeating macOS power schedule.

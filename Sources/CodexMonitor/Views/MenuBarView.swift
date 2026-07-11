@@ -80,7 +80,10 @@ struct GlassCardModifier: ViewModifier {
         content
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
+            }
     }
 }
 
@@ -177,10 +180,6 @@ struct QuotaCardView: View {
         .opacity(isLimited ? 0.55 : 1.0)
         .saturation(isLimited ? 0.2 : 1.0)
         .background(isLimited ? Color.red.opacity(0.03) : Color.primary.opacity(0.03))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(isLimited ? Color.red.opacity(0.12) : Color.primary.opacity(0.06), lineWidth: 0.5)
-        )
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
@@ -370,10 +369,6 @@ struct CreditsCardView: View {
         .opacity(isLimited ? 0.55 : 1.0)
         .saturation(isLimited ? 0.2 : 1.0)
         .background(isLimited ? Color.red.opacity(0.03) : Color.primary.opacity(0.03))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(isLimited ? Color.red.opacity(0.12) : Color.primary.opacity(0.06), lineWidth: 0.5)
-        )
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
@@ -649,8 +644,6 @@ struct MenuBarView: View {
                 accountsQuotaView
             }
 
-            Divider().opacity(0.5)
-
             // Footer
             footerView
         }
@@ -760,7 +753,7 @@ struct MenuBarView: View {
                     VStack(spacing: 0) {
                         // Account header: name + plan badge
                         HStack(alignment: .center) {
-                            ProviderIconView(provider: account.provider, size: 15)
+                            ProviderIconView(provider: account.provider, size: 18)
 
                             Text(account.name)
                                 .font(.system(size: 11, weight: limited ? .semibold : .medium))
@@ -780,12 +773,9 @@ struct MenuBarView: View {
 
                             Spacer()
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.top, 8)
-                        .padding(.bottom, 4)
-
-                        Divider().opacity(0.4)
-                            .padding(.horizontal, 14)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 10)
+                        .padding(.bottom, 7)
 
                         // Quota cards content
                         if let usageResult {
@@ -798,6 +788,8 @@ struct MenuBarView: View {
                                         isLimited: limited,
                                         resetTimeFormat: resetTimeFormat
                                     )
+                                    .padding(.horizontal, 8)
+                                    .padding(.bottom, 8)
 
                                     if let resetCredits {
                                         Divider().opacity(0.25)
@@ -832,14 +824,18 @@ struct MenuBarView: View {
                     }
                     .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
                     .overlay {
-                        if limited, let usageResult, case .success(let usage) = usageResult {
-                            LimitOverlayView(
-                                usage: usage,
-                                resetCredits: resetCredits,
-                                resetTimeFormat: resetTimeFormat
-                            )
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.075), lineWidth: 0.5)
+
+                            if limited, let usageResult, case .success(let usage) = usageResult {
+                                LimitOverlayView(
+                                    usage: usage,
+                                    resetCredits: resetCredits,
+                                    resetTimeFormat: resetTimeFormat
+                                )
+                            }
                         }
                     }
                 }
@@ -905,7 +901,7 @@ struct MenuBarView: View {
                 .disabled(accountStore.isLoading)
             }
 
-            Divider().opacity(0.3).padding(.top, 6)
+            Divider().opacity(0.22).padding(.top, 7)
 
             Button(action: {
                 NSApp.terminate(nil)
@@ -917,8 +913,9 @@ struct MenuBarView: View {
             .buttonStyle(.plain)
             .padding(.top, 4)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.top, 9)
+        .padding(.bottom, 8)
         .background(Color.primary.opacity(0.01))
     }
 }

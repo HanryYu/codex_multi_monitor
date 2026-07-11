@@ -1,6 +1,6 @@
 # CodexMonitor
 
-[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos/) [![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift)](https://swift.org/) [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/HanryYu/codex_multi_monitor)](https://github.com/HanryYu/codex_multi_monitor/releases/latest) [![Platform](https://img.shields.io/badge/Platform-Apple%20Silicon%20%2F%20Intel-lightgrey)](https://github.com/HanryYu/codex_multi_monitor)
+[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos/) [![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift)](https://swift.org/) [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/HanryYu/codex_multi_monitor)](https://github.com/HanryYu/codex_multi_monitor/releases/latest) [![Downloads](https://img.shields.io/github/downloads/HanryYu/codex_multi_monitor/total)](https://github.com/HanryYu/codex_multi_monitor/releases) [![Platform](https://img.shields.io/badge/Platform-Apple%20Silicon%20%2F%20Intel-lightgrey)](https://github.com/HanryYu/codex_multi_monitor)
 
 [English](README.md) | [中文](README_zh.md) | [日本語](README_ja.md)
 
@@ -32,6 +32,7 @@
 - **重置 credit 看板** — 在每个账户卡片上显示可用重置次数、发放时间和到期时间
 - **智能通知** — 额度过低时预警，并在 5 小时或周额度固定重置时间发送恢复提醒
 - **周额度周期启动 (Beta)** — 周额度恢复后，或检测到云端重置导致周额度回到 100% 时，发送一次简短 Codex 请求来启动新的周订阅额度周期
+- **5 小时额度定时刷新 (Beta)** — 每天在指定时间用极简、最低思考请求启动新的 5 小时窗口；高级设置支持不同账号单独启停、设置时间和选择轻量模型
 - **自动账户同步** — 启动时自动检测本地 Codex 账户并添加
 - **多语言** — English、中文、日本語
 - **版本更新提醒** — GitHub 有新版本时自动提醒

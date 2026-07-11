@@ -20,6 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     var authFileMonitor: AuthFileMonitor?
     var timer: Timer?
     var eventMonitor: Any?
+    var fiveHourRefreshScheduler: FiveHourQuotaRefreshScheduler?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -38,6 +39,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         ])
 
         accountStore = AccountStore()
+        fiveHourRefreshScheduler = FiveHourQuotaRefreshScheduler(accountStore: accountStore)
+        fiveHourRefreshScheduler?.start()
 
         // Setup WindowManager
         WindowManager.shared.accountStore = accountStore
@@ -137,6 +140,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             NSEvent.removeMonitor(monitor)
         }
         authFileMonitor?.stopMonitoring()
+        fiveHourRefreshScheduler?.stop()
     }
 
     @objc func togglePopover() {

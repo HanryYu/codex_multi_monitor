@@ -415,6 +415,16 @@ struct PreferencesContentView: View {
     @State private var usageWarningNotificationEnabled: Bool = true
     @State private var recoveryNotificationEnabled: Bool = true
     @State private var quotaActivationEnabled: Bool = false
+    @State private var fiveHourRefreshEnabled = false
+    @State private var fiveHourRefreshTime = Date()
+    @State private var fiveHourRefreshAdvanced = false
+    @State private var fiveHourRefreshModel = ""
+    @State private var cloudModels: [CodexCloudModel] = []
+    @State private var accountRefreshEnabled: [UUID: Bool] = [:]
+    @State private var wakeMacForRefresh = false
+    @State private var wakeScheduleStatus: String?
+    @State private var isLoadingModels = false
+    @State private var modelSourceText: String?
     @State private var automaticUpdatesEnabled: Bool = true
     @State private var notificationTestStatus: String?
     @State private var notificationNeedsSettings = false
@@ -615,7 +625,108 @@ struct PreferencesContentView: View {
     }
 
     private var quotaActivationSettingsSection: some View {
-        SettingGroupCard(label: L10n.quotaActivationSection, systemImage: "bolt.circle") {
+        SettingGroupCard(label: L10n.quotaAutomationSection, systemImage: "bolt.circle") {
+            SettingsCheckbox(
+                title: L10n.fiveHourRefreshLabel,
+                description: L10n.fiveHourRefreshDesc,
+                badge: "Beta",
+                isChecked: $fiveHourRefreshEnabled
+            )
+            .onChange(of: fiveHourRefreshEnabled) { _, value in
+                UserDefaults.standard.set(value, forKey: PreferencesKeys.fiveHourRefreshEnabled)
+                if value && !wakeMacForRefresh {
+                    wakeMacForRefresh = true
+                }
+                if !value, wakeMacForRefresh {
+                    wakeMacForRefresh = false
+                }
+            }
+
+            if fiveHourRefreshEnabled {
+                HStack {
+                    SettingTextBlock(title: L10n.refreshTimeLabel, description: L10n.refreshTimeDesc)
+                    Spacer()
+                    DatePicker("", selection: $fiveHourRefreshTime, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                        .onChange(of: fiveHourRefreshTime) { _, value in
+                            FiveHourQuotaRefreshSettings.setTime(value, for: nil)
+                            if wakeMacForRefresh, !MacWakeScheduler.configure(for: value, enabled: true) {
+                                wakeScheduleStatus = L10n.wakeScheduleFailed
+                            }
+                        }
+                }
+                .padding(.leading, 24)
+
+                SettingsCheckbox(title: L10n.wakeMacLabel, description: L10n.wakeMacDesc, isChecked: $wakeMacForRefresh)
+                    .padding(.leading, 24)
+                    .onChange(of: wakeMacForRefresh) { _, enabled in
+                        if !enabled && fiveHourRefreshEnabled {
+                            fiveHourRefreshEnabled = false
+                            UserDefaults.standard.set(false, forKey: PreferencesKeys.fiveHourRefreshEnabled)
+                        }
+                        let success = MacWakeScheduler.configure(for: fiveHourRefreshTime, enabled: enabled)
+                        if success {
+                            UserDefaults.standard.set(enabled, forKey: PreferencesKeys.fiveHourRefreshWakeEnabled)
+                            wakeScheduleStatus = nil
+                        } else {
+                            wakeMacForRefresh = !enabled
+                            wakeScheduleStatus = L10n.wakeScheduleFailed
+                            if enabled {
+                                fiveHourRefreshEnabled = false
+                                UserDefaults.standard.set(false, forKey: PreferencesKeys.fiveHourRefreshEnabled)
+                            }
+                        }
+                    }
+
+                if let wakeScheduleStatus {
+                    Text(wakeScheduleStatus).font(.system(size: 10)).foregroundStyle(.red).padding(.leading, 24)
+                }
+
+                SettingsCheckbox(title: L10n.advancedSettingsLabel, description: L10n.advancedSettingsDesc, isChecked: $fiveHourRefreshAdvanced)
+                    .padding(.leading, 24)
+                    .onChange(of: fiveHourRefreshAdvanced) { _, value in UserDefaults.standard.set(value, forKey: PreferencesKeys.fiveHourRefreshAdvanced) }
+
+                if fiveHourRefreshAdvanced {
+                    HStack {
+                        SettingTextBlock(title: L10n.refreshModelLabel, description: L10n.refreshModelDesc)
+                        Spacer()
+                        if cloudModels.isEmpty {
+                            Text(L10n.modelCacheUnavailable).font(.system(size: 11)).foregroundStyle(.secondary)
+                        } else {
+                            SettingsDropdown(selection: $fiveHourRefreshModel, options: cloudModels.map { .init(label: $0.displayName, value: $0.slug) })
+                                .onChange(of: fiveHourRefreshModel) { _, value in UserDefaults.standard.set(value, forKey: PreferencesKeys.fiveHourRefreshModel) }
+                        }
+                        SettingsActionButton(title: isLoadingModels ? L10n.loadingModels : L10n.refreshModels, disabled: isLoadingModels) {
+                            Task { await loadCloudModels() }
+                        }
+                    }
+                    .padding(.leading, 24)
+
+                    if let modelSourceText {
+                        Text(modelSourceText).font(.system(size: 10)).foregroundStyle(Color(hex: "9CA3AF")).padding(.leading, 24)
+                    }
+
+                    ForEach(accountStore.accounts.filter { $0.provider == .codex }) { account in
+                        HStack(spacing: 10) {
+                            Toggle("", isOn: Binding(
+                                get: { accountRefreshEnabled[account.id] ?? true },
+                                set: { value in
+                                    accountRefreshEnabled[account.id] = value
+                                    FiveHourQuotaRefreshSettings.setAccountEnabled(value, id: account.id)
+                                }
+                            )).labelsHidden()
+                            Text(account.name).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                            Spacer()
+                            DatePicker("", selection: Binding(get: { FiveHourQuotaRefreshSettings.time(for: account.id) }, set: { FiveHourQuotaRefreshSettings.setTime($0, for: account.id) }), displayedComponents: .hourAndMinute).labelsHidden()
+                        }
+                        .padding(.leading, 24)
+                    }
+                }
+
+            }
+
+            CardDivider()
+
             SettingsCheckbox(
                 title: L10n.quotaActivationLabel,
                 description: L10n.quotaActivationDesc,
@@ -721,9 +832,32 @@ struct PreferencesContentView: View {
         recoveryNotificationEnabled = recoveryVal ?? true
 
         quotaActivationEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled)
+        fiveHourRefreshEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.fiveHourRefreshEnabled)
+        fiveHourRefreshTime = FiveHourQuotaRefreshSettings.time(for: nil)
+        fiveHourRefreshAdvanced = UserDefaults.standard.bool(forKey: PreferencesKeys.fiveHourRefreshAdvanced)
+        wakeMacForRefresh = UserDefaults.standard.bool(forKey: PreferencesKeys.fiveHourRefreshWakeEnabled)
+        accountRefreshEnabled = Dictionary(uniqueKeysWithValues: accountStore.accounts.map { ($0.id, FiveHourQuotaRefreshSettings.accountEnabled($0.id)) })
+        Task { await loadCloudModels() }
 
         let automaticUpdatesVal = UserDefaults.standard.object(forKey: PreferencesKeys.automaticUpdatesEnabled) as? Bool
         automaticUpdatesEnabled = automaticUpdatesVal ?? true
+    }
+
+    @MainActor
+    private func loadCloudModels() async {
+        isLoadingModels = true
+        let result = await CodexCloudModelService.fetch()
+        cloudModels = result.models
+        switch result.source {
+        case .live: modelSourceText = L10n.modelsLoadedLive
+        case .cache: modelSourceText = L10n.modelsLoadedFromCache
+        case .unavailable: modelSourceText = L10n.modelsUnavailable
+        }
+        if let selected = FiveHourQuotaRefreshSettings.selectedModel(from: result.models) {
+            fiveHourRefreshModel = selected
+            UserDefaults.standard.set(selected, forKey: PreferencesKeys.fiveHourRefreshModel)
+        }
+        isLoadingModels = false
     }
 
     private func toggleLaunchAtLogin(enable: Bool) {

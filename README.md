@@ -1,6 +1,6 @@
 # CodexMonitor
 
-[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos/) [![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift)](https://swift.org/) [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/HanryYu/codex_multi_monitor)](https://github.com/HanryYu/codex_multi_monitor/releases/latest) [![Platform](https://img.shields.io/badge/Platform-Apple%20Silicon%20%2F%20Intel-lightgrey)](https://github.com/HanryYu/codex_multi_monitor)
+[![macOS](https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple)](https://www.apple.com/macos/) [![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift)](https://swift.org/) [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/HanryYu/codex_multi_monitor)](https://github.com/HanryYu/codex_multi_monitor/releases/latest) [![Downloads](https://img.shields.io/github/downloads/HanryYu/codex_multi_monitor/total)](https://github.com/HanryYu/codex_multi_monitor/releases) [![Platform](https://img.shields.io/badge/Platform-Apple%20Silicon%20%2F%20Intel-lightgrey)](https://github.com/HanryYu/codex_multi_monitor)
 
 [English](README.md) | [中文](README_zh.md) | [日本語](README_ja.md)
 
@@ -32,6 +32,7 @@ A lightweight macOS menu bar app for monitoring Codex, Claude, and Grok quotas a
 - **Reset Credit Tracking** — Show available reset credits, grant times, and expiration times directly on each account card
 - **Smart Notifications** — Receive usage warnings and scheduled recovery alerts at fixed 5-hour or weekly quota reset times
 - **Weekly Cycle Activation (Beta)** — After weekly quota recovery, or when the weekly quota is detected at 100% remaining after a server-side reset, send one short Codex request to start the next weekly subscription cycle
+- **Scheduled 5-Hour Refresh (Beta)** — Start a fresh 5-hour window at a daily time with an ultra-short, Low-reasoning request; advanced settings support per-account schedules and lightweight model selection
 - **Auto Account Sync** — Automatically detect and add local Codex accounts on launch
 - **Claude Monitoring** — Import local Claude OAuth credentials, refresh rotated tokens, and show 5-hour/weekly limits
 - **Grok Monitoring** — Read local Grok billing data or the shared weekly quota from a grok.com browser session
