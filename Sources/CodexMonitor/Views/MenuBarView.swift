@@ -163,7 +163,7 @@ struct QuotaCardView: View {
 
             // Progress bar
             CompactProgressBar(percentage: usedPercent)
-                .opacity(isLimited ? 0.4 : 1.0)
+                .opacity(isLimited ? 0.65 : 1.0)
 
             // Reset time
             if !resetTimeText.isEmpty {
@@ -177,8 +177,8 @@ struct QuotaCardView: View {
         .padding(10)
         .frame(height: 82)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .opacity(isLimited ? 0.55 : 1.0)
-        .saturation(isLimited ? 0.2 : 1.0)
+        .opacity(isLimited ? 0.78 : 1.0)
+        .saturation(isLimited ? 0.6 : 1.0)
         .background(isLimited ? Color.red.opacity(0.03) : Color.primary.opacity(0.03))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
@@ -366,8 +366,8 @@ struct CreditsCardView: View {
         .padding(10)
         .frame(height: 82)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .opacity(isLimited ? 0.55 : 1.0)
-        .saturation(isLimited ? 0.2 : 1.0)
+        .opacity(isLimited ? 0.78 : 1.0)
+        .saturation(isLimited ? 0.6 : 1.0)
         .background(isLimited ? Color.red.opacity(0.03) : Color.primary.opacity(0.03))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
@@ -473,11 +473,10 @@ struct ResetCreditsCompactView: View {
     }
 }
 
-// MARK: - Limit Overlay View (shows limit type + reset time)
+// MARK: - Limit Overlay View (traditional frosted glass over quota progress only)
 
 struct LimitOverlayView: View {
     let usage: UsageResponse
-    let resetCredits: RateLimitResetCredits?
     var resetTimeFormat: ResetTimeFormat = .relative
     @ObservedObject var localeManager = LocaleManager.shared
 
@@ -566,11 +565,6 @@ struct LimitOverlayView: View {
         }
     }
 
-    private var resetCreditText: String? {
-        guard let resetCredits, resetCredits.availableCount > 0 else { return nil }
-        return L10n.resetCreditsAvailable(count: resetCredits.availableCount)
-    }
-
     private func limitLabel(seconds: Int) -> String {
         let hours = seconds / 3600
         if hours >= 168 {
@@ -581,47 +575,39 @@ struct LimitOverlayView: View {
     }
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.ultraThinMaterial.opacity(0.7))
-
-            VStack(spacing: 4) {
-                ForEach(limitLabels, id: \.self) { label in
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color(hex: "ff3b30"))
-                        Text(label)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color(hex: "ff3b30"))
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(Color(hex: "ff3b30").opacity(0.1))
-                    .clipShape(Capsule())
+        VStack(spacing: 4) {
+            ForEach(limitLabels, id: \.self) { label in
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(hex: "ff3b30"))
+                    Text(label)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color(hex: "ff3b30"))
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(Color(hex: "ff3b30").opacity(0.1))
+                .clipShape(Capsule())
+            }
 
-                if let resetText = resetTimeText {
-                    Text(resetText)
-                        .font(.system(size: 11, weight: .medium).monospacedDigit())
-                        .foregroundStyle(Color(hex: "ff3b30").opacity(0.7))
-                        .padding(.top, 2)
-                }
-
-                if let resetCreditText {
-                    HStack(spacing: 5) {
-                        Image(systemName: "arrow.counterclockwise.circle.fill")
-                            .font(.system(size: 10, weight: .semibold))
-                        Text(resetCreditText)
-                            .font(.system(size: 10.5, weight: .medium).monospacedDigit())
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                    }
-                    .foregroundStyle(Color.orange.opacity(0.85))
-                    .padding(.top, 1)
-                }
+            if let resetText = resetTimeText {
+                Text(resetText)
+                    .font(.system(size: 11, weight: .medium).monospacedDigit())
+                    .foregroundStyle(Color(hex: "ff3b30").opacity(0.7))
+                    .padding(.top, 2)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            .ultraThinMaterial.opacity(0.62),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -757,14 +743,14 @@ struct MenuBarView: View {
 
                             Text(account.name)
                                 .font(.system(size: 11, weight: limited ? .semibold : .medium))
-                                .foregroundStyle(limited ? Color.secondary.opacity(0.5) : Color.secondary)
-                                .strikethrough(limited, color: Color.secondary.opacity(0.5))
+                                .foregroundStyle(limited ? Color.secondary.opacity(0.68) : Color.secondary)
+                                .strikethrough(limited, color: Color.secondary.opacity(0.45))
                                 .lineLimit(1)
 
                             if let usageResult, case .success(let usage) = usageResult {
                                 Text(providerPlanLabel(account: account, usage: usage))
                                     .font(.system(size: 11.5, weight: .medium))
-                                    .foregroundStyle(limited ? Color.secondary.opacity(0.4) : Color.orange)
+                                    .foregroundStyle(limited ? Color.secondary.opacity(0.58) : Color.orange)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
                                     .background((limited ? Color.secondary : Color.orange).opacity(limited ? 0.06 : 0.12))
@@ -790,6 +776,17 @@ struct MenuBarView: View {
                                     )
                                     .padding(.horizontal, 8)
                                     .padding(.bottom, 8)
+                                    .blur(radius: limited ? 1.5 : 0)
+                                    .overlay {
+                                        if limited {
+                                            LimitOverlayView(
+                                                usage: usage,
+                                                resetTimeFormat: resetTimeFormat
+                                            )
+                                            .padding(.horizontal, 8)
+                                            .padding(.bottom, 8)
+                                        }
+                                    }
 
                                     if let resetCredits {
                                         Divider().opacity(0.25)
@@ -825,24 +822,16 @@ struct MenuBarView: View {
                     .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(Color.primary.opacity(0.075), lineWidth: 0.5)
-
-                            if limited, let usageResult, case .success(let usage) = usageResult {
-                                LimitOverlayView(
-                                    usage: usage,
-                                    resetCredits: resetCredits,
-                                    resetTimeFormat: resetTimeFormat
-                                )
-                            }
-                        }
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.075), lineWidth: 0.5)
+                            .allowsHitTesting(false)
                     }
                 }
             }
             .padding(12)
             .animation(.easeInOut(duration: 0.3), value: accountStore.accounts.count)
         }
+        .menuBarScrollEdgeTreatment()
     }
 
     private var formattedRefreshTime: String {
@@ -917,6 +906,17 @@ struct MenuBarView: View {
         .padding(.top, 9)
         .padding(.bottom, 8)
         .background(Color.primary.opacity(0.01))
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func menuBarScrollEdgeTreatment() -> some View {
+        if #available(macOS 26.0, *) {
+            scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            self
+        }
     }
 }
 
