@@ -21,3 +21,10 @@ This release makes weekly Codex quota activation reliable across every saved acc
 
 - Keeps banked reset-credit controls interactive when the quota-limit overlay is visible.
 - Preserves the existing menu and account-card appearance while limiting the visual treatment to the exhausted quota area.
+
+## Settings
+
+- Uses native semantic macOS colors throughout the settings window, including proper dark-mode support.
+- Replaces free-form refresh-time inputs with compact 15-minute interval menus.
+- Improves model-loading feedback and provides a direct retry action when the catalog is unavailable.
+- Keeps provider, action, and About icons legible across light and dark appearances.

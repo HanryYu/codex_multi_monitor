@@ -22,3 +22,5 @@ credentials/
 *.secrets
 secrets.json
 credentials.json
+# Local agent instructions
+AGENTS.md

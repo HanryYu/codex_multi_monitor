@@ -2,6 +2,17 @@ import SwiftUI
 import AppKit
 import UserNotifications
 
+private enum SettingsPalette {
+    static let canvas = Color(nsColor: .windowBackgroundColor)
+    static let surface = Color(nsColor: .controlBackgroundColor)
+    static let primaryText = Color(nsColor: .labelColor)
+    static let secondaryText = Color(nsColor: .secondaryLabelColor)
+    static let tertiaryText = Color(nsColor: .tertiaryLabelColor)
+    static let border = Color(nsColor: .separatorColor)
+    static let subtleFill = Color.primary.opacity(0.055)
+    static let selectedFill = Color.primary.opacity(0.075)
+}
+
 // MARK: - Unified Settings Window
 
 struct UnifiedSettingsView: View {
@@ -55,7 +66,7 @@ struct UnifiedSettingsView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.white)
+                .background(SettingsPalette.canvas)
             }
 
             TrafficLightsView()
@@ -63,11 +74,11 @@ struct UnifiedSettingsView: View {
                 .padding(.leading, 16)
         }
         .frame(width: 540, height: 640)
-        .background(Color.white)
+        .background(SettingsPalette.canvas)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.black.opacity(0.08), lineWidth: 0.5)
+                .stroke(SettingsPalette.border, lineWidth: 0.5)
         }
         .onChange(of: localeManager.currentLanguage) { _, _ in
             if let window = NSApp.windows.first(where: {
@@ -102,12 +113,12 @@ struct SettingsTopToolbar: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
                     }
-                    .foregroundStyle(selectedTab == tab ? Color(hex: "111827") : Color(hex: "6B7280"))
+                    .foregroundStyle(selectedTab == tab ? SettingsPalette.primaryText : SettingsPalette.secondaryText)
                     .frame(width: 64, height: 52)
                     .background {
                         if selectedTab == tab {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color(hex: "F3F4F6").opacity(0.9))
+                                .fill(SettingsPalette.selectedFill)
                         }
                     }
                 }
@@ -118,7 +129,7 @@ struct SettingsTopToolbar: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 24)
         .padding(.bottom, 12)
-        .background(Color.white)
+        .background(SettingsPalette.canvas)
     }
 }
 
@@ -164,7 +175,7 @@ struct AccountManagementContentView: View {
             HStack(alignment: .center) {
                 Text(L10n.monitoredAccountList)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color(hex: "1F2937"))
+                    .foregroundStyle(SettingsPalette.primaryText)
 
                 Spacer()
 
@@ -229,7 +240,7 @@ struct AccountManagementContentView: View {
                 }
             }
         }
-        .background(Color.white)
+        .background(SettingsPalette.canvas)
         .sheet(isPresented: $showingAddForm) {
             AddAccountSheet(accountStore: accountStore, isPresented: $showingAddForm)
         }
@@ -285,7 +296,7 @@ struct AccountManagementContentView: View {
                     )
                 }
             }
-            return AccountSettingsStatus(text: "—", color: Color(hex: "9CA3AF"))
+            return AccountSettingsStatus(text: "—", color: SettingsPalette.secondaryText)
         case .failure:
             return AccountSettingsStatus(text: "!", color: Color(hex: "EF4444"))
         }
@@ -308,7 +319,7 @@ private struct AccountSettingsRow: View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 Circle()
-                    .fill(Color(hex: "F3F4F6"))
+                    .fill(SettingsPalette.subtleFill)
                     .frame(width: 36, height: 36)
                     .overlay {
                         ProviderIconView(provider: account.provider, size: 19)
@@ -317,13 +328,13 @@ private struct AccountSettingsRow: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(primaryLabel)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color(hex: "111827"))
+                        .foregroundStyle(SettingsPalette.primaryText)
                         .lineLimit(1)
                         .truncationMode(.middle)
 
                     Text(detailLabel)
                         .font(.system(size: 11).monospaced())
-                        .foregroundStyle(Color(hex: "9CA3AF"))
+                        .foregroundStyle(SettingsPalette.secondaryText)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -345,7 +356,7 @@ private struct AccountSettingsRow: View {
                             .frame(width: 26, height: 26)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Color(hex: "9CA3AF"))
+                    .foregroundStyle(SettingsPalette.secondaryText)
                     .help(L10n.editAccount)
 
                     Button(action: deleteAction) {
@@ -354,16 +365,16 @@ private struct AccountSettingsRow: View {
                             .frame(width: 26, height: 26)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Color(hex: "9CA3AF"))
+                    .foregroundStyle(SettingsPalette.secondaryText)
                     .help(L10n.deleteAccount)
                 }
                 .padding(.horizontal, 5)
                 .padding(.vertical, 2)
-                .background(Color(hex: "F9FAFB"))
+                .background(SettingsPalette.subtleFill)
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(Color(hex: "E5E7EB"), lineWidth: 0.5)
+                        .stroke(SettingsPalette.border, lineWidth: 0.5)
                 }
             }
             .padding(.vertical, 14)
@@ -442,7 +453,7 @@ struct PreferencesContentView: View {
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
-        .background(Color.white)
+        .background(SettingsPalette.canvas)
         .onAppear {
             loadPreferences()
         }
@@ -505,7 +516,7 @@ struct PreferencesContentView: View {
                     HStack {
                         Text(L10n.usageAlertThreshold)
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Color(hex: "4B5563"))
+                            .foregroundStyle(SettingsPalette.secondaryText)
 
                         Spacer()
 
@@ -522,7 +533,7 @@ struct PreferencesContentView: View {
 
                     Text(L10n.usageAlertThresholdDesc)
                         .font(.system(size: 10))
-                        .foregroundStyle(Color(hex: "9CA3AF"))
+                        .foregroundStyle(SettingsPalette.tertiaryText)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -556,7 +567,7 @@ struct PreferencesContentView: View {
             if let notificationTestStatus {
                 Text(notificationTestStatus)
                     .font(.system(size: 10))
-                    .foregroundStyle(notificationNeedsSettings ? Color.red : Color(hex: "6B7280"))
+                    .foregroundStyle(notificationNeedsSettings ? Color.red : SettingsPalette.secondaryText)
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -610,7 +621,7 @@ struct PreferencesContentView: View {
             HStack(alignment: .center, spacing: 16) {
                 Text(L10n.language)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color(hex: "1F2937"))
+                    .foregroundStyle(SettingsPalette.primaryText)
 
                 Spacer(minLength: 12)
 
@@ -646,8 +657,7 @@ struct PreferencesContentView: View {
                 HStack {
                     SettingTextBlock(title: L10n.refreshTimeLabel, description: L10n.refreshTimeDesc)
                     Spacer()
-                    DatePicker("", selection: $fiveHourRefreshTime, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
+                    SettingsTimePicker(selection: $fiveHourRefreshTime)
                         .onChange(of: fiveHourRefreshTime) { _, value in
                             FiveHourQuotaRefreshSettings.setTime(value, for: nil)
                             if wakeMacForRefresh, !MacWakeScheduler.configure(for: value, enabled: true) {
@@ -690,20 +700,28 @@ struct PreferencesContentView: View {
                     HStack {
                         SettingTextBlock(title: L10n.refreshModelLabel, description: L10n.refreshModelDesc)
                         Spacer()
-                        if cloudModels.isEmpty {
-                            Text(L10n.modelCacheUnavailable).font(.system(size: 11)).foregroundStyle(.secondary)
+                        if isLoadingModels {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text(L10n.loadingModels)
+                                .font(.system(size: 11))
+                                .foregroundStyle(SettingsPalette.secondaryText)
+                        } else if cloudModels.isEmpty {
+                            SettingsActionButton(title: L10n.refreshModels) {
+                                Task { await loadCloudModels() }
+                            }
                         } else {
                             SettingsDropdown(selection: $fiveHourRefreshModel, options: cloudModels.map { .init(label: $0.displayName, value: $0.slug) })
                                 .onChange(of: fiveHourRefreshModel) { _, value in UserDefaults.standard.set(value, forKey: PreferencesKeys.fiveHourRefreshModel) }
-                        }
-                        SettingsActionButton(title: isLoadingModels ? L10n.loadingModels : L10n.refreshModels, disabled: isLoadingModels) {
-                            Task { await loadCloudModels() }
+                            SettingsActionButton(title: L10n.refreshModels) {
+                                Task { await loadCloudModels() }
+                            }
                         }
                     }
                     .padding(.leading, 24)
 
                     if let modelSourceText {
-                        Text(modelSourceText).font(.system(size: 10)).foregroundStyle(Color(hex: "9CA3AF")).padding(.leading, 24)
+                        Text(modelSourceText).font(.system(size: 10)).foregroundStyle(SettingsPalette.tertiaryText).padding(.leading, 24)
                     }
 
                     ForEach(accountStore.accounts.filter { $0.provider == .codex }) { account in
@@ -717,7 +735,10 @@ struct PreferencesContentView: View {
                             )).labelsHidden()
                             Text(account.name).font(.system(size: 12, weight: .medium)).lineLimit(1)
                             Spacer()
-                            DatePicker("", selection: Binding(get: { FiveHourQuotaRefreshSettings.time(for: account.id) }, set: { FiveHourQuotaRefreshSettings.setTime($0, for: account.id) }), displayedComponents: .hourAndMinute).labelsHidden()
+                            SettingsTimePicker(selection: Binding(
+                                get: { FiveHourQuotaRefreshSettings.time(for: account.id) },
+                                set: { FiveHourQuotaRefreshSettings.setTime($0, for: account.id) }
+                            ))
                         }
                         .padding(.leading, 24)
                     }
@@ -744,7 +765,7 @@ struct PreferencesContentView: View {
                 }
             }
             .font(.system(size: 10))
-            .foregroundStyle(Color(hex: "9CA3AF"))
+            .foregroundStyle(SettingsPalette.tertiaryText)
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.leading, 24)
@@ -988,12 +1009,12 @@ struct AboutSettingsContentView: View {
 
             Text("Codex Monitor")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(Color(hex: "1F2937"))
+                .foregroundStyle(SettingsPalette.primaryText)
                 .padding(.top, 20)
 
             Text(L10n.aboutVersion(version: AppVersion.current))
                 .font(.system(size: 12))
-                .foregroundStyle(Color(hex: "6B7280"))
+                .foregroundStyle(SettingsPalette.secondaryText)
                 .padding(.top, 4)
 
             HStack(spacing: 10) {
@@ -1026,16 +1047,16 @@ struct AboutSettingsContentView: View {
                     Text("2026 Ryan Hansen")
                     Text("·")
                     Link("GPL v3.0", destination: licenseURL)
-                        .foregroundStyle(Color(hex: "6B7280"))
+                        .foregroundStyle(SettingsPalette.secondaryText)
                 }
             }
             .font(.system(size: 11))
-            .foregroundStyle(Color(hex: "9CA3AF"))
+            .foregroundStyle(SettingsPalette.tertiaryText)
             .multilineTextAlignment(.center)
             .padding(.bottom, 28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.white)
+        .background(SettingsPalette.canvas)
     }
 
     private var aboutAppIcon: NSImage {
@@ -1073,6 +1094,7 @@ private struct AboutIconLinkButton: View {
                        let image = NSImage(contentsOf: url) {
                         Image(nsImage: image)
                             .resizable()
+                            .renderingMode(.template)
                             .scaledToFit()
                             .frame(width: 19, height: 19)
                     } else {
@@ -1081,13 +1103,13 @@ private struct AboutIconLinkButton: View {
                     }
                 }
             }
-            .foregroundStyle(Color(hex: "374151"))
+            .foregroundStyle(SettingsPalette.primaryText)
             .frame(width: 42, height: 42)
-            .background(Color(hex: "F9FAFB"))
+            .background(SettingsPalette.surface)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color(hex: "E5E7EB"), lineWidth: 0.7)
+                    .stroke(SettingsPalette.border, lineWidth: 0.7)
             }
         }
         .buttonStyle(.plain)
@@ -1113,17 +1135,17 @@ struct SettingGroupCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color(hex: "F3F4F6"))
+                    .fill(SettingsPalette.subtleFill)
                     .frame(width: 24, height: 24)
                     .overlay {
                         Image(systemName: systemImage)
                             .font(.system(size: 14, weight: .regular))
-                            .foregroundStyle(Color(hex: "4B5563"))
+                            .foregroundStyle(SettingsPalette.secondaryText)
                     }
 
                 Text(label)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color(hex: "111827"))
+                    .foregroundStyle(SettingsPalette.primaryText)
             }
             .padding(.leading, 1)
 
@@ -1132,11 +1154,11 @@ struct SettingGroupCard<Content: View>: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(hex: "F9FAFB").opacity(0.72))
+            .background(SettingsPalette.surface.opacity(0.72))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color(hex: "E5E7EB").opacity(0.8), lineWidth: 0.6)
+                    .stroke(SettingsPalette.border, lineWidth: 0.6)
             }
         }
         .padding(.bottom, 24)
@@ -1156,11 +1178,11 @@ struct SettingsCheckbox: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(isChecked ? Color(hex: "3B82F6") : Color.white)
+                        .fill(isChecked ? Color(hex: "3B82F6") : SettingsPalette.surface)
                         .frame(width: 16, height: 16)
                         .overlay {
                             RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .stroke(isChecked ? Color(hex: "3B82F6") : Color(hex: "D1D5DB"), lineWidth: 1)
+                                .stroke(isChecked ? Color(hex: "3B82F6") : SettingsPalette.border, lineWidth: 1)
                         }
                         .overlay {
                             if isChecked {
@@ -1172,17 +1194,17 @@ struct SettingsCheckbox: View {
 
                     Text(title)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Color(hex: "1F2937"))
+                        .foregroundStyle(SettingsPalette.primaryText)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let badge {
                         Text(badge)
                             .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(Color(hex: "2563EB"))
+                            .foregroundStyle(Color.accentColor)
                             .padding(.horizontal, 6)
                             .frame(height: 16)
-                            .background(Color(hex: "DBEAFE"))
+                            .background(Color.accentColor.opacity(0.14))
                             .clipShape(Capsule())
                     }
                 }
@@ -1190,7 +1212,7 @@ struct SettingsCheckbox: View {
                 if let description, !description.isEmpty {
                     Text(description)
                         .font(.system(size: 11))
-                        .foregroundStyle(Color(hex: "6B7280"))
+                        .foregroundStyle(SettingsPalette.secondaryText)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, 24)
@@ -1210,14 +1232,14 @@ struct SettingTextBlock: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color(hex: "1F2937"))
+                .foregroundStyle(SettingsPalette.primaryText)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let description, !description.isEmpty {
                 Text(description)
                     .font(.system(size: 11))
-                    .foregroundStyle(Color(hex: "6B7280"))
+                    .foregroundStyle(SettingsPalette.secondaryText)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -1243,7 +1265,7 @@ struct SettingsSegmentedControl<Value: Hashable>: View {
                 } label: {
                     Text(option.label)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(selection == option.value ? Color(hex: "111827") : Color(hex: "6B7280"))
+                        .foregroundStyle(selection == option.value ? SettingsPalette.primaryText : SettingsPalette.secondaryText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
                         .padding(.horizontal, 13)
@@ -1251,11 +1273,11 @@ struct SettingsSegmentedControl<Value: Hashable>: View {
                         .background {
                             if selection == option.value {
                                 RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                    .fill(Color.white)
+                                    .fill(SettingsPalette.surface)
                                     .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
                                     .overlay {
                                         RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                            .stroke(Color(hex: "E5E7EB").opacity(0.8), lineWidth: 0.5)
+                                            .stroke(SettingsPalette.border, lineWidth: 0.5)
                                     }
                             }
                         }
@@ -1264,11 +1286,11 @@ struct SettingsSegmentedControl<Value: Hashable>: View {
             }
         }
         .padding(2)
-        .background(Color(hex: "F3F4F6"))
+        .background(SettingsPalette.subtleFill)
         .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(Color(hex: "E5E7EB").opacity(0.65), lineWidth: 0.6)
+                .stroke(SettingsPalette.border, lineWidth: 0.6)
         }
     }
 }
@@ -1286,9 +1308,50 @@ struct SettingsDropdown<Value: Hashable>: View {
         .pickerStyle(.menu)
         .labelsHidden()
         .font(.system(size: 12, weight: .medium))
+        .controlSize(.small)
         .frame(width: 118)
-        .background(Color(hex: "F3F4F6"))
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+}
+
+struct SettingsTimePicker: View {
+    @Binding var selection: Date
+
+    private var selectedMinutes: Binding<Int> {
+        Binding(
+            get: {
+                let components = Calendar.current.dateComponents([.hour, .minute], from: selection)
+                return (components.hour ?? 0) * 60 + (components.minute ?? 0)
+            },
+            set: { value in
+                selection = Calendar.current.date(
+                    bySettingHour: value / 60,
+                    minute: value % 60,
+                    second: 0,
+                    of: selection
+                ) ?? selection
+            }
+        )
+    }
+
+    var body: some View {
+        Picker("", selection: selectedMinutes) {
+            ForEach(Array(stride(from: 0, to: 24 * 60, by: 15)), id: \.self) { minutes in
+                Text(timeLabel(minutes: minutes)).tag(minutes)
+            }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
+        .font(.system(size: 12, weight: .medium).monospacedDigit())
+        .controlSize(.small)
+        .frame(width: 104)
+    }
+
+    private func timeLabel(minutes: Int) -> String {
+        let date = Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter.string(from: date)
     }
 }
 
@@ -1301,16 +1364,16 @@ struct SettingsActionButton: View {
         Button(action: disabled ? {} : action) {
             Text(title)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(disabled ? Color(hex: "9CA3AF") : Color(hex: "1F2937"))
+                .foregroundStyle(disabled ? SettingsPalette.tertiaryText : SettingsPalette.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
                 .padding(.horizontal, 13)
                 .frame(height: 32)
-                .background(disabled ? Color(hex: "F9FAFB") : Color(hex: "F3F4F6"))
+                .background(disabled ? SettingsPalette.surface.opacity(0.55) : SettingsPalette.subtleFill)
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(disabled ? Color(hex: "F3F4F6") : Color(hex: "E5E7EB"), lineWidth: 0.8)
+                        .stroke(SettingsPalette.border.opacity(disabled ? 0.45 : 1), lineWidth: 0.8)
                 }
         }
         .buttonStyle(.plain)
