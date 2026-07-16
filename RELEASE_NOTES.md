@@ -1,27 +1,23 @@
-# CodexMonitor 0.7.1
+# CodexMonitor 0.7.2
 
-This release adds scheduled Codex quota activation and refines the multi-provider menu bar experience.
+This release makes weekly Codex quota activation reliable across every saved account and keeps reset controls usable when a quota is exhausted.
 
-## Scheduled 5-hour quota refresh (Beta)
+## Smarter weekly quota activation
 
-- Starts a fresh 5-hour Codex quota window at a user-selected daily time.
-- Uses the minimal prompt `Reply only: hi` with reasoning fixed to Low.
-- Supports per-account enablement and schedules in Advanced Settings.
-- Loads the current model list through Codex App Server, with Codex's last synced model catalog as a fallback.
-- Prefers the lightweight Mini model by default when available.
-- Requires automatic Mac wake so refresh requests can run while the computer would otherwise be asleep.
-- Uses isolated per-account Codex authentication and persistent daily deduplication.
-
-## Interface improvements
-
-- Groups the 5-hour refresh and weekly quota cycle controls into a clearly labeled Beta section.
-- Adds concise localized explanations in English, Japanese, Simplified Chinese, and Traditional Chinese.
-- Displays Codex, Claude, and Grok provider icons with consistent circular crops.
-- Simplifies menu bar card hierarchy by removing redundant shadows, dividers, and nested borders while preserving the existing colors.
-- Adds a cumulative GitHub Release download-count badge to all README variants.
+- Activates every saved Codex account that has a complete captured auth bundle, rather than relying on the currently signed-in account.
+- Detects normal weekly reset-time changes and usage returning from a nonzero value to `0%`.
+- Detects the newer API behavior where `secondary_window` disappears after an official weekly reset instead of returning `used_percent: 0`.
+- Reuses previously captured per-account auth bundles even when automatic import is later disabled.
+- Refreshes all account usage shortly after successful activation so the menu reflects the latest server state.
 
 ## Reliability
 
-- Adds a grace period after wake so scheduled requests are not missed during system resume.
-- Prevents the refresh feature from remaining enabled when automatic wake cannot be configured.
-- Avoids overwriting an existing repeating macOS power schedule.
+- Records a weekly reset as handled only after the isolated Codex request succeeds.
+- Retries failed activations and prevents duplicate requests for the same account while one is already running.
+- Migrates away from stale activation state written by older versions before a request had actually completed.
+- Avoids sending a second activation request when the weekly window returns with its new reset time.
+
+## Menu bar
+
+- Keeps banked reset-credit controls interactive when the quota-limit overlay is visible.
+- Preserves the existing menu and account-card appearance while limiting the visual treatment to the exhausted quota area.

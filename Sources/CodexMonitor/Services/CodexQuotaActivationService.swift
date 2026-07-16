@@ -10,7 +10,7 @@ actor CodexQuotaActivationService {
 
     private static let prompt = "Reply only: hi"
     private static let activationTimeout: TimeInterval = 120
-    private var lastActivationAtByAccountID: [String: Date] = [:]
+    private var activatingAccountIDs: Set<String> = []
 
     nonisolated static func availability() -> Availability {
         guard codexExecutableURL() != nil else { return .codexNotFound }
@@ -30,29 +30,32 @@ actor CodexQuotaActivationService {
         authBundleData(for: account) != nil
     }
 
-    func activate(account: Account) async {
-        guard UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled) else { return }
+    @discardableResult
+    func activate(account: Account) async -> Bool {
+        guard UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled) else { return false }
 
         guard let accountID = account.accountID else {
             print("[CodexMonitor] Quota activation skipped: account has no Codex account ID")
-            return
+            return false
         }
 
         guard let authBundleData = Self.authBundleData(for: account) else {
             print("[CodexMonitor] Quota activation skipped: no full Codex auth bundle saved for " + account.name)
-            return
+            return false
         }
 
-        if let lastActivationAt = lastActivationAtByAccountID[accountID],
-           Date().timeIntervalSince(lastActivationAt) < 300 {
-            print("[CodexMonitor] Quota activation skipped: account was activated within the last 5 minutes")
-            return
+        guard !activatingAccountIDs.contains(accountID) else {
+            print("[CodexMonitor] Quota activation skipped: request already in progress for " + account.name)
+            return false
         }
 
         guard let executableURL = Self.codexExecutableURL() else {
             print("[CodexMonitor] Quota activation skipped: Codex CLI was not found")
-            return
+            return false
         }
+
+        activatingAccountIDs.insert(accountID)
+        defer { activatingAccountIDs.remove(accountID) }
 
         let result = await Self.runCodex(
             executableURL: executableURL,
@@ -61,13 +64,14 @@ actor CodexQuotaActivationService {
             model: nil
         )
         if result.succeeded {
-            lastActivationAtByAccountID[accountID] = Date()
             if let refreshedAuthBundleData = result.refreshedAuthBundleData {
                 CodexAuthBundleStore.save(accountID: account.id, authJSONData: refreshedAuthBundleData)
             }
             print("[CodexMonitor] Quota activation request completed for " + account.name)
+            return true
         } else {
             print("[CodexMonitor] Quota activation request failed for " + account.name)
+            return false
         }
     }
 
@@ -89,8 +93,9 @@ actor CodexQuotaActivationService {
     private nonisolated static func authBundleData(for account: Account) -> Data? {
         let autoImportEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.autoImportEnabled)
 
-        if autoImportEnabled,
-           let savedData = CodexAuthBundleStore.load(accountID: account.id),
+        // Auto import controls whether new local credentials are captured. A bundle that was
+        // already captured belongs to this saved account and remains usable for activation.
+        if let savedData = CodexAuthBundleStore.load(accountID: account.id),
            accountID(fromAuthBundleData: savedData)?.caseInsensitiveCompare(account.accountID ?? "") == .orderedSame {
             return savedData
         }
