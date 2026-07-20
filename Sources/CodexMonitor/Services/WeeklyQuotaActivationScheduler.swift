@@ -46,7 +46,8 @@ final class WeeklyQuotaActivationScheduler {
     }
 
     private func refreshIfStale() {
-        guard let accountStore,
+        guard UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled),
+              let accountStore,
               accountStore.accounts.contains(where: { $0.provider == .codex })
         else { return }
 

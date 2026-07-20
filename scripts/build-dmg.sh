@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="CodexMonitor"
 DMG_NAME="CodexMonitor"
-VERSION="${1:-0.7.3}"
+VERSION="${1:-0.7.4}"
 BUNDLE_ID="com.henry.codex-monitor"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-}"
 MAC_PROVISIONING_PROFILE="${MAC_PROVISIONING_PROFILE:-}"

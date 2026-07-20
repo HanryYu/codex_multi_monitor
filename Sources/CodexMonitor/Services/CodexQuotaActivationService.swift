@@ -31,7 +31,14 @@ actor CodexQuotaActivationService {
     }
 
     @discardableResult
-    func activate(account: Account) async -> Bool {
+    func activate(
+        account: Account,
+        allowWhenAutomaticActivationIsDisabled: Bool = false
+    ) async -> Bool {
+        guard allowWhenAutomaticActivationIsDisabled
+                || UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled)
+        else { return false }
+
         guard let accountID = account.accountID else {
             print("[CodexMonitor] Quota activation skipped: account has no Codex account ID")
             return false

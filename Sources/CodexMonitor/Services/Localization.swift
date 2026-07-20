@@ -1318,10 +1318,6 @@ enum L10n {
         }
     }
 
-    static var quotaActivationAlwaysOn: String {
-        localized("Always on", "常にオン", "始终开启", "始終開啟")
-    }
-
     static var quotaActivationScopeNote: String {
         switch lang {
         case .en:    return "After a successful request, that account is scheduled again in 7 days. Auto Import Local Accounts is required to retain every switched login."

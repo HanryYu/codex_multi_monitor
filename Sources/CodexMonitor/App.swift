@@ -33,6 +33,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         UserDefaults.standard.register(defaults: [
             PreferencesKeys.usageWarningNotificationEnabled: true,
             PreferencesKeys.recoveryNotificationEnabled: true,
+            PreferencesKeys.quotaActivationEnabled: false,
             PreferencesKeys.autoImportEnabled: true,
             PreferencesKeys.automaticUpdatesEnabled: true,
             PreferencesKeys.alertThreshold: 80,

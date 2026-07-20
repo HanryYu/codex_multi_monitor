@@ -425,6 +425,7 @@ struct PreferencesContentView: View {
     @State private var autoImportEnabled: Bool = false
     @State private var usageWarningNotificationEnabled: Bool = true
     @State private var recoveryNotificationEnabled: Bool = true
+    @State private var quotaActivationEnabled: Bool = false
     @State private var isRefreshingFullWeeklyQuota = false
     @State private var manualWeeklyRefreshStatus: String?
     @State private var manualWeeklyRefreshFailed = false
@@ -750,21 +751,17 @@ struct PreferencesContentView: View {
 
             CardDivider()
 
-            HStack(alignment: .top, spacing: 12) {
-                SettingTextBlock(
-                    title: L10n.quotaActivationLabel,
-                    description: L10n.quotaActivationDesc
-                )
-
-                Spacer(minLength: 12)
-
-                Text(L10n.quotaActivationAlwaysOn)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.green)
-                    .padding(.horizontal, 9)
-                    .frame(height: 24)
-                    .background(Color.green.opacity(0.1))
-                    .clipShape(Capsule())
+            SettingsCheckbox(
+                title: L10n.quotaActivationLabel,
+                description: L10n.quotaActivationDesc,
+                badge: "Beta",
+                isChecked: $quotaActivationEnabled
+            )
+            .onChange(of: quotaActivationEnabled) { _, newValue in
+                UserDefaults.standard.set(newValue, forKey: PreferencesKeys.quotaActivationEnabled)
+                if newValue {
+                    Task { await accountStore.refreshAll() }
+                }
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -892,6 +889,7 @@ struct PreferencesContentView: View {
         let recoveryVal = UserDefaults.standard.object(forKey: PreferencesKeys.recoveryNotificationEnabled) as? Bool
         recoveryNotificationEnabled = recoveryVal ?? true
 
+        quotaActivationEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled)
         fiveHourRefreshEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.fiveHourRefreshEnabled)
         fiveHourRefreshTime = FiveHourQuotaRefreshSettings.time(for: nil)
         fiveHourRefreshAdvanced = UserDefaults.standard.bool(forKey: PreferencesKeys.fiveHourRefreshAdvanced)

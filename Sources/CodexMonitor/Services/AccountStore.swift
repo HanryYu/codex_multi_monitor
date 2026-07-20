@@ -428,7 +428,10 @@ class AccountStore: ObservableObject {
         await withTaskGroup(of: WeeklyQuotaActivationExecutionResult.self) { group in
             for request in requests {
                 group.addTask {
-                    let succeeded = await CodexQuotaActivationService.shared.activate(account: request.account)
+                    let succeeded = await CodexQuotaActivationService.shared.activate(
+                        account: request.account,
+                        allowWhenAutomaticActivationIsDisabled: true
+                    )
                     return WeeklyQuotaActivationExecutionResult(
                         request: request,
                         succeeded: succeeded
@@ -721,6 +724,8 @@ class AccountStore: ObservableObject {
         ) {
         case .scheduled:
             break
+        case .disabled:
+            return
         case .missingAuthBundle:
             return
         }
@@ -734,6 +739,10 @@ class AccountStore: ObservableObject {
         reason: String,
         requests: inout [WeeklyQuotaActivationRequest]
     ) -> WeeklyQuotaActivationScheduleResult {
+        guard UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled) else {
+            return .disabled
+        }
+
         guard CodexQuotaActivationService.hasUsableAuthBundle(for: account) else {
             print("[CodexMonitor] Weekly quota activation pending for \(account.name): missing full Codex auth bundle")
             return .missingAuthBundle
@@ -1138,6 +1147,7 @@ private struct PersistedLimitState: Codable {
 
 private enum WeeklyQuotaActivationScheduleResult {
     case scheduled
+    case disabled
     case missingAuthBundle
 }
 
