@@ -1,30 +1,22 @@
-# CodexMonitor 0.7.2
+# CodexMonitor 0.7.3
 
-This release makes weekly Codex quota activation reliable across every saved account and keeps reset controls usable when a quota is exhausted.
+This release makes weekly quota activation self-maintaining and adds a manual action for refreshing every fully recovered Codex account.
 
-## Smarter weekly quota activation
+## Reliable automatic weekly activation
 
-- Activates every saved Codex account that has a complete captured auth bundle, rather than relying on the currently signed-in account.
-- Detects normal weekly reset-time changes and usage returning from a nonzero value to `0%`.
-- Detects the newer API behavior where `secondary_window` disappears after an official weekly reset instead of returning `used_percent: 0`.
-- Reuses previously captured per-account auth bundles even when automatic import is later disabled.
-- Refreshes all account usage shortly after successful activation so the menu reflects the latest server state.
+- Weekly activation is always enabled and can no longer be accidentally turned off.
+- Adds an independent hourly fallback check, including a catch-up check after the Mac wakes.
+- Persists a per-account next-check time seven days after every successful activation.
+- Combines the seven-day schedule with usage returning to `0%`, reset-time changes, and the official missing-weekly-window reset shape.
+- Sends an activation request only while the weekly quota is fully available, so a due schedule never consumes partially used quota.
 
-## Reliability
+## Manual refresh
 
-- Records a weekly reset as handled only after the isolated Codex request succeeds.
-- Retries failed activations and prevents duplicate requests for the same account while one is already running.
-- Migrates away from stale activation state written by older versions before a request had actually completed.
-- Avoids sending a second activation request when the weekly window returns with its new reset time.
+- Adds a Settings action that refreshes all saved Codex accounts currently showing 100% weekly quota remaining.
+- Runs eligible accounts concurrently and reports full success, partial failure, or no eligible accounts.
+- Uses each saved account's complete captured auth bundle instead of relying on the currently signed-in account.
 
-## Menu bar
+## Quota UI
 
 - Keeps banked reset-credit controls interactive when the quota-limit overlay is visible.
-- Preserves the existing menu and account-card appearance while limiting the visual treatment to the exhausted quota area.
-
-## Settings
-
-- Uses native semantic macOS colors throughout the settings window, including proper dark-mode support.
-- Replaces free-form refresh-time inputs with compact 15-minute interval menus.
-- Improves model-loading feedback and provides a direct retry action when the catalog is unavailable.
-- Keeps provider, action, and About icons legible across light and dark appearances.
+- Preserves the existing menu and account-card appearance while limiting the exhausted-state treatment to quota content.

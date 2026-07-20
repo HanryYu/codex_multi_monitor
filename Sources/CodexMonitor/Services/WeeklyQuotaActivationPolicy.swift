@@ -2,13 +2,14 @@ import Foundation
 
 enum WeeklyQuotaActivationTrigger: Equatable {
     case usageRestored(previousUsedPercent: Int)
+    case scheduledCycleDue
     case fullyReset
     case resetKeyChanged(previousResetKey: String)
     case weeklyWindowMissing
 
     var marksFullReset: Bool {
         switch self {
-        case .usageRestored, .fullyReset, .weeklyWindowMissing:
+        case .usageRestored, .scheduledCycleDue, .fullyReset, .weeklyWindowMissing:
             return true
         case .resetKeyChanged:
             return false
@@ -19,6 +20,8 @@ enum WeeklyQuotaActivationTrigger: Equatable {
         switch self {
         case .usageRestored(let previousUsedPercent):
             return "weekly usage restored \(previousUsedPercent)% -> 0%"
+        case .scheduledCycleDue:
+            return "stored seven-day weekly cycle is due"
         case .fullyReset:
             return "weekly quota is fully reset"
         case .resetKeyChanged(let previousResetKey):
@@ -31,6 +34,15 @@ enum WeeklyQuotaActivationTrigger: Equatable {
 
 enum WeeklyQuotaActivationPolicy {
     static let missingWindowResetKey = "weekly-window-missing"
+    static let cycleDuration: TimeInterval = 7 * 24 * 60 * 60
+
+    static func shouldManuallyActivate(
+        hasRateLimit: Bool,
+        weeklyUsedPercent: Int?
+    ) -> Bool {
+        guard hasRateLimit else { return false }
+        return weeklyUsedPercent == nil || weeklyUsedPercent == 0
+    }
 
     static func triggerForMissingWindow(
         previousResetKey: String?
@@ -48,7 +60,8 @@ enum WeeklyQuotaActivationPolicy {
         previousResetKey: String?,
         currentUsedPercent: Int?,
         previousUsedPercent: Int?,
-        fullActivationResetKey: String?
+        fullActivationResetKey: String?,
+        scheduledActivationIsDue: Bool = false
     ) -> WeeklyQuotaActivationTrigger? {
         if currentUsedPercent == 0,
            let previousUsedPercent,
@@ -56,16 +69,25 @@ enum WeeklyQuotaActivationPolicy {
             return .usageRestored(previousUsedPercent: previousUsedPercent)
         }
 
+        if currentUsedPercent == 0, scheduledActivationIsDue {
+            return .scheduledCycleDue
+        }
+
         if currentUsedPercent == 0,
            fullActivationResetKey != currentResetKey {
             return .fullyReset
         }
 
-        if let previousResetKey,
+        if currentUsedPercent == 0,
+           let previousResetKey,
            previousResetKey != currentResetKey {
             return .resetKeyChanged(previousResetKey: previousResetKey)
         }
 
         return nil
+    }
+
+    static func nextScheduledActivationTimestamp(after timestamp: TimeInterval) -> TimeInterval {
+        timestamp + cycleDuration
     }
 }

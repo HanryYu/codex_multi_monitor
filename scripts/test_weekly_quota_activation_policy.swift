@@ -32,8 +32,38 @@ struct WeeklyQuotaActivationPolicyTests {
                 currentUsedPercent: 18,
                 previousUsedPercent: 64,
                 fullActivationResetKey: "old-key"
-            ) == .resetKeyChanged(previousResetKey: "old-key"),
-            "reset-key changes must continue to trigger"
+            ) == nil,
+            "automatic activation must never spend a partially used weekly quota"
+        )
+
+        expect(
+            WeeklyQuotaActivationPolicy.trigger(
+                currentResetKey: "same-key",
+                previousResetKey: "same-key",
+                currentUsedPercent: 0,
+                previousUsedPercent: 0,
+                fullActivationResetKey: "same-key",
+                scheduledActivationIsDue: true
+            ) == .scheduledCycleDue,
+            "a persisted seven-day cycle must recover a missed reset signal"
+        )
+
+        expect(
+            WeeklyQuotaActivationPolicy.trigger(
+                currentResetKey: "same-key",
+                previousResetKey: "same-key",
+                currentUsedPercent: 1,
+                previousUsedPercent: 1,
+                fullActivationResetKey: "same-key",
+                scheduledActivationIsDue: true
+            ) == nil,
+            "a due schedule must wait until the weekly quota is fully available"
+        )
+
+        expect(
+            WeeklyQuotaActivationPolicy.nextScheduledActivationTimestamp(after: 1_000)
+                == 605_800,
+            "a successful activation must schedule the same account seven days later"
         )
 
         expect(
@@ -84,6 +114,38 @@ struct WeeklyQuotaActivationPolicyTests {
                 WeeklyQuotaActivationPolicy.missingWindowResetKey
             ),
             "a returned weekly window must be baselined after missing-window activation"
+        )
+
+        expect(
+            WeeklyQuotaActivationPolicy.shouldManuallyActivate(
+                hasRateLimit: true,
+                weeklyUsedPercent: 0
+            ),
+            "manual activation must include a 100%-remaining weekly window"
+        )
+
+        expect(
+            WeeklyQuotaActivationPolicy.shouldManuallyActivate(
+                hasRateLimit: true,
+                weeklyUsedPercent: nil
+            ),
+            "manual activation must include the official missing-window reset shape"
+        )
+
+        expect(
+            !WeeklyQuotaActivationPolicy.shouldManuallyActivate(
+                hasRateLimit: true,
+                weeklyUsedPercent: 1
+            ),
+            "manual activation must skip partially used weekly quota"
+        )
+
+        expect(
+            !WeeklyQuotaActivationPolicy.shouldManuallyActivate(
+                hasRateLimit: false,
+                weeklyUsedPercent: nil
+            ),
+            "manual activation must skip unavailable usage data"
         )
 
         print("WeeklyQuotaActivationPolicy tests passed")

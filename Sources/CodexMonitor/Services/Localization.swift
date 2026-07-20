@@ -1311,19 +1311,23 @@ enum L10n {
 
     static var quotaActivationDesc: String {
         switch lang {
-        case .en:    return "Sends one short request after recovery to start the next weekly subscription quota cycle"
-        case .ja:    return "回復後に短いリクエストを1回送信し、次の週間サブスクリプション上限サイクルを開始します"
-        case .zhHans: return "恢复后发送一次简短请求，启动新的周订阅额度周期"
-        case .zhHant: return "恢復後傳送一次簡短請求，啟動新的週訂閱額度週期"
+        case .en:    return "Checks at least hourly and sends one short request only when the weekly quota is 100% remaining"
+        case .ja:    return "少なくとも1時間ごとに確認し、週間クォータが 100% 残っている場合のみ短いリクエストを1回送信します"
+        case .zhHans: return "至少每小时检查一次，仅在周额度剩余 100% 时发送一次简短请求"
+        case .zhHant: return "至少每小時檢查一次，僅在每週額度剩餘 100% 時傳送一次簡短請求"
         }
+    }
+
+    static var quotaActivationAlwaysOn: String {
+        localized("Always on", "常にオン", "始终开启", "始終開啟")
     }
 
     static var quotaActivationScopeNote: String {
         switch lang {
-        case .en:    return "Enable Auto Import Local Accounts to capture every switched Codex login. Otherwise only the currently signed-in Codex account can be activated."
-        case .ja:    return "切り替えたすべての Codex ログインを保存するには、ローカルアカウント自動インポートを有効にしてください。無効時は現在サインイン中の Codex アカウントのみ開始できます。"
-        case .zhHans: return "需开启“自动导入本地账户”以捕获每次切换的完整 Codex 登录凭证；否则只能触发当前 Codex 已登录账号。"
-        case .zhHant: return "需開啟「自動匯入本地帳戶」以捕捉每次切換的完整 Codex 登入憑證；否則只能觸發目前 Codex 已登入帳戶。"
+        case .en:    return "After a successful request, that account is scheduled again in 7 days. Auto Import Local Accounts is required to retain every switched login."
+        case .ja:    return "成功後、そのアカウントは7日後に再度確認されます。切り替えたログインを保持するにはローカルアカウント自動インポートが必要です。"
+        case .zhHans: return "请求成功后会固定在 7 天后再次检查该账号；需开启“自动导入本地账户”以保留每次切换的完整登录凭证。"
+        case .zhHant: return "請求成功後會固定在 7 天後再次檢查該帳戶；需開啟「自動匯入本地帳戶」以保留每次切換的完整登入憑證。"
         }
     }
 
@@ -1334,6 +1338,59 @@ enum L10n {
         case .zhHans: return "本机未找到 Codex CLI。"
         case .zhHant: return "本機未找到 Codex CLI。"
         }
+    }
+
+    static var manualWeeklyRefreshLabel: String {
+        localized(
+            "Refresh full weekly quotas now",
+            "週間クォータが満量のアカウントを今すぐ更新",
+            "手动刷新周额度",
+            "手動重新整理每週額度"
+        )
+    }
+
+    static var manualWeeklyRefreshDesc: String {
+        localized(
+            "Send one short request only for Codex accounts with 100% weekly quota remaining",
+            "週間クォータが 100% 残っている Codex アカウントにのみ短いリクエストを1回送信します",
+            "仅向周额度剩余 100% 的 Codex 账号发送一次简短请求",
+            "僅向每週額度剩餘 100% 的 Codex 帳戶傳送一次簡短請求"
+        )
+    }
+
+    static var manualWeeklyRefreshButton: String {
+        localized("Refresh 100% accounts", "100% のアカウントを更新", "刷新 100% 账号", "重新整理 100% 帳戶")
+    }
+
+    static var manualWeeklyRefreshRunning: String {
+        localized("Refreshing…", "更新中…", "正在刷新…", "正在重新整理…")
+    }
+
+    static var manualWeeklyRefreshNone: String {
+        localized(
+            "No Codex account currently has 100% weekly quota remaining",
+            "週間クォータが 100% 残っている Codex アカウントはありません",
+            "当前没有周额度剩余 100% 的 Codex 账号",
+            "目前沒有每週額度剩餘 100% 的 Codex 帳戶"
+        )
+    }
+
+    static func manualWeeklyRefreshSucceeded(_ count: Int) -> String {
+        localized(
+            "Refreshed \(count) account(s)",
+            "\(count) 件のアカウントを更新しました",
+            "已刷新 \(count) 个账号",
+            "已重新整理 \(count) 個帳戶"
+        )
+    }
+
+    static func manualWeeklyRefreshPartial(succeeded: Int, total: Int) -> String {
+        localized(
+            "Refreshed \(succeeded) of \(total) accounts; the rest lacked complete credentials or the request failed",
+            "\(total) 件中 \(succeeded) 件を更新しました。残りは完全な認証情報がないか、リクエストに失敗しました",
+            "已刷新 \(succeeded)/\(total) 个账号，其余账号缺少完整凭证或请求失败",
+            "已重新整理 \(succeeded)/\(total) 個帳戶，其餘帳戶缺少完整憑證或請求失敗"
+        )
     }
 
     static var notificationTestSent: String {

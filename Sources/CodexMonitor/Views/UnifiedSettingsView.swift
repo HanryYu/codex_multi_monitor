@@ -425,7 +425,9 @@ struct PreferencesContentView: View {
     @State private var autoImportEnabled: Bool = false
     @State private var usageWarningNotificationEnabled: Bool = true
     @State private var recoveryNotificationEnabled: Bool = true
-    @State private var quotaActivationEnabled: Bool = false
+    @State private var isRefreshingFullWeeklyQuota = false
+    @State private var manualWeeklyRefreshStatus: String?
+    @State private var manualWeeklyRefreshFailed = false
     @State private var fiveHourRefreshEnabled = false
     @State private var fiveHourRefreshTime = Date()
     @State private var fiveHourRefreshAdvanced = false
@@ -748,14 +750,21 @@ struct PreferencesContentView: View {
 
             CardDivider()
 
-            SettingsCheckbox(
-                title: L10n.quotaActivationLabel,
-                description: L10n.quotaActivationDesc,
-                badge: "Beta",
-                isChecked: $quotaActivationEnabled
-            )
-            .onChange(of: quotaActivationEnabled) { _, newValue in
-                UserDefaults.standard.set(newValue, forKey: PreferencesKeys.quotaActivationEnabled)
+            HStack(alignment: .top, spacing: 12) {
+                SettingTextBlock(
+                    title: L10n.quotaActivationLabel,
+                    description: L10n.quotaActivationDesc
+                )
+
+                Spacer(minLength: 12)
+
+                Text(L10n.quotaActivationAlwaysOn)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 9)
+                    .frame(height: 24)
+                    .background(Color.green.opacity(0.1))
+                    .clipShape(Capsule())
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -769,6 +778,37 @@ struct PreferencesContentView: View {
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.leading, 24)
+
+            HStack(alignment: .center, spacing: 12) {
+                SettingTextBlock(
+                    title: L10n.manualWeeklyRefreshLabel,
+                    description: L10n.manualWeeklyRefreshDesc
+                )
+
+                Spacer(minLength: 12)
+
+                if isRefreshingFullWeeklyQuota {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+
+                SettingsActionButton(
+                    title: isRefreshingFullWeeklyQuota
+                        ? L10n.manualWeeklyRefreshRunning
+                        : L10n.manualWeeklyRefreshButton,
+                    disabled: isRefreshingFullWeeklyQuota || !isQuotaActivationAvailable,
+                    action: refreshFullWeeklyQuotaAccounts
+                )
+            }
+            .padding(.leading, 24)
+
+            if let manualWeeklyRefreshStatus {
+                Text(manualWeeklyRefreshStatus)
+                    .font(.system(size: 10))
+                    .foregroundStyle(manualWeeklyRefreshFailed ? Color.red : SettingsPalette.tertiaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 24)
+            }
         }
     }
 
@@ -852,7 +892,6 @@ struct PreferencesContentView: View {
         let recoveryVal = UserDefaults.standard.object(forKey: PreferencesKeys.recoveryNotificationEnabled) as? Bool
         recoveryNotificationEnabled = recoveryVal ?? true
 
-        quotaActivationEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled)
         fiveHourRefreshEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.fiveHourRefreshEnabled)
         fiveHourRefreshTime = FiveHourQuotaRefreshSettings.time(for: nil)
         fiveHourRefreshAdvanced = UserDefaults.standard.bool(forKey: PreferencesKeys.fiveHourRefreshAdvanced)
@@ -983,6 +1022,39 @@ struct PreferencesContentView: View {
             return nil
         case .codexNotFound:
             return L10n.quotaActivationCodexNotFound
+        }
+    }
+
+    private var isQuotaActivationAvailable: Bool {
+        switch CodexQuotaActivationService.availability() {
+        case .ready:
+            return true
+        case .codexNotFound:
+            return false
+        }
+    }
+
+    private func refreshFullWeeklyQuotaAccounts() {
+        guard !isRefreshingFullWeeklyQuota else { return }
+
+        isRefreshingFullWeeklyQuota = true
+        manualWeeklyRefreshStatus = nil
+        manualWeeklyRefreshFailed = false
+
+        Task { @MainActor in
+            let result = await accountStore.refreshFullWeeklyQuotaAccounts()
+            if result.eligibleCount == 0 {
+                manualWeeklyRefreshStatus = L10n.manualWeeklyRefreshNone
+            } else if result.failedCount == 0 {
+                manualWeeklyRefreshStatus = L10n.manualWeeklyRefreshSucceeded(result.succeededCount)
+            } else {
+                manualWeeklyRefreshFailed = true
+                manualWeeklyRefreshStatus = L10n.manualWeeklyRefreshPartial(
+                    succeeded: result.succeededCount,
+                    total: result.eligibleCount
+                )
+            }
+            isRefreshingFullWeeklyQuota = false
         }
     }
 }

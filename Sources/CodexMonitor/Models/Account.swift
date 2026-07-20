@@ -2,12 +2,12 @@ import Foundation
 
 // MARK: - Account Source
 
-enum AccountSource: String, Codable {
+enum AccountSource: String, Codable, Sendable {
     case manual      // 手动添加
     case localAuth   // 本地 auth.json 导入
 }
 
-enum AccountProvider: String, Codable, CaseIterable, Identifiable {
+enum AccountProvider: String, Codable, CaseIterable, Identifiable, Sendable {
     case codex
     case claude
     case grok
@@ -31,7 +31,7 @@ enum AccountProvider: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct Account: Codable, Identifiable {
+struct Account: Codable, Identifiable, Sendable {
     let id: UUID
     var name: String
     var authToken: String

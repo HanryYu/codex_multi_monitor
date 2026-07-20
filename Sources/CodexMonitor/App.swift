@@ -21,6 +21,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     var timer: Timer?
     var eventMonitor: Any?
     var fiveHourRefreshScheduler: FiveHourQuotaRefreshScheduler?
+    var weeklyQuotaActivationScheduler: WeeklyQuotaActivationScheduler?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -32,7 +33,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         UserDefaults.standard.register(defaults: [
             PreferencesKeys.usageWarningNotificationEnabled: true,
             PreferencesKeys.recoveryNotificationEnabled: true,
-            PreferencesKeys.quotaActivationEnabled: false,
             PreferencesKeys.autoImportEnabled: true,
             PreferencesKeys.automaticUpdatesEnabled: true,
             PreferencesKeys.alertThreshold: 80,
@@ -41,6 +41,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         accountStore = AccountStore()
         fiveHourRefreshScheduler = FiveHourQuotaRefreshScheduler(accountStore: accountStore)
         fiveHourRefreshScheduler?.start()
+        weeklyQuotaActivationScheduler = WeeklyQuotaActivationScheduler(accountStore: accountStore)
+        weeklyQuotaActivationScheduler?.start()
 
         // Setup WindowManager
         WindowManager.shared.accountStore = accountStore
@@ -141,6 +143,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
         authFileMonitor?.stopMonitoring()
         fiveHourRefreshScheduler?.stop()
+        weeklyQuotaActivationScheduler?.stop()
     }
 
     @objc func togglePopover() {

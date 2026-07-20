@@ -45,7 +45,7 @@ enum CodexCloudModelService {
         }
         do {
             try process.run()
-            input.fileHandleForWriting.write(Data((#"{"id":1,"method":"initialize","params":{"clientInfo":{"name":"codex-monitor","version":"0.7.2"},"capabilities":{}}}"# + "\n").utf8))
+            input.fileHandleForWriting.write(Data((#"{"id":1,"method":"initialize","params":{"clientInfo":{"name":"codex-monitor","version":"0.7.3"},"capabilities":{}}}"# + "\n").utf8))
             guard initialized.wait(timeout: .now() + 30) == .success else { throw CocoaError(.coderReadCorrupt) }
             let request = #"{"method":"initialized","params":{}}"# + "\n" + #"{"id":2,"method":"model/list","params":{"includeHidden":false,"limit":100}}"# + "\n"
             input.fileHandleForWriting.write(Data(request.utf8))

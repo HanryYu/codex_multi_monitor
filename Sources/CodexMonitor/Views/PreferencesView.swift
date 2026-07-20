@@ -67,7 +67,6 @@ enum PreferencesKeys {
     static let usageAlertEnabled = "usageAlertEnabled"
     static let usageWarningNotificationEnabled = "usageWarningNotificationEnabled"
     static let recoveryNotificationEnabled = "recoveryNotificationEnabled"
-    static let quotaActivationEnabled = "quotaActivationEnabled"
     static let fiveHourRefreshEnabled = "fiveHourRefreshEnabled"
     static let fiveHourRefreshTime = "fiveHourRefreshTime"
     static let fiveHourRefreshAdvanced = "fiveHourRefreshAdvanced"
