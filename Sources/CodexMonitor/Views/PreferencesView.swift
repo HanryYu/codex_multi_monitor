@@ -354,4 +354,5 @@ extension Notification.Name {
     static let autoImportChanged = Notification.Name("CodexMonitor.autoImportChanged")
     static let usageAlertEnabledChanged = Notification.Name("CodexMonitor.usageAlertEnabledChanged")
     static let recoveryNotificationEnabledChanged = Notification.Name("CodexMonitor.recoveryNotificationEnabledChanged")
+    static let quotaActivationChanged = Notification.Name("CodexMonitor.quotaActivationChanged")
 }

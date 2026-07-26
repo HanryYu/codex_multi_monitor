@@ -1,17 +1,18 @@
-# CodexMonitor 0.7.4
+# CodexMonitor 0.7.5
 
-This patch restores user control over automatic weekly quota activation while keeping the new reliable scheduling behavior.
+This patch makes weekly quota activation safer and ensures automatic checks run after the Mac screen or user session becomes active again.
 
-## User-controlled automatic activation
+## Reliable lifecycle checks
 
-- Restores the Settings toggle for automatic weekly quota activation.
-- Runs the hourly fallback check only while the user has enabled the feature.
-- Performs an immediate check when enabled and a catch-up check after the Mac wakes.
-- Persists a per-account next-check time seven days after every successful activation.
-- Sends automatic requests only while the weekly quota is 100% remaining.
+- Checks hourly while automatic weekly activation is enabled.
+- Checks after the Mac wakes, the display wakes, or the user session becomes active.
+- Coalesces closely spaced lifecycle events to avoid duplicate refreshes.
+- Adds persistent logs for scheduler decisions and per-account activation results.
 
-## Manual refresh
+## Safer weekly reset detection
 
-- Adds a Settings action that refreshes all saved Codex accounts currently showing 100% weekly quota remaining.
-- Runs eligible accounts concurrently and reports full success, partial failure, or no eligible accounts.
-- Remains available independently of the automatic activation toggle.
+- Never sends an automatic activation request when weekly usage is non-zero.
+- Treats a newly observed or rounded 100% value as a baseline unless a reliable reset or seven-day cycle signal exists.
+- Stores a seven-day cooldown after every successful or ambiguous activation attempt.
+- Prevents overlapping automatic and manual activation batches.
+- Keeps manual refresh available for all authenticated Codex accounts whose weekly quota is fully available or whose weekly window is temporarily missing.

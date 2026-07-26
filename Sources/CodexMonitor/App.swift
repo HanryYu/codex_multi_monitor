@@ -43,7 +43,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         fiveHourRefreshScheduler = FiveHourQuotaRefreshScheduler(accountStore: accountStore)
         fiveHourRefreshScheduler?.start()
         weeklyQuotaActivationScheduler = WeeklyQuotaActivationScheduler(accountStore: accountStore)
-        weeklyQuotaActivationScheduler?.start()
+        if UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled) {
+            weeklyQuotaActivationScheduler?.start()
+        }
 
         // Setup WindowManager
         WindowManager.shared.accountStore = accountStore
@@ -121,6 +123,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             object: nil
         )
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(quotaActivationDidChange),
+            name: .quotaActivationChanged,
+            object: nil
+        )
+
         scheduleRefreshTimer()
 
         Task { @MainActor in
@@ -181,6 +190,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 authFileMonitor?.startMonitoring()
             } else {
                 authFileMonitor?.stopMonitoring()
+            }
+        }
+    }
+
+    @objc func quotaActivationDidChange() {
+        let enabled = UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled)
+        WeeklyQuotaLogger.log("automatic preference changed enabled=\(enabled)")
+        Task { @MainActor [weak self] in
+            if enabled {
+                self?.weeklyQuotaActivationScheduler?.start(runInitialCheck: true)
+            } else {
+                self?.weeklyQuotaActivationScheduler?.stop()
             }
         }
     }

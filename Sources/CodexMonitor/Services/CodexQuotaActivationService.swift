@@ -37,30 +37,34 @@ actor CodexQuotaActivationService {
     ) async -> Bool {
         guard allowWhenAutomaticActivationIsDisabled
                 || UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled)
-        else { return false }
+        else {
+            WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=automatic-disabled")
+            return false
+        }
 
         guard let accountID = account.accountID else {
-            print("[CodexMonitor] Quota activation skipped: account has no Codex account ID")
+            WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=missing-account-id")
             return false
         }
 
         guard let authBundleData = Self.authBundleData(for: account) else {
-            print("[CodexMonitor] Quota activation skipped: no full Codex auth bundle saved for " + account.name)
+            WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=missing-auth-bundle")
             return false
         }
 
         guard !activatingAccountIDs.contains(accountID) else {
-            print("[CodexMonitor] Quota activation skipped: request already in progress for " + account.name)
+            WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=already-in-progress")
             return false
         }
 
         guard let executableURL = Self.codexExecutableURL() else {
-            print("[CodexMonitor] Quota activation skipped: Codex CLI was not found")
+            WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=codex-cli-not-found")
             return false
         }
 
         activatingAccountIDs.insert(accountID)
         defer { activatingAccountIDs.remove(accountID) }
+        WeeklyQuotaLogger.log("activation started account=\(account.name) cli=\(executableURL.path)")
 
         let result = await Self.runCodex(
             executableURL: executableURL,
@@ -72,10 +76,14 @@ actor CodexQuotaActivationService {
             if let refreshedAuthBundleData = result.refreshedAuthBundleData {
                 CodexAuthBundleStore.save(accountID: account.id, authJSONData: refreshedAuthBundleData)
             }
-            print("[CodexMonitor] Quota activation request completed for " + account.name)
+            WeeklyQuotaLogger.log(
+                "activation completed account=\(account.name) exitStatus=\(result.exitStatus) durationMs=\(result.durationMilliseconds) reply=\(result.lastMessageSummary)"
+            )
             return true
         } else {
-            print("[CodexMonitor] Quota activation request failed for " + account.name)
+            WeeklyQuotaLogger.log(
+                "activation failed account=\(account.name) exitStatus=\(result.exitStatus) durationMs=\(result.durationMilliseconds) reply=\(result.lastMessageSummary) output=\(result.outputSummary)"
+            )
             return false
         }
     }
@@ -161,6 +169,10 @@ actor CodexQuotaActivationService {
     private struct CodexRunResult {
         let succeeded: Bool
         let refreshedAuthBundleData: Data?
+        let exitStatus: Int32
+        let durationMilliseconds: Int
+        let lastMessageSummary: String
+        let outputSummary: String
     }
 
     private nonisolated static func runCodex(
@@ -192,6 +204,8 @@ actor CodexQuotaActivationService {
         let workingDirectory = tempRoot.appendingPathComponent("workspace", isDirectory: true)
         let authURL = codexHomeDirectory.appendingPathComponent("auth.json")
         let logURL = workingDirectory.appendingPathComponent("codex.log")
+        let lastMessageURL = workingDirectory.appendingPathComponent("last-message.txt")
+        let startedAt = Date()
 
         do {
             try fileManager.createDirectory(at: codexHomeDirectory, withIntermediateDirectories: true)
@@ -214,7 +228,8 @@ actor CodexQuotaActivationService {
                 "--ignore-rules",
                 "--sandbox", "read-only",
                 "--skip-git-repo-check",
-                "--color", "never"
+                "--color", "never",
+                "--output-last-message", lastMessageURL.path
             ]
             if let model, !model.isEmpty { arguments.append(contentsOf: ["--model", model]) }
             arguments.append(contentsOf: ["--config", "model_reasoning_effort=\"low\"", prompt])
@@ -243,7 +258,14 @@ actor CodexQuotaActivationService {
             if completion.wait(timeout: .now() + activationTimeout) == .timedOut {
                 process.terminate()
                 _ = completion.wait(timeout: .now() + 5)
-                return CodexRunResult(succeeded: false, refreshedAuthBundleData: nil)
+                return CodexRunResult(
+                    succeeded: false,
+                    refreshedAuthBundleData: nil,
+                    exitStatus: -1,
+                    durationMilliseconds: Int(Date().timeIntervalSince(startedAt) * 1_000),
+                    lastMessageSummary: "<timeout>",
+                    outputSummary: safeOutputSummary(at: logURL)
+                )
             }
 
             let refreshedAuthBundleData = try? Data(contentsOf: authURL)
@@ -255,14 +277,48 @@ actor CodexQuotaActivationService {
                 safeRefreshedAuthBundleData = nil
             }
 
+            let lastMessage = (try? String(contentsOf: lastMessageURL, encoding: .utf8))?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let receivedExpectedReply = lastMessage.caseInsensitiveCompare("hi") == .orderedSame
+
             return CodexRunResult(
-                succeeded: process.terminationStatus == 0,
-                refreshedAuthBundleData: safeRefreshedAuthBundleData
+                succeeded: process.terminationStatus == 0 && receivedExpectedReply,
+                refreshedAuthBundleData: safeRefreshedAuthBundleData,
+                exitStatus: process.terminationStatus,
+                durationMilliseconds: Int(Date().timeIntervalSince(startedAt) * 1_000),
+                lastMessageSummary: safeTextSummary(lastMessage),
+                outputSummary: safeOutputSummary(at: logURL)
             )
         } catch {
-            print("[CodexMonitor] Failed to launch Codex quota activation: \(error)")
+            WeeklyQuotaLogger.log("activation launch failed error=\(error.localizedDescription)")
             try? fileManager.removeItem(at: tempRoot)
-            return CodexRunResult(succeeded: false, refreshedAuthBundleData: nil)
+            return CodexRunResult(
+                succeeded: false,
+                refreshedAuthBundleData: nil,
+                exitStatus: -1,
+                durationMilliseconds: Int(Date().timeIntervalSince(startedAt) * 1_000),
+                lastMessageSummary: "<launch-failed>",
+                outputSummary: safeTextSummary(error.localizedDescription)
+            )
         }
+    }
+
+    private nonisolated static func safeOutputSummary(at url: URL) -> String {
+        guard let data = try? Data(contentsOf: url),
+              let text = String(data: data.suffix(2_000), encoding: .utf8)
+        else { return "<none>" }
+        return safeTextSummary(text)
+    }
+
+    private nonisolated static func safeTextSummary(_ text: String) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .split(whereSeparator: \.isWhitespace)
+            .map { token -> String in
+                token.count > 120 ? "<redacted>" : String(token)
+            }
+            .joined(separator: " ")
+        return normalized.isEmpty ? "<empty>" : String(normalized.prefix(800))
     }
 }

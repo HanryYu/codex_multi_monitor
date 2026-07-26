@@ -759,9 +759,7 @@ struct PreferencesContentView: View {
             )
             .onChange(of: quotaActivationEnabled) { _, newValue in
                 UserDefaults.standard.set(newValue, forKey: PreferencesKeys.quotaActivationEnabled)
-                if newValue {
-                    Task { await accountStore.refreshAll() }
-                }
+                NotificationCenter.default.post(name: .quotaActivationChanged, object: nil)
             }
 
             VStack(alignment: .leading, spacing: 4) {

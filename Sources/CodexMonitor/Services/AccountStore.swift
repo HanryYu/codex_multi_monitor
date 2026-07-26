@@ -22,12 +22,17 @@ class AccountStore: ObservableObject {
     private let weeklyQuotaActivationStateKey = "CodexMonitor.weeklyQuotaActivationState.v2"
     private let weeklyQuotaFullActivationStateKey = "CodexMonitor.weeklyQuotaFullActivationState.v2"
     private let weeklyQuotaUsageStateKey = "CodexMonitor.weeklyQuotaUsageState.v1"
-    private let weeklyQuotaNextActivationAtKey = "CodexMonitor.weeklyQuotaNextActivationAt.v1"
+    private let legacyWeeklyQuotaNextActivationAtKey = "CodexMonitor.weeklyQuotaNextActivationAt.v2"
+    // v3 stores a seven-day eligibility boundary after every successful request. The previous
+    // v2 value retried missing windows hourly and could repeatedly consume real weekly quota.
+    private let weeklyQuotaNextActivationAtKey = "CodexMonitor.weeklyQuotaNextActivationAt.v3"
+    private let weeklyQuotaPendingVerificationKey = "CodexMonitor.weeklyQuotaPendingVerification.v1"
     private let cloudRevisionKey = "CodexMonitor.iCloudAccountRevision.v1"
     private let cloudSyncStore = ICloudAccountSyncStore()
     private var cloudSyncObserver: NSObjectProtocol?
     private var recoveryNotificationObserver: NSObjectProtocol?
     private var weeklyActivationRefreshTask: Task<Void, Never>?
+    private var weeklyActivationBatchInProgress = false
     
     enum OverallStatus {
         case healthy, warning, critical, noAccounts
@@ -423,25 +428,27 @@ class AccountStore: ObservableObject {
         guard !requests.isEmpty else {
             return WeeklyQuotaManualRefreshResult(eligibleCount: 0, succeededCount: 0)
         }
+        guard !weeklyActivationBatchInProgress else {
+            WeeklyQuotaLogger.log("manual activation skipped reason=activation-batch-already-in-progress")
+            return WeeklyQuotaManualRefreshResult(
+                eligibleCount: requests.count,
+                succeededCount: 0
+            )
+        }
 
+        weeklyActivationBatchInProgress = true
+        defer { weeklyActivationBatchInProgress = false }
+        WeeklyQuotaLogger.log("manual activation started eligibleAccounts=\(requests.count)")
         var executions: [WeeklyQuotaActivationExecutionResult] = []
-        await withTaskGroup(of: WeeklyQuotaActivationExecutionResult.self) { group in
-            for request in requests {
-                group.addTask {
-                    let succeeded = await CodexQuotaActivationService.shared.activate(
-                        account: request.account,
-                        allowWhenAutomaticActivationIsDisabled: true
-                    )
-                    return WeeklyQuotaActivationExecutionResult(
-                        request: request,
-                        succeeded: succeeded
-                    )
-                }
-            }
-
-            for await execution in group {
-                executions.append(execution)
-            }
+        for request in requests {
+            let succeeded = await CodexQuotaActivationService.shared.activate(
+                account: request.account,
+                allowWhenAutomaticActivationIsDisabled: true
+            )
+            executions.append(WeeklyQuotaActivationExecutionResult(
+                request: request,
+                succeeded: succeeded
+            ))
         }
 
         let successfulRequests = executions.compactMap { execution in
@@ -449,6 +456,9 @@ class AccountStore: ObservableObject {
         }
         for request in successfulRequests {
             commitWeeklyQuotaActivationSuccess(request)
+        }
+        for execution in executions where !execution.succeeded {
+            scheduleWeeklyQuotaActivationRetry(execution.request, reason: "manual CLI request failed")
         }
         if !successfulRequests.isEmpty {
             scheduleRefreshAfterWeeklyQuotaActivation()
@@ -469,16 +479,32 @@ class AccountStore: ObservableObject {
         var weeklyQuotaFullActivationState = loadWeeklyQuotaFullActivationState()
         var weeklyQuotaUsageState = loadWeeklyQuotaUsageState()
         var weeklyQuotaNextActivationAt = loadWeeklyQuotaNextActivationAt()
+        var weeklyQuotaPendingVerification = loadWeeklyQuotaPendingVerification()
         var weeklyQuotaActivationRequests: [WeeklyQuotaActivationRequest] = []
+        let canEvaluateWeeklyActivation = !weeklyActivationBatchInProgress
         let activeAccountIDs = Set(accounts.map { $0.id.uuidString })
         nextLimitedState = nextLimitedState.filter { activeAccountIDs.contains($0.key) }
         weeklyQuotaActivationState = weeklyQuotaActivationState.filter { activeAccountIDs.contains($0.key) }
         weeklyQuotaFullActivationState = weeklyQuotaFullActivationState.filter { activeAccountIDs.contains($0.key) }
         weeklyQuotaUsageState = weeklyQuotaUsageState.filter { activeAccountIDs.contains($0.key) }
         weeklyQuotaNextActivationAt = weeklyQuotaNextActivationAt.filter { activeAccountIDs.contains($0.key) }
+        weeklyQuotaPendingVerification = weeklyQuotaPendingVerification.filter { activeAccountIDs.contains($0.key) }
 
         for account in accounts {
-            guard case .success(let usage) = usageData[account.id] else { continue }
+            guard case .success(let usage) = usageData[account.id] else {
+                if account.provider == .codex {
+                    let errorSummary: String
+                    if case .failure(let error) = usageData[account.id] {
+                        errorSummary = error.localizedDescription
+                    } else {
+                        errorSummary = "no-usage-result"
+                    }
+                    WeeklyQuotaLogger.log(
+                        "evaluate skipped account=\(account.name) reason=usage-unavailable error=\(errorSummary)"
+                    )
+                }
+                continue
+            }
 
             let windows = notificationWindows(for: usage)
             let currentLimited = Dictionary(
@@ -503,28 +529,36 @@ class AccountStore: ObservableObject {
                 current: currentLimited,
                 sentKeys: &sentKeys
             )
-            scheduleWeeklyQuotaActivationIfNeeded(
-                account: account,
-                windows: windows,
-                activationState: &weeklyQuotaActivationState,
-                fullActivationState: &weeklyQuotaFullActivationState,
-                usageState: &weeklyQuotaUsageState,
-                nextActivationAt: &weeklyQuotaNextActivationAt,
-                requests: &weeklyQuotaActivationRequests
-            )
+            if canEvaluateWeeklyActivation {
+                scheduleWeeklyQuotaActivationIfNeeded(
+                    account: account,
+                    windows: windows,
+                    activationState: &weeklyQuotaActivationState,
+                    fullActivationState: &weeklyQuotaFullActivationState,
+                    usageState: &weeklyQuotaUsageState,
+                    nextActivationAt: &weeklyQuotaNextActivationAt,
+                    pendingVerification: &weeklyQuotaPendingVerification,
+                    requests: &weeklyQuotaActivationRequests
+                )
+            }
 
             nextLimitedState[account.id.uuidString] = currentLimited.isEmpty ? nil : currentLimited
         }
 
         saveSentNotificationKeys(sentKeys)
         saveLimitedNotificationState(nextLimitedState)
-        saveWeeklyQuotaActivationState(weeklyQuotaActivationState)
-        saveWeeklyQuotaFullActivationState(weeklyQuotaFullActivationState)
-        saveWeeklyQuotaUsageState(weeklyQuotaUsageState)
-        saveWeeklyQuotaNextActivationAt(weeklyQuotaNextActivationAt)
+        if canEvaluateWeeklyActivation {
+            saveWeeklyQuotaActivationState(weeklyQuotaActivationState)
+            saveWeeklyQuotaFullActivationState(weeklyQuotaFullActivationState)
+            saveWeeklyQuotaUsageState(weeklyQuotaUsageState)
+            saveWeeklyQuotaNextActivationAt(weeklyQuotaNextActivationAt)
+            saveWeeklyQuotaPendingVerification(weeklyQuotaPendingVerification)
+        } else {
+            WeeklyQuotaLogger.log("automatic evaluation deferred reason=activation-batch-in-progress")
+        }
 
-        for request in weeklyQuotaActivationRequests {
-            performWeeklyQuotaActivation(request)
+        if !weeklyQuotaActivationRequests.isEmpty {
+            performWeeklyQuotaActivations(weeklyQuotaActivationRequests)
         }
     }
 
@@ -651,6 +685,7 @@ class AccountStore: ObservableObject {
         fullActivationState: inout [String: String],
         usageState: inout [String: Int],
         nextActivationAt: inout [String: TimeInterval],
+        pendingVerification: inout [String: Bool],
         requests: inout [WeeklyQuotaActivationRequest]
     ) {
         guard account.provider == .codex else { return }
@@ -660,11 +695,34 @@ class AccountStore: ObservableObject {
 
         let accountKey = account.id.uuidString
         let previousResetKey = activationState[accountKey]
+        let now = Date().timeIntervalSince1970
+        let storedNextActivationAt = nextActivationAt[accountKey]
+        let scheduledActivationIsDue = storedNextActivationAt.map { now >= $0 } ?? false
+        let isPendingVerification = pendingVerification[accountKey] == true
 
         guard let weeklyWindow else {
+            let previousResetSummary = previousResetKey ?? "none"
+            let nextAttemptSummary = storedNextActivationAt.map { String($0) } ?? "none"
+            WeeklyQuotaLogger.log(
+                "evaluate account=\(account.name) weeklyWindow=missing previousResetKey=\(previousResetSummary) nextEligibleAt=\(nextAttemptSummary) scheduledDue=\(scheduledActivationIsDue) pendingVerification=\(isPendingVerification)"
+            )
+
+            // A missing window without a prior observed cycle is not proof of an official reset.
+            // Baseline it and wait until a real cycle boundary can be established.
+            guard previousResetKey != nil else {
+                activationState[accountKey] = WeeklyQuotaActivationPolicy.missingWindowResetKey
+                WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=missing-window-without-cycle-baseline")
+                return
+            }
+
             guard let trigger = WeeklyQuotaActivationPolicy.triggerForMissingWindow(
-                previousResetKey: previousResetKey
-            ) else { return }
+                previousResetKey: previousResetKey,
+                scheduledActivationIsDue: scheduledActivationIsDue,
+                now: now
+            ) else {
+                WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=missing-window-without-reliable-reset-signal")
+                return
+            }
 
             _ = requestWeeklyQuotaActivation(
                 account: account,
@@ -678,20 +736,31 @@ class AccountStore: ObservableObject {
         }
 
         let currentResetKey = weeklyWindow.resetKey
-        let now = Date().timeIntervalSince1970
+        let usedPercentSummary = weeklyWindow.usedPercent.map { String($0) } ?? "unknown"
+        let previousResetSummary = previousResetKey ?? "none"
+        let fullResetSummary = fullActivationState[accountKey] ?? "none"
+        let nextActivationSummary = storedNextActivationAt.map { String($0) } ?? "none"
+        WeeklyQuotaLogger.log(
+            "evaluate account=\(account.name) weeklyUsedPercent=\(usedPercentSummary) currentResetKey=\(currentResetKey) previousResetKey=\(previousResetSummary) fullResetKey=\(fullResetSummary) nextEligibleAt=\(nextActivationSummary) scheduledDue=\(scheduledActivationIsDue) pendingVerification=\(isPendingVerification)"
+        )
 
         if nextActivationAt[accountKey] == nil,
            let resetAt = weeklyWindow.resetAt,
-           resetAt > Int(now) {
+           resetAt > 0 {
             nextActivationAt[accountKey] = TimeInterval(resetAt)
         }
 
-        // A successful activation may make the weekly window reappear with a new reset time.
-        // Baseline that returned window instead of sending a second activation request.
-        if WeeklyQuotaActivationPolicy.wasWaitingForMissingWindowToReturn(previousResetKey) {
+        // A successful request can leave the rounded percentage at 0% used while creating a new
+        // reset key. The first returned window is verification/baseline data, never a new trigger.
+        if WeeklyQuotaActivationPolicy.shouldBaselineReturnedWindow(
+            previousResetKey: previousResetKey,
+            isPendingVerification: isPendingVerification
+        ) {
             activationState[accountKey] = currentResetKey
             fullActivationState[accountKey] = currentResetKey
             usageState[accountKey] = weeklyWindow.usedPercent ?? 0
+            pendingVerification[accountKey] = nil
+            WeeklyQuotaLogger.log("activation verified account=\(account.name) weekly-window-baselined without-request")
             return
         }
 
@@ -702,7 +771,6 @@ class AccountStore: ObservableObject {
             previousResetKey: previousResetKey,
             currentUsedPercent: currentUsedPercent,
             previousUsedPercent: previousUsedPercent,
-            fullActivationResetKey: fullActivationState[accountKey],
             scheduledActivationIsDue: nextActivationAt[accountKey].map { now >= $0 } ?? false
         ) else {
             if previousResetKey == nil {
@@ -711,6 +779,7 @@ class AccountStore: ObservableObject {
             if let currentUsedPercent {
                 usageState[accountKey] = currentUsedPercent
             }
+            WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=policy-not-triggered")
             return
         }
 
@@ -740,11 +809,12 @@ class AccountStore: ObservableObject {
         requests: inout [WeeklyQuotaActivationRequest]
     ) -> WeeklyQuotaActivationScheduleResult {
         guard UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled) else {
+            WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=automatic-disabled")
             return .disabled
         }
 
         guard CodexQuotaActivationService.hasUsableAuthBundle(for: account) else {
-            print("[CodexMonitor] Weekly quota activation pending for \(account.name): missing full Codex auth bundle")
+            WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=missing-auth-bundle")
             return .missingAuthBundle
         }
 
@@ -755,17 +825,38 @@ class AccountStore: ObservableObject {
             marksFullReset: marksFullReset,
             reason: reason
         ))
-        print("[CodexMonitor] Weekly quota activation scheduled for \(account.name): \(reason), resetKey=\(currentResetKey)")
+        WeeklyQuotaLogger.log("activation queued account=\(account.name) reason=\(reason) resetKey=\(currentResetKey)")
         return .scheduled
     }
 
-    private func performWeeklyQuotaActivation(_ request: WeeklyQuotaActivationRequest) {
-        Task { [weak self] in
-            let succeeded = await CodexQuotaActivationService.shared.activate(account: request.account)
-            guard succeeded, let self else { return }
+    private func performWeeklyQuotaActivations(_ requests: [WeeklyQuotaActivationRequest]) {
+        guard !weeklyActivationBatchInProgress else {
+            WeeklyQuotaLogger.log(
+                "automatic activation batch coalesced accounts=\(requests.count) reason=batch-already-in-progress"
+            )
+            return
+        }
+        weeklyActivationBatchInProgress = true
 
-            self.commitWeeklyQuotaActivationSuccess(request)
-            self.scheduleRefreshAfterWeeklyQuotaActivation()
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.weeklyActivationBatchInProgress = false }
+            WeeklyQuotaLogger.log("automatic activation batch started accounts=\(requests.count) mode=sequential")
+            var hasSuccessfulRequest = false
+            for request in requests {
+                let succeeded = await CodexQuotaActivationService.shared.activate(account: request.account)
+
+                if succeeded {
+                    self.commitWeeklyQuotaActivationSuccess(request)
+                    hasSuccessfulRequest = true
+                } else {
+                    self.scheduleWeeklyQuotaActivationRetry(request, reason: "automatic CLI request failed")
+                }
+            }
+
+            if hasSuccessfulRequest {
+                self.scheduleRefreshAfterWeeklyQuotaActivation()
+            }
         }
     }
 
@@ -788,12 +879,36 @@ class AccountStore: ObservableObject {
         }
 
         var nextActivationAt = loadWeeklyQuotaNextActivationAt()
+        let now = Date().timeIntervalSince1970
+        nextActivationAt[accountKey] = WeeklyQuotaActivationPolicy.nextScheduledActivationTimestamp(after: now)
+        saveWeeklyQuotaNextActivationAt(nextActivationAt)
+
+        var pendingVerification = loadWeeklyQuotaPendingVerification()
+        pendingVerification[accountKey] = true
+        saveWeeklyQuotaPendingVerification(pendingVerification)
+
+        WeeklyQuotaLogger.log(
+            "activation state committed account=\(request.account.name) reason=\(request.reason) nextCheckInDays=7 pendingVerification=true"
+        )
+    }
+
+    private func scheduleWeeklyQuotaActivationRetry(
+        _ request: WeeklyQuotaActivationRequest,
+        reason: String
+    ) {
+        let accountKey = request.account.id.uuidString
+        var nextActivationAt = loadWeeklyQuotaNextActivationAt()
         nextActivationAt[accountKey] = WeeklyQuotaActivationPolicy.nextScheduledActivationTimestamp(
             after: Date().timeIntervalSince1970
         )
         saveWeeklyQuotaNextActivationAt(nextActivationAt)
 
-        print("[CodexMonitor] Weekly quota activation state committed for \(request.account.name): \(request.reason)")
+        // A failed/ambiguous CLI completion may still have reached the service. Prefer a
+        // conservative seven-day cooldown over risking another quota-consuming request.
+        var pendingVerification = loadWeeklyQuotaPendingVerification()
+        pendingVerification[accountKey] = true
+        saveWeeklyQuotaPendingVerification(pendingVerification)
+        WeeklyQuotaLogger.log("activation retry suppressed account=\(request.account.name) cooldownDays=7 reason=\(reason)")
     }
 
     private func scheduleRefreshAfterWeeklyQuotaActivation() {
@@ -1116,11 +1231,38 @@ class AccountStore: ObservableObject {
     }
 
     private func loadWeeklyQuotaNextActivationAt() -> [String: TimeInterval] {
-        userDefaults.dictionary(forKey: weeklyQuotaNextActivationAtKey) as? [String: TimeInterval] ?? [:]
+        if let current = userDefaults.dictionary(forKey: weeklyQuotaNextActivationAtKey)
+            as? [String: TimeInterval] {
+            return current
+        }
+
+        guard let legacy = userDefaults.dictionary(forKey: legacyWeeklyQuotaNextActivationAtKey)
+            as? [String: TimeInterval]
+        else { return [:] }
+
+        let activationState = loadWeeklyQuotaActivationState()
+        var corrected: [String: TimeInterval] = [:]
+        for (accountKey, timestamp) in legacy {
+            corrected[accountKey] = WeeklyQuotaActivationPolicy.migratedNextActivationTimestamp(
+                legacyTimestamp: timestamp,
+                activationResetKey: activationState[accountKey]
+            )
+        }
+        saveWeeklyQuotaNextActivationAt(corrected)
+        WeeklyQuotaLogger.log("migrated weekly activation schedule v2-to-v3 accounts=\(corrected.count)")
+        return corrected
     }
 
     private func saveWeeklyQuotaNextActivationAt(_ state: [String: TimeInterval]) {
         userDefaults.set(state, forKey: weeklyQuotaNextActivationAtKey)
+    }
+
+    private func loadWeeklyQuotaPendingVerification() -> [String: Bool] {
+        userDefaults.dictionary(forKey: weeklyQuotaPendingVerificationKey) as? [String: Bool] ?? [:]
+    }
+
+    private func saveWeeklyQuotaPendingVerification(_ state: [String: Bool]) {
+        userDefaults.set(state, forKey: weeklyQuotaPendingVerificationKey)
     }
 }
 
