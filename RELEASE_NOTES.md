@@ -1,18 +1,23 @@
-# CodexMonitor 0.7.5
+# CodexMonitor 0.7.6
 
-This patch makes weekly quota activation safer and ensures automatic checks run after the Mac screen or user session becomes active again.
+This release makes Codex plan tiers easier to understand and adds a per-account fallback for starting a weekly quota cycle when the displayed percentage is inaccurate.
 
-## Reliable lifecycle checks
+## Clearer Codex plan names
 
-- Checks hourly while automatic weekly activation is enabled.
-- Checks after the Mac wakes, the display wakes, or the user session becomes active.
-- Coalesces closely spaced lifecycle events to avoid duplicate refreshes.
-- Adds persistent logs for scheduler decisions and per-account activation results.
+- Displays the Codex Pro Lite tier as **Pro 5x**.
+- Displays the Codex Pro tier as **Pro 20x**.
+- Keeps the original API plan value unchanged outside the UI.
 
-## Safer weekly reset detection
+## Per-account weekly quota refresh
 
-- Never sends an automatic activation request when weekly usage is non-zero.
-- Treats a newly observed or rounded 100% value as a baseline unless a reliable reset or seven-day cycle signal exists.
-- Stores a seven-day cooldown after every successful or ambiguous activation attempt.
-- Prevents overlapping automatic and manual activation batches.
-- Keeps manual refresh available for all authenticated Codex accounts whose weekly quota is fully available or whose weekly window is temporarily missing.
+- Adds a manual refresh action to each Codex account in Settings → Accounts.
+- Lets the selected account send one short activation request without requiring the displayed weekly quota to be exactly 100% remaining.
+- Shows in-progress, success, and failure feedback directly in the account row.
+- Keeps the action hidden for non-Codex providers and reports when a Codex account has no complete saved credentials.
+
+## Safer activation scheduling
+
+- Prevents weekly and scheduled 5-hour refreshes from running concurrently for the same account.
+- Preserves existing schedules when a forced request fails.
+- Uses the server-provided weekly reset time when available, with a conservative seven-day fallback for missing or stale cycle data.
+- Prevents an immediate duplicate request after a successful manual refresh while allowing the next seven-day cycle to run normally.

@@ -62,6 +62,49 @@ struct WeeklyQuotaActivationPolicyTests {
         )
 
         expect(
+            WeeklyQuotaActivationPolicy.verifiedNextActivationTimestamp(
+                existing: 605_800,
+                observedResetAt: 4_600
+            ) == 4_600,
+            "verification must replace a provisional schedule with the server reset time"
+        )
+
+        expect(
+            WeeklyQuotaActivationPolicy.verifiedNextActivationTimestamp(
+                existing: 4_600,
+                observedResetAt: nil
+            ) == 4_600,
+            "verification without a reset time must preserve the existing schedule"
+        )
+
+        expect(
+            WeeklyQuotaActivationPolicy.provisionalManualRefreshNextActivationTimestamp(
+                existing: 900,
+                observedResetAt: 4_600,
+                now: 1_000
+            ) == 4_600,
+            "manual refresh must replace an expired local schedule with the observed server reset"
+        )
+
+        expect(
+            WeeklyQuotaActivationPolicy.provisionalManualRefreshNextActivationTimestamp(
+                existing: 4_600,
+                observedResetAt: nil,
+                now: 1_000
+            ) == 4_600,
+            "manual refresh must preserve a valid future schedule when no reset is observed"
+        )
+
+        expect(
+            WeeklyQuotaActivationPolicy.provisionalManualRefreshNextActivationTimestamp(
+                existing: 900,
+                observedResetAt: nil,
+                now: 1_000
+            ) == 605_800,
+            "manual refresh must use a conservative seven-day fallback when all known schedules are stale"
+        )
+
+        expect(
             WeeklyQuotaActivationPolicy.migratedNextActivationTimestamp(
                 legacyTimestamp: 4_600,
                 activationResetKey: WeeklyQuotaActivationPolicy.missingWindowResetKey

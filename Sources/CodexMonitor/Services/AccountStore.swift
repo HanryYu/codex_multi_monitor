@@ -469,6 +469,76 @@ class AccountStore: ObservableObject {
             succeededCount: successfulRequests.count
         )
     }
+
+    func forceRefreshWeeklyQuota(accountID: UUID) async -> WeeklyQuotaAccountRefreshResult {
+        guard let account = accounts.first(where: { $0.id == accountID }) else {
+            return .accountNotFound
+        }
+        guard account.provider == .codex else {
+            return .unsupportedProvider
+        }
+        guard case .ready = CodexQuotaActivationService.availability() else {
+            return .codexNotFound
+        }
+        guard CodexQuotaActivationService.hasUsableAuthBundle(for: account) else {
+            return .missingCredentials
+        }
+        guard !weeklyActivationBatchInProgress else {
+            WeeklyQuotaLogger.log(
+                "forced manual activation skipped account=\(account.name) reason=activation-batch-already-in-progress"
+            )
+            return .busy
+        }
+
+        let weeklyWindow: WindowUsage?
+        if case .success(let usage) = usageData[account.id] {
+            weeklyWindow = usage.rateLimit?.secondaryWindow
+        } else {
+            weeklyWindow = nil
+        }
+        let request = WeeklyQuotaActivationRequest(
+            account: account,
+            resetKey: weeklyWindow.map { window in
+                window.resetAt > 0 ? String(window.resetAt) : "unknown"
+            } ?? WeeklyQuotaActivationPolicy.missingWindowResetKey,
+            usedPercent: weeklyWindow?.usedPercent,
+            marksFullReset: true,
+            reason: "forced manual refresh from account settings"
+        )
+
+        weeklyActivationBatchInProgress = true
+        defer { weeklyActivationBatchInProgress = false }
+        WeeklyQuotaLogger.log("forced manual activation started account=\(account.name)")
+
+        let succeeded = await CodexQuotaActivationService.shared.activate(
+            account: account,
+            allowWhenAutomaticActivationIsDisabled: true
+        )
+        if succeeded {
+            commitWeeklyQuotaActivationSuccess(
+                request,
+                scheduleNextCheckFromNow: weeklyWindow == nil
+            )
+            if let weeklyWindow {
+                let accountKey = account.id.uuidString
+                var nextActivationAt = loadWeeklyQuotaNextActivationAt()
+                nextActivationAt[accountKey] = WeeklyQuotaActivationPolicy
+                    .provisionalManualRefreshNextActivationTimestamp(
+                        existing: nextActivationAt[accountKey],
+                        observedResetAt: weeklyWindow.resetAt,
+                        now: Date().timeIntervalSince1970
+                    )
+                saveWeeklyQuotaNextActivationAt(nextActivationAt)
+            }
+            scheduleRefreshAfterWeeklyQuotaActivation()
+            return .succeeded
+        }
+
+        WeeklyQuotaLogger.log(
+            "forced manual activation failed account=\(account.name) existing schedule preserved"
+        )
+        return .failed
+    }
     
     // MARK: - Usage Notifications
 
@@ -759,6 +829,13 @@ class AccountStore: ObservableObject {
             activationState[accountKey] = currentResetKey
             fullActivationState[accountKey] = currentResetKey
             usageState[accountKey] = weeklyWindow.usedPercent ?? 0
+            if isPendingVerification,
+               let verifiedNextActivationAt = WeeklyQuotaActivationPolicy.verifiedNextActivationTimestamp(
+                   existing: nextActivationAt[accountKey],
+                   observedResetAt: weeklyWindow.resetAt
+               ) {
+                nextActivationAt[accountKey] = verifiedNextActivationAt
+            }
             pendingVerification[accountKey] = nil
             WeeklyQuotaLogger.log("activation verified account=\(account.name) weekly-window-baselined without-request")
             return
@@ -860,7 +937,10 @@ class AccountStore: ObservableObject {
         }
     }
 
-    private func commitWeeklyQuotaActivationSuccess(_ request: WeeklyQuotaActivationRequest) {
+    private func commitWeeklyQuotaActivationSuccess(
+        _ request: WeeklyQuotaActivationRequest,
+        scheduleNextCheckFromNow: Bool = true
+    ) {
         let accountKey = request.account.id.uuidString
         var activationState = loadWeeklyQuotaActivationState()
         activationState[accountKey] = request.resetKey
@@ -878,17 +958,20 @@ class AccountStore: ObservableObject {
             saveWeeklyQuotaUsageState(usageState)
         }
 
-        var nextActivationAt = loadWeeklyQuotaNextActivationAt()
-        let now = Date().timeIntervalSince1970
-        nextActivationAt[accountKey] = WeeklyQuotaActivationPolicy.nextScheduledActivationTimestamp(after: now)
-        saveWeeklyQuotaNextActivationAt(nextActivationAt)
+        if scheduleNextCheckFromNow {
+            var nextActivationAt = loadWeeklyQuotaNextActivationAt()
+            let now = Date().timeIntervalSince1970
+            nextActivationAt[accountKey] = WeeklyQuotaActivationPolicy.nextScheduledActivationTimestamp(after: now)
+            saveWeeklyQuotaNextActivationAt(nextActivationAt)
+        }
 
         var pendingVerification = loadWeeklyQuotaPendingVerification()
         pendingVerification[accountKey] = true
         saveWeeklyQuotaPendingVerification(pendingVerification)
 
+        let nextCheckSummary = scheduleNextCheckFromNow ? "7d-from-now" : "preserved-until-verification"
         WeeklyQuotaLogger.log(
-            "activation state committed account=\(request.account.name) reason=\(request.reason) nextCheckInDays=7 pendingVerification=true"
+            "activation state committed account=\(request.account.name) reason=\(request.reason) nextCheck=\(nextCheckSummary) pendingVerification=true"
         )
     }
 
@@ -1300,6 +1383,16 @@ struct WeeklyQuotaManualRefreshResult {
     var failedCount: Int {
         eligibleCount - succeededCount
     }
+}
+
+enum WeeklyQuotaAccountRefreshResult: Sendable, Equatable {
+    case succeeded
+    case failed
+    case busy
+    case missingCredentials
+    case codexNotFound
+    case accountNotFound
+    case unsupportedProvider
 }
 
 private struct WeeklyQuotaActivationRequest: Sendable {

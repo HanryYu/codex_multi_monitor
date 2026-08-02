@@ -268,7 +268,7 @@ struct QuotaCardsGridView: View {
                 Image(systemName: "questionmark.circle")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
-                Text(L10n.noUsageData(planType: usage.planType))
+                Text(L10n.noUsageData(planType: usage.displayPlanType))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
@@ -845,7 +845,7 @@ struct MenuBarView: View {
 
     private func providerPlanLabel(account: Account, usage: UsageResponse) -> String {
         let provider = account.provider.displayName
-        let plan = usage.planType.localizedCapitalized
+        let plan = usage.displayPlanType
         if provider.caseInsensitiveCompare(plan) == .orderedSame { return provider }
         return "\(provider) · \(plan)"
     }

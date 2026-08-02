@@ -46,6 +46,23 @@ struct UsageResponse: Codable {
     }
 }
 
+extension UsageResponse {
+    var displayPlanType: String {
+        let normalizedPlanType = planType
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+
+        switch normalizedPlanType {
+        case "prolight", "prolite":
+            return "Pro 5x"
+        case "pro":
+            return "Pro 20x"
+        default:
+            return planType.localizedCapitalized
+        }
+    }
+}
+
 struct RateLimitReached: Codable {
     let type: String
 

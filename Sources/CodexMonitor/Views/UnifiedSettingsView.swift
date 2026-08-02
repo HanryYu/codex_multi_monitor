@@ -169,6 +169,9 @@ struct AccountManagementContentView: View {
     @ObservedObject var localeManager = LocaleManager.shared
     @State private var showingAddForm = false
     @State private var editingAccount: Account?
+    @State private var refreshingAccountIDs: Set<UUID> = []
+    @State private var accountRefreshResults: [UUID: WeeklyQuotaAccountRefreshResult] = [:]
+    @State private var accountRefreshFeedbackTokens: [UUID: UUID] = [:]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -230,6 +233,9 @@ struct AccountManagementContentView: View {
                                 account: account,
                                 status: accountStatus(for: account),
                                 showDivider: index != accountStore.accounts.count - 1,
+                                isRefreshingQuota: refreshingAccountIDs.contains(account.id),
+                                refreshResult: accountRefreshResults[account.id],
+                                refreshQuotaAction: { forceRefreshWeeklyQuota(for: account) },
                                 editAction: { editingAccount = account },
                                 deleteAction: { accountStore.deleteAccount(id: account.id) }
                             )
@@ -301,6 +307,29 @@ struct AccountManagementContentView: View {
             return AccountSettingsStatus(text: "!", color: Color(hex: "EF4444"))
         }
     }
+
+    private func forceRefreshWeeklyQuota(for account: Account) {
+        guard account.provider == .codex,
+              !refreshingAccountIDs.contains(account.id)
+        else { return }
+
+        refreshingAccountIDs.insert(account.id)
+        accountRefreshResults[account.id] = nil
+        let feedbackToken = UUID()
+        accountRefreshFeedbackTokens[account.id] = feedbackToken
+
+        Task { @MainActor in
+            let result = await accountStore.forceRefreshWeeklyQuota(accountID: account.id)
+            accountRefreshResults[account.id] = result
+            refreshingAccountIDs.remove(account.id)
+
+            try? await Task.sleep(for: .seconds(4))
+            if accountRefreshFeedbackTokens[account.id] == feedbackToken {
+                accountRefreshResults[account.id] = nil
+                accountRefreshFeedbackTokens[account.id] = nil
+            }
+        }
+    }
 }
 
 private struct AccountSettingsStatus {
@@ -312,6 +341,9 @@ private struct AccountSettingsRow: View {
     let account: Account
     let status: AccountSettingsStatus?
     let showDivider: Bool
+    let isRefreshingQuota: Bool
+    let refreshResult: WeeklyQuotaAccountRefreshResult?
+    let refreshQuotaAction: () -> Void
     let editAction: () -> Void
     let deleteAction: () -> Void
 
@@ -350,6 +382,26 @@ private struct AccountSettingsRow: View {
                 }
 
                 HStack(spacing: 1) {
+                    if account.provider == .codex {
+                        Button(action: refreshQuotaAction) {
+                            Group {
+                                if isRefreshingQuota {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Image(systemName: refreshIcon)
+                                        .font(.system(size: 15, weight: .regular))
+                                        .foregroundStyle(refreshColor)
+                                }
+                            }
+                            .frame(width: 26, height: 26)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isRefreshingQuota)
+                        .help(refreshHelp)
+                        .accessibilityLabel(refreshHelp)
+                    }
+
                     Button(action: editAction) {
                         Image(systemName: "pencil")
                             .font(.system(size: 16, weight: .regular))
@@ -401,6 +453,51 @@ private struct AccountSettingsRow: View {
             parts.append(account.name)
         }
         return parts.joined(separator: " · ")
+    }
+
+    private var refreshIcon: String {
+        switch refreshResult {
+        case .succeeded:
+            return "checkmark.circle.fill"
+        case .failed, .busy, .missingCredentials, .codexNotFound, .accountNotFound, .unsupportedProvider:
+            return "exclamationmark.circle.fill"
+        case nil:
+            return "arrow.clockwise"
+        }
+    }
+
+    private var refreshColor: Color {
+        switch refreshResult {
+        case .succeeded:
+            return Color(hex: "22C55E")
+        case .failed, .busy, .missingCredentials, .codexNotFound, .accountNotFound, .unsupportedProvider:
+            return Color(hex: "EF4444")
+        case nil:
+            return SettingsPalette.secondaryText
+        }
+    }
+
+    private var refreshHelp: String {
+        if isRefreshingQuota {
+            return L10n.manualAccountWeeklyRefreshRunning
+        }
+
+        switch refreshResult {
+        case .succeeded:
+            return L10n.manualAccountWeeklyRefreshSucceeded
+        case .failed:
+            return L10n.manualAccountWeeklyRefreshFailed
+        case .busy:
+            return L10n.manualAccountWeeklyRefreshBusy
+        case .missingCredentials:
+            return L10n.manualAccountWeeklyRefreshMissingCredentials
+        case .codexNotFound:
+            return L10n.quotaActivationCodexNotFound
+        case .accountNotFound, .unsupportedProvider:
+            return L10n.manualAccountWeeklyRefreshUnavailable
+        case nil:
+            return L10n.manualAccountWeeklyRefreshHelp
+        }
     }
 
     private func maskedToken(_ token: String) -> String {

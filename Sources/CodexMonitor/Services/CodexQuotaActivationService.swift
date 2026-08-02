@@ -92,6 +92,16 @@ actor CodexQuotaActivationService {
         guard let accountID = account.accountID,
               let authBundleData = Self.authBundleData(for: account),
               let executableURL = Self.codexExecutableURL() else { return }
+
+        guard !activatingAccountIDs.contains(accountID) else {
+            WeeklyQuotaLogger.log(
+                "5-hour refresh skipped account=\(account.name) reason=already-in-progress"
+            )
+            return
+        }
+
+        activatingAccountIDs.insert(accountID)
+        defer { activatingAccountIDs.remove(accountID) }
         let result = await Self.runCodex(
             executableURL: executableURL,
             accountID: accountID,

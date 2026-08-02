@@ -108,6 +108,31 @@ enum WeeklyQuotaActivationPolicy {
         timestamp + cycleDuration
     }
 
+    static func verifiedNextActivationTimestamp(
+        existing: TimeInterval?,
+        observedResetAt: Int?
+    ) -> TimeInterval? {
+        guard let observedResetAt, observedResetAt > 0 else {
+            return existing
+        }
+        return TimeInterval(observedResetAt)
+    }
+
+    static func provisionalManualRefreshNextActivationTimestamp(
+        existing: TimeInterval?,
+        observedResetAt: Int?,
+        now: TimeInterval
+    ) -> TimeInterval {
+        if let observedResetAt,
+           TimeInterval(observedResetAt) > now {
+            return TimeInterval(observedResetAt)
+        }
+        if let existing, existing > now {
+            return existing
+        }
+        return nextScheduledActivationTimestamp(after: now)
+    }
+
     static func nextRetryTimestamp(after timestamp: TimeInterval) -> TimeInterval {
         timestamp + retryInterval
     }

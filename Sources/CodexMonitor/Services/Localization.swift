@@ -1389,6 +1389,39 @@ enum L10n {
         )
     }
 
+    static var manualAccountWeeklyRefreshHelp: String {
+        localized(
+            "Force refresh this account's weekly quota, regardless of the displayed percentage",
+            "表示されている割合に関係なく、このアカウントの週間クォータを強制更新",
+            "忽略当前显示百分比，强制刷新此账号的周额度",
+            "忽略目前顯示百分比，強制重新整理此帳戶的每週額度"
+        )
+    }
+
+    static var manualAccountWeeklyRefreshRunning: String {
+        localized("Refreshing this account…", "このアカウントを更新中…", "正在刷新此账号…", "正在重新整理此帳戶…")
+    }
+
+    static var manualAccountWeeklyRefreshSucceeded: String {
+        localized("Weekly quota refreshed", "週間クォータを更新しました", "周额度刷新成功", "每週額度重新整理成功")
+    }
+
+    static var manualAccountWeeklyRefreshFailed: String {
+        localized("Refresh failed; try again or check the quota log", "更新に失敗しました。再試行するかクォータログを確認してください", "刷新失败，请重试或检查额度日志", "重新整理失敗，請重試或檢查額度日誌")
+    }
+
+    static var manualAccountWeeklyRefreshBusy: String {
+        localized("Another quota refresh is already running", "別のクォータ更新が実行中です", "另一个额度刷新正在进行中", "另一個額度重新整理正在進行中")
+    }
+
+    static var manualAccountWeeklyRefreshMissingCredentials: String {
+        localized("This account has no complete saved credentials", "このアカウントには完全な認証情報が保存されていません", "此账号没有保存完整凭证", "此帳戶沒有儲存完整憑證")
+    }
+
+    static var manualAccountWeeklyRefreshUnavailable: String {
+        localized("This account cannot be refreshed", "このアカウントは更新できません", "此账号无法刷新", "此帳戶無法重新整理")
+    }
+
     static var notificationTestSent: String {
         switch lang {
         case .en:    return "Sent"
