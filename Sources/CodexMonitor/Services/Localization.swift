@@ -120,28 +120,16 @@ enum L10n {
         }
     }
 
-    static func resetRelative(hours: Int, minutes: Int) -> String {
+    static func resetRelative(_ time: RelativeResetTime) -> String {
         switch lang {
         case .en:
-            if hours > 0 {
-                return "Reset: \(hours)h\(minutes > 0 ? " \(minutes)m" : "")"
-            }
-            return "Reset: \(minutes)m"
+            return "Reset: \(time.compactDescription)"
         case .ja:
-            if hours > 0 {
-                return "リセット: \(hours)h\(minutes > 0 ? " \(minutes)m" : "")"
-            }
-            return "リセット: \(minutes)m"
+            return "リセット: \(time.compactDescription)"
         case .zhHans:
-            if hours > 0 {
-                return "重置: \(hours)h\(minutes > 0 ? " \(minutes)m" : "")"
-            }
-            return "重置: \(minutes)m"
+            return "重置: \(time.compactDescription)"
         case .zhHant:
-            if hours > 0 {
-                return "重置: \(hours)h\(minutes > 0 ? " \(minutes)m" : "")"
-            }
-            return "重置: \(minutes)m"
+            return "重置: \(time.compactDescription)"
         }
     }
 

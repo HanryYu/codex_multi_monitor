@@ -119,9 +119,8 @@ struct QuotaCardView: View {
                 return ""
             }
             guard seconds > 0 else { return "" }
-            let hours = seconds / 3600
-            let minutes = (seconds % 3600) / 60
-            return L10n.resetRelative(hours: hours, minutes: minutes)
+            let relativeTime = RelativeResetTime(seconds: seconds)
+            return L10n.resetRelative(relativeTime)
         } else {
             // Absolute: date+time format
             let targetDate: Date
@@ -549,9 +548,8 @@ struct LimitOverlayView: View {
                 return nil
             }
             guard seconds > 0 else { return nil }
-            let hours = seconds / 3600
-            let minutes = (seconds % 3600) / 60
-            return L10n.resetRelative(hours: hours, minutes: minutes)
+            let relativeTime = RelativeResetTime(seconds: seconds)
+            return L10n.resetRelative(relativeTime)
         } else {
             let targetDate: Date
             if soonest.resetAt > 0 {
