@@ -10,7 +10,7 @@ struct CodexResetRadarView: View {
     private let avatarURL = URL(string: "https://codex-reset.com/tibo-avatar.jpg")!
 
     var body: some View {
-        Button(action: openSite) {
+        Button(action: toggleDetails) {
             HStack(spacing: 7) {
                 Circle()
                     .fill(accentColor)
@@ -24,19 +24,15 @@ struct CodexResetRadarView: View {
 
                 Spacer(minLength: 6)
 
-                if service.isLoading && service.snapshot == nil {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .scaleEffect(0.65)
-                } else {
-                    Text(probabilityText)
-                        .font(.system(size: 12, weight: .bold).monospacedDigit())
-                        .foregroundStyle(accentColor)
-                }
+                probabilityValue
 
                 Text("24H")
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.tertiary)
+
+                Image(systemName: detailToggleIcon)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(detailToggleColor)
             }
             .padding(.horizontal, 11)
             .frame(height: 28)
@@ -50,7 +46,6 @@ struct CodexResetRadarView: View {
             .background(CodexResetHoverPanelAnchor(controller: hoverPanel))
         }
         .buttonStyle(.plain)
-        .onHover(perform: updateHover)
         .task {
             async let resetData: Void = service.refreshIfNeeded()
             async let avatar: Void = avatarStore.preload(from: avatarURL)
@@ -59,13 +54,39 @@ struct CodexResetRadarView: View {
         .onDisappear {
             hoverPanel.hide()
         }
-        .accessibilityLabel("Codex Reset Radar, \(probabilityText) in the next 24 hours")
-        .help("Community forecast. Hover for the latest @thsottiaux feed.")
+        .accessibilityLabel(accessibilityText)
+        .help("Community forecast. Click for the latest @thsottiaux feed.")
     }
 
     private var probabilityText: String {
         guard let probability = service.snapshot?.probability24h else { return "--%" }
         return "\(probability)%"
+    }
+
+    @ViewBuilder
+    private var probabilityValue: some View {
+        if service.isLoading && service.snapshot == nil {
+            ProgressView()
+                .controlSize(.mini)
+                .scaleEffect(0.65)
+        } else {
+            Text(probabilityText)
+                .font(.system(size: 12, weight: .bold).monospacedDigit())
+                .foregroundStyle(accentColor)
+        }
+    }
+
+    private var detailToggleIcon: String {
+        hoverPanel.isVisible ? "xmark.circle.fill" : "info.circle"
+    }
+
+    private var detailToggleColor: Color {
+        hoverPanel.isVisible ? Color.secondary : Color.secondary.opacity(0.55)
+    }
+
+    private var accessibilityText: String {
+        let action = hoverPanel.isVisible ? "Hide details" : "Show details"
+        return "Codex Reset Radar, \(probabilityText) in the next 24 hours. \(action)"
     }
 
     private var accentColor: Color {
@@ -79,31 +100,21 @@ struct CodexResetRadarView: View {
         return .blue
     }
 
-    private func updateHover(_ isHovering: Bool) {
-        if isHovering {
-            hoverPanel.show(
-                CodexResetFeedCard(service: service, avatarStore: avatarStore)
-                    .onHover { panelIsHovering in
-                        if panelIsHovering {
-                            hoverPanel.keepVisible()
-                        } else {
-                            hoverPanel.scheduleHide()
-                        }
-                    }
+    private func toggleDetails() {
+        hoverPanel.toggle(
+            CodexResetFeedCard(
+                service: service,
+                avatarStore: avatarStore,
+                sourceURL: siteURL
             )
-        } else {
-            hoverPanel.scheduleHide()
-        }
-    }
-
-    private func openSite() {
-        NSWorkspace.shared.open(siteURL)
+        )
     }
 }
 
 private struct CodexResetFeedCard: View {
     @ObservedObject var service: CodexResetService
     @ObservedObject var avatarStore: CodexResetAvatarStore
+    let sourceURL: URL
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -224,7 +235,7 @@ private struct CodexResetFeedCard: View {
             }
 
             HStack {
-                Text("Independent data from codex-reset.com")
+                Link("codex-reset.com ↗", destination: sourceURL)
                     .font(.system(size: 8.5))
                     .foregroundStyle(.tertiary)
                 Spacer()

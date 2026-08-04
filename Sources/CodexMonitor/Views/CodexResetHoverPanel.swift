@@ -9,14 +9,22 @@ final class CodexResetHoverPanelController: ObservableObject {
     }
 
     @Published private(set) var placement: Placement = .leftOfAnchor
+    @Published private(set) var isVisible = false
     weak var anchorView: NSView?
 
     private var panel: NSPanel?
-    private var hideTask: Task<Void, Never>?
+    private var localEventMonitor: Any?
+    private var globalEventMonitor: Any?
 
-    func show<Content: View>(_ content: Content) {
-        hideTask?.cancel()
+    func toggle<Content: View>(_ content: Content) {
+        if isVisible {
+            hide()
+        } else {
+            show(content)
+        }
+    }
 
+    private func show<Content: View>(_ content: Content) {
         placement = resolvedPlacement(panelWidth: 308)
         let hostingController = NSHostingController(
             rootView: CodexResetHoverPanelContent(
@@ -36,24 +44,14 @@ final class CodexResetHoverPanelController: ObservableObject {
         panel.setContentSize(size)
         position(panel, size: size)
         panel.orderFrontRegardless()
-    }
-
-    func keepVisible() {
-        hideTask?.cancel()
-    }
-
-    func scheduleHide() {
-        hideTask?.cancel()
-        hideTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            guard !Task.isCancelled else { return }
-            self?.hide()
-        }
+        isVisible = true
+        startEventMonitoring()
     }
 
     func hide() {
-        hideTask?.cancel()
+        stopEventMonitoring()
         panel?.orderOut(nil)
+        isVisible = false
     }
 
     private func makePanel() -> NSPanel {
@@ -106,6 +104,48 @@ final class CodexResetHoverPanelController: ObservableObject {
         )
 
         panel.setFrameOrigin(origin)
+    }
+
+    private func startEventMonitoring() {
+        stopEventMonitoring()
+
+        localEventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .scrollWheel]
+        ) { [weak self] event in
+            guard let self, self.isVisible else { return event }
+            if event.window === self.panel || self.eventTargetsAnchor(event) {
+                return event
+            }
+            self.hide()
+            return event
+        }
+
+        globalEventMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .scrollWheel]
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.hide()
+            }
+        }
+    }
+
+    private func stopEventMonitoring() {
+        if let localEventMonitor {
+            NSEvent.removeMonitor(localEventMonitor)
+            self.localEventMonitor = nil
+        }
+        if let globalEventMonitor {
+            NSEvent.removeMonitor(globalEventMonitor)
+            self.globalEventMonitor = nil
+        }
+    }
+
+    private func eventTargetsAnchor(_ event: NSEvent) -> Bool {
+        guard let anchorView,
+              event.window === anchorView.window
+        else { return false }
+        let point = anchorView.convert(event.locationInWindow, from: nil)
+        return anchorView.bounds.contains(point)
     }
 
     private func resolvedPlacement(panelWidth: CGFloat) -> Placement {

@@ -5,9 +5,10 @@ This release adds a community-powered Codex reset forecast to the menu bar, impr
 ## Codex Reset Radar
 
 - Shows the estimated chance of a community-wide Codex reset in the next 24 hours.
-- Displays the latest public Tibo signal in an X-style hover card with status-specific presentation.
-- Uses a compact, screen-aware pointer that follows the hover card when it moves to either side of the menu.
-- Preloads and caches Tibo's avatar locally instead of downloading it on every hover.
+- Displays the latest public Tibo signal in an X-style detail card with status-specific presentation.
+- Opens details only after an explicit click, so moving into the account list never triggers the card accidentally.
+- Uses a compact, screen-aware pointer that follows the detail card when it moves to either side of the menu.
+- Preloads and caches Tibo's avatar locally instead of downloading it on every open.
 - Preserves the last successful forecast when the independent community API is temporarily unavailable.
 
 ## Attribution and transparency
