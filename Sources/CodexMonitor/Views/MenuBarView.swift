@@ -614,11 +614,14 @@ struct LimitOverlayView: View {
 struct MenuBarView: View {
     @ObservedObject var accountStore: AccountStore
     @ObservedObject var localeManager = LocaleManager.shared
+    @StateObject private var codexResetService = CodexResetService()
     @State private var displayMode: DisplayMode = .remaining
     @State private var resetTimeFormat: ResetTimeFormat = .relative
 
     var body: some View {
         VStack(spacing: 0) {
+            CodexResetRadarView(service: codexResetService)
+
             // Content
             if accountStore.isLoading && accountStore.accounts.isEmpty {
                 loadingPlaceholder

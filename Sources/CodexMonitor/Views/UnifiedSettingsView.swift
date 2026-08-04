@@ -1159,6 +1159,9 @@ struct AboutSettingsContentView: View {
     private let xURL = URL(string: "https://x.com/ryanhan_top")!
     private let feedbackURL = URL(string: "mailto:suggestion@hanry.top?subject=Codex%20Monitor%20Feedback")!
     private let licenseURL = URL(string: "https://github.com/HanryYu/codex_multi_monitor/blob/main/LICENSE")!
+    private let codexResetURL = URL(string: "https://codex-reset.com")!
+    private let codexResetForecastURL = URL(string: "https://codex-reset.com/api/forecast")!
+    private let codexResetFeedURL = URL(string: "https://codex-reset.com/api/feed")!
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1203,7 +1206,48 @@ struct AboutSettingsContentView: View {
             }
             .padding(.top, 24)
 
-            Spacer()
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 7) {
+                    Image(systemName: "heart.text.square")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+
+                    Text(L10n.aboutAcknowledgements)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(SettingsPalette.primaryText)
+
+                    Spacer()
+
+                    Link("Codex Reset ↗", destination: codexResetURL)
+                        .font(.system(size: 11, weight: .semibold))
+                }
+
+                Text(L10n.aboutCodexResetAcknowledgement)
+                    .font(.system(size: 11))
+                    .foregroundStyle(SettingsPalette.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 6) {
+                    Text(L10n.aboutReferences + ":")
+                    Link("/api/forecast", destination: codexResetForecastURL)
+                    Text("·")
+                    Link("/api/feed", destination: codexResetFeedURL)
+                }
+                .font(.system(size: 10))
+                .foregroundStyle(SettingsPalette.tertiaryText)
+            }
+            .padding(14)
+            .frame(maxWidth: 440, alignment: .leading)
+            .background(SettingsPalette.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(SettingsPalette.border, lineWidth: 0.7)
+            }
+            .padding(.horizontal, 36)
+            .padding(.top, 24)
+
+            Spacer(minLength: 20)
 
             VStack(spacing: 4) {
                 Text("Build with ♥️ in Seattle")

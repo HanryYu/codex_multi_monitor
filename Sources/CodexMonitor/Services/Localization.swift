@@ -644,6 +644,37 @@ enum L10n {
         }
     }
 
+    static var aboutAcknowledgements: String {
+        switch lang {
+        case .en:    return "Acknowledgements"
+        case .ja:    return "謝辞"
+        case .zhHans: return "致谢"
+        case .zhHant: return "致謝"
+        }
+    }
+
+    static var aboutCodexResetAcknowledgement: String {
+        switch lang {
+        case .en:
+            return "Thanks to Codex Reset, an independent community project, for the public APIs used for reset forecasts and Tibo's public feed. Codex Reset is not affiliated with OpenAI."
+        case .ja:
+            return "リセット予測と Tibo の公開フィードに使用する公開 API を提供している、独立したコミュニティプロジェクト Codex Reset に感謝します。Codex Reset は OpenAI とは提携していません。"
+        case .zhHans:
+            return "感谢独立社区项目 Codex Reset 提供重置概率预测和 Tibo 公开动态所使用的公共 API。Codex Reset 与 OpenAI 无隶属或合作关系。"
+        case .zhHant:
+            return "感謝獨立社群專案 Codex Reset 提供重置機率預測與 Tibo 公開動態所使用的公開 API。Codex Reset 與 OpenAI 無隸屬或合作關係。"
+        }
+    }
+
+    static var aboutReferences: String {
+        switch lang {
+        case .en:    return "API references"
+        case .ja:    return "API 参照"
+        case .zhHans: return "API 引用"
+        case .zhHant: return "API 引用"
+        }
+    }
+
     // MARK: - Account Management
 
     static var monitoredAccountList: String {
