@@ -1,23 +1,25 @@
-# CodexMonitor 0.7.6
+# CodexMonitor 0.7.7
 
-This release makes Codex plan tiers easier to understand and adds a per-account fallback for starting a weekly quota cycle when the displayed percentage is inaccurate.
+This release adds a community-powered Codex reset forecast to the menu bar, improves long reset countdowns, and introduces a reusable release workflow.
 
-## Clearer Codex plan names
+## Codex Reset Radar
 
-- Displays the Codex Pro Lite tier as **Pro 5x**.
-- Displays the Codex Pro tier as **Pro 20x**.
-- Keeps the original API plan value unchanged outside the UI.
+- Shows the estimated chance of a community-wide Codex reset in the next 24 hours.
+- Displays the latest public Tibo signal in an X-style hover card with status-specific presentation.
+- Uses a compact, screen-aware pointer that follows the hover card when it moves to either side of the menu.
+- Preloads and caches Tibo's avatar locally instead of downloading it on every hover.
+- Preserves the last successful forecast when the independent community API is temporarily unavailable.
 
-## Per-account weekly quota refresh
+## Attribution and transparency
 
-- Adds a manual refresh action to each Codex account in Settings → Accounts.
-- Lets the selected account send one short activation request without requiring the displayed weekly quota to be exactly 100% remaining.
-- Shows in-progress, success, and failure feedback directly in the account row.
-- Keeps the action hidden for non-Codex providers and reports when a Codex account has no complete saved credentials.
+- Adds localized acknowledgements and direct API references for Codex Reset in Settings → About.
+- Clearly identifies the forecast as independent community data that is not affiliated with OpenAI.
 
-## Safer activation scheduling
+## Reset-time readability
 
-- Prevents weekly and scheduled 5-hour refreshes from running concurrently for the same account.
-- Preserves existing schedules when a forced request fails.
-- Uses the server-provided weekly reset time when available, with a conservative seven-day fallback for missing or stale cycle data.
-- Prevents an immediate duplicate request after a successful manual refresh while allowing the next seven-day cycle to run normally.
+- Formats longer countdowns with days, hours, and minutes, such as `1d 2h 5m`.
+- Keeps short countdowns compact while avoiding very large hour-only values.
+
+## Release workflow
+
+- Adds a one-command release path with preflight checks, signed artifact validation, GitHub Actions monitoring, and Homebrew cask synchronization.
