@@ -93,10 +93,10 @@ if [ -f "$GITHUB_ICON_SRC" ]; then
     echo "   ✅ GitHub icon copied"
 fi
 
-for PROVIDER_ICON in ProviderCodex.png ProviderClaude.png ProviderGrok.png; do
-    PROVIDER_ICON_SRC="$PROJECT_DIR/Sources/CodexMonitor/Resources/$PROVIDER_ICON"
-    if [ -f "$PROVIDER_ICON_SRC" ]; then
-        cp "$PROVIDER_ICON_SRC" "$APP_BUNDLE/Contents/Resources/$PROVIDER_ICON"
+for APP_RESOURCE in ProviderCodex.png ProviderClaude.png ProviderGrok.png RadarLucide.png Lucide_LICENSE.txt; do
+    APP_RESOURCE_SRC="$PROJECT_DIR/Sources/CodexMonitor/Resources/$APP_RESOURCE"
+    if [ -f "$APP_RESOURCE_SRC" ]; then
+        cp "$APP_RESOURCE_SRC" "$APP_BUNDLE/Contents/Resources/$APP_RESOURCE"
     fi
 done
 

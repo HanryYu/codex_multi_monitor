@@ -274,6 +274,22 @@ if [[ "$SKIP_CHECKS" == false && "$RESUME" == false ]]; then
         scripts/test_codex_reset_decoding.swift \
         -o "$TMP_ROOT/reset-radar-tests"
     "$TMP_ROOT/reset-radar-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/reset-radar-timestamp-module-cache" \
+        Sources/CodexMonitor/Services/CodexResetPostTimestamp.swift \
+        scripts/test_codex_reset_post_timestamp.swift \
+        -o "$TMP_ROOT/reset-radar-timestamp-tests"
+    "$TMP_ROOT/reset-radar-timestamp-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/reset-radar-refresh-policy-module-cache" \
+        Sources/CodexMonitor/Services/CodexResetRefreshPolicy.swift \
+        scripts/test_codex_reset_refresh_policy.swift \
+        -o "$TMP_ROOT/reset-radar-refresh-policy-tests"
+    "$TMP_ROOT/reset-radar-refresh-policy-tests"
 fi
 
 if [[ "$DRY_RUN" == true ]]; then

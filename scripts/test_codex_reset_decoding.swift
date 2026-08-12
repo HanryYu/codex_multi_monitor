@@ -15,6 +15,10 @@ enum CodexResetDecodingTests {
         precondition(snapshot.activeSignal?.summary == "Reset soon")
         precondition(snapshot.latestTweet?.verificationStatus == "confirmed")
         precondition(snapshot.forecast.lastResetAt?.codexResetDate != nil)
+
+        let cachedData = try JSONEncoder().encode(snapshot)
+        let cachedSnapshot = try JSONDecoder().decode(CodexResetSnapshot.self, from: cachedData)
+        precondition(cachedSnapshot == snapshot)
         print("Codex Reset decoding tests passed")
     }
 }

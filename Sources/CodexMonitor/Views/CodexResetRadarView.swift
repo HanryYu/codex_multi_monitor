@@ -3,59 +3,66 @@ import SwiftUI
 
 struct CodexResetRadarView: View {
     @ObservedObject var service: CodexResetService
-    @StateObject private var hoverPanel = CodexResetHoverPanelController()
+    @StateObject private var detailsPanel = CodexResetDetailsPanelController()
     @StateObject private var avatarStore = CodexResetAvatarStore()
+    @State private var delayedHoverTask: Task<Void, Never>?
+    @State private var isHovering = false
 
     private let siteURL = URL(string: "https://codex-reset.com")!
     private let avatarURL = URL(string: "https://codex-reset.com/tibo-avatar.jpg")!
 
     var body: some View {
         Button(action: toggleDetails) {
-            HStack(spacing: 7) {
-                Circle()
-                    .fill(accentColor)
-                    .frame(width: 6, height: 6)
-                    .shadow(color: accentColor.opacity(0.45), radius: 2)
+            HStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(accentColor.opacity(0.11))
+                    RadarIconView(color: accentColor)
+                }
+                .frame(width: 24, height: 24)
 
-                Text("CODEX RESET RADAR")
-                    .font(.system(size: 9, weight: .semibold))
-                    .tracking(0.6)
+                Text("Codex Reset Radar")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
 
                 Spacer(minLength: 6)
 
                 probabilityValue
 
-                Text("24H")
+                Image(systemName: "chevron.right")
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.tertiary)
-
-                Image(systemName: detailToggleIcon)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(detailToggleColor)
+                    .rotationEffect(.degrees(detailsPanel.isShown ? 180 : 0))
+                    .animation(.easeInOut(duration: 0.16), value: detailsPanel.isShown)
             }
-            .padding(.horizontal, 11)
-            .frame(height: 28)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
             .contentShape(Rectangle())
-            .background(accentColor.opacity(0.075))
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(Color.primary.opacity(0.08))
-                    .frame(height: 0.5)
-            }
-            .background(CodexResetHoverPanelAnchor(controller: hoverPanel))
         }
         .buttonStyle(.plain)
+        .frame(height: 40)
+        .background(CodexResetPanelAnchor(controller: detailsPanel))
+        .background(
+            Color.primary.opacity(detailsPanel.isShown ? 0.065 : (isHovering ? 0.045 : 0.03))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.075), lineWidth: 0.5)
+                .allowsHitTesting(false)
+        }
         .task {
-            async let resetData: Void = service.refreshIfNeeded()
-            async let avatar: Void = avatarStore.preload(from: avatarURL)
-            _ = await (resetData, avatar)
+            await avatarStore.preload(from: avatarURL)
         }
         .onDisappear {
-            hoverPanel.hide()
+            delayedHoverTask?.cancel()
+            detailsPanel.close()
         }
+        .onHover(perform: updateHover)
         .accessibilityLabel(accessibilityText)
-        .help("Community forecast. Click for the latest @thsottiaux feed.")
+        .accessibilityValue(detailsPanel.isShown ? "Open" : "Closed")
+        .help(detailsPanel.isShown ? "Close reset details" : "Open reset details")
     }
 
     private var probabilityText: String {
@@ -65,27 +72,34 @@ struct CodexResetRadarView: View {
 
     @ViewBuilder
     private var probabilityValue: some View {
-        if service.isLoading && service.snapshot == nil {
-            ProgressView()
-                .controlSize(.mini)
-                .scaleEffect(0.65)
+        if service.isLoading {
+            HStack(spacing: 4) {
+                ProgressView()
+                    .controlSize(.mini)
+                    .scaleEffect(0.6)
+                    .frame(width: 10, height: 10)
+
+                Text(L10n.refreshing)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(width: 76, alignment: .trailing)
+            .transition(.opacity)
         } else {
             Text(probabilityText)
-                .font(.system(size: 12, weight: .bold).monospacedDigit())
+                .font(.system(size: 15, weight: .semibold).monospacedDigit())
                 .foregroundStyle(accentColor)
+                .frame(width: 76, alignment: .trailing)
+                .transition(.opacity)
         }
     }
 
-    private var detailToggleIcon: String {
-        hoverPanel.isVisible ? "xmark.circle.fill" : "info.circle"
-    }
-
-    private var detailToggleColor: Color {
-        hoverPanel.isVisible ? Color.secondary : Color.secondary.opacity(0.55)
-    }
-
     private var accessibilityText: String {
-        let action = hoverPanel.isVisible ? "Hide details" : "Show details"
+        let action = detailsPanel.isShown ? "Close details" : "Open details"
+        if service.isLoading {
+            return "Codex Reset Radar, \(L10n.refreshing). \(action)"
+        }
         return "Codex Reset Radar, \(probabilityText) in the next 24 hours. \(action)"
     }
 
@@ -101,12 +115,31 @@ struct CodexResetRadarView: View {
     }
 
     private func toggleDetails() {
-        hoverPanel.toggle(
-            CodexResetFeedCard(
-                service: service,
-                avatarStore: avatarStore,
-                sourceURL: siteURL
-            )
+        delayedHoverTask?.cancel()
+        detailsPanel.toggle(feedCard)
+    }
+
+    private func updateHover(_ isHovering: Bool) {
+        self.isHovering = isHovering
+        delayedHoverTask?.cancel()
+        guard isHovering, !detailsPanel.isShown else { return }
+
+        scheduleHoverDetails()
+    }
+
+    private func scheduleHoverDetails() {
+        delayedHoverTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard !Task.isCancelled else { return }
+            detailsPanel.show(feedCard)
+        }
+    }
+
+    private var feedCard: some View {
+        CodexResetFeedCard(
+            service: service,
+            avatarStore: avatarStore,
+            sourceURL: siteURL
         )
     }
 }
@@ -126,14 +159,7 @@ private struct CodexResetFeedCard: View {
                 errorContent
             }
         }
-        .frame(width: 300)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
-                .allowsHitTesting(false)
-        }
+        .frame(maxWidth: .infinity)
     }
 
     private func feedContent(_ snapshot: CodexResetSnapshot) -> some View {
@@ -164,14 +190,31 @@ private struct CodexResetFeedCard: View {
                             .font(.system(size: 11))
                             .foregroundStyle(Color.blue)
                     }
-                    Text("@\(snapshot.feed.profile.handle)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Text("@\(snapshot.feed.profile.handle)")
+                        if let postDate = displayedPostDate(snapshot) {
+                            Text("·")
+                            Text(CodexResetPostTimestamp.text(for: postDate))
+                        }
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .help(displayedPostDate(snapshot)?.formatted(date: .abbreviated, time: .shortened) ?? "")
                 }
 
                 Spacer()
 
-                statusBadge(snapshot)
+                if let status = noteworthyFeedStatus(snapshot) {
+                    Text(status.title)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(status.color)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(status.color.opacity(0.11))
+                        .clipShape(Capsule())
+                }
+
+                refreshButton
             }
 
             Text(displayText(snapshot))
@@ -199,9 +242,8 @@ private struct CodexResetFeedCard: View {
 
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("COMMUNITY FORECAST · NEXT 24H")
-                        .font(.system(size: 8.5, weight: .semibold))
-                        .tracking(0.45)
+                    Text("Community forecast · Next 24h")
+                        .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(.secondary)
                     Text("\(snapshot.probability24h)%")
                         .font(.system(size: 19, weight: .bold).monospacedDigit())
@@ -245,18 +287,46 @@ private struct CodexResetFeedCard: View {
                     .foregroundStyle(.blue)
             }
         }
-        .padding(14)
+        .padding(16)
     }
 
     private var loadingContent: some View {
-        HStack(spacing: 9) {
-            ProgressView().controlSize(.small)
-            Text("Checking Tibo's latest feed…")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+        HStack(spacing: 10) {
+            HStack(spacing: 9) {
+                ProgressView().controlSize(.small)
+                Text("Checking Tibo's latest feed…")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            refreshButton
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
+    }
+
+    private var refreshButton: some View {
+        Button {
+            Task { await service.refreshLatest() }
+        } label: {
+            Group {
+                if service.isLoading {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+            }
+            .frame(width: 24, height: 24)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.borderless)
+        .disabled(service.isLoading)
+        .help(service.isLoading ? L10n.refreshing : L10n.refreshModels)
+        .accessibilityLabel(service.isLoading ? L10n.refreshing : L10n.refreshModels)
     }
 
     private var errorContent: some View {
@@ -268,7 +338,7 @@ private struct CodexResetFeedCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(3)
             Button("Try Again") {
-                Task { await service.refresh() }
+                Task { await service.refreshLatest() }
             }
                 .controlSize(.small)
         }
@@ -280,26 +350,16 @@ private struct CodexResetFeedCard: View {
         return snapshot.latestTweet?.text ?? "No recent posts were returned by the feed."
     }
 
-    @ViewBuilder
-    private func statusBadge(_ snapshot: CodexResetSnapshot) -> some View {
-        let status = feedStatus(snapshot)
-        Text(status.title.uppercased())
-            .font(.system(size: 8, weight: .bold))
-            .tracking(0.35)
-            .foregroundStyle(status.color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(status.color.opacity(0.11))
-            .clipShape(Capsule())
+    private func displayedPostDate(_ snapshot: CodexResetSnapshot) -> Date? {
+        (snapshot.activeSignal?.at ?? snapshot.latestTweet?.at)?.codexResetDate
     }
 
-    private func feedStatus(_ snapshot: CodexResetSnapshot) -> (title: String, color: Color) {
+    private func noteworthyFeedStatus(_ snapshot: CodexResetSnapshot) -> (title: String, color: Color)? {
         if snapshot.feed.stale { return ("Feed delayed", .orange) }
         if snapshot.activeSignal != nil { return ("Active signal", .purple) }
         if snapshot.latestTweet?.verificationStatus == "confirmed" { return ("Reset confirmed", .green) }
         if snapshot.latestTweet?.resetVerificationCandidate == true { return ("Reset candidate", .orange) }
-        if snapshot.latestTweet?.kind == "codex" { return ("Codex update", .blue) }
-        return ("Latest post", .secondary)
+        return nil
     }
 
     private func metric(_ systemImage: String, count: Int) -> some View {
@@ -323,5 +383,34 @@ private struct CodexResetFeedCard: View {
         guard let snapshot = service.snapshot else { return }
         let url = snapshot.activeSignal?.url ?? snapshot.latestTweet?.url ?? URL(string: "https://x.com/thsottiaux")!
         NSWorkspace.shared.open(url)
+    }
+}
+
+private struct RadarIconView: View {
+    let color: Color
+
+    private static let image: NSImage? = {
+        let image = NSImage(named: NSImage.Name("RadarLucide"))
+            ?? Bundle.main.url(forResource: "RadarLucide", withExtension: "png").flatMap(NSImage.init(contentsOf:))
+            ?? Bundle.module.url(forResource: "RadarLucide", withExtension: "png").flatMap(NSImage.init(contentsOf:))
+        image?.isTemplate = true
+        return image
+    }()
+
+    var body: some View {
+        Group {
+            if let image = Self.image {
+                Image(nsImage: image)
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+            } else {
+                Image(systemName: "dot.radiowaves.left.and.right")
+                    .resizable()
+                    .scaledToFit()
+            }
+        }
+        .foregroundStyle(color)
+        .frame(width: 14, height: 14)
     }
 }

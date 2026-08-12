@@ -1,13 +1,13 @@
 import Foundation
 
-struct CodexResetForecast: Decodable, Equatable {
+struct CodexResetForecast: Codable, Equatable {
     let updatedAt: String
     let probabilities: Probabilities
     let confidence: String
     let confidenceNote: String?
     let lastResetAt: String?
 
-    struct Probabilities: Decodable, Equatable {
+    struct Probabilities: Codable, Equatable {
         let rounded24h: Int
         let rounded48h: Int
 
@@ -26,7 +26,7 @@ struct CodexResetForecast: Decodable, Equatable {
     }
 }
 
-struct CodexResetFeed: Decodable, Equatable {
+struct CodexResetFeed: Codable, Equatable {
     let fetchedAt: String
     let stale: Bool
     let contentAgeDays: Double?
@@ -34,13 +34,13 @@ struct CodexResetFeed: Decodable, Equatable {
     let signal: Signal?
     let tweets: [Tweet]
 
-    struct Profile: Decodable, Equatable {
+    struct Profile: Codable, Equatable {
         let handle: String
         let name: String
         let followers: Int?
     }
 
-    struct Signal: Decodable, Equatable {
+    struct Signal: Codable, Equatable {
         let tweetID: String
         let summary: String
         let at: String
@@ -56,7 +56,7 @@ struct CodexResetFeed: Decodable, Equatable {
         }
     }
 
-    struct Tweet: Decodable, Equatable, Identifiable {
+    struct Tweet: Codable, Equatable, Identifiable {
         let id: String
         let url: URL?
         let text: String
@@ -68,7 +68,7 @@ struct CodexResetFeed: Decodable, Equatable {
         let resetVerificationCandidate: Bool?
         let resetVerificationStatus: String?
 
-        struct ResetVerification: Decodable, Equatable {
+        struct ResetVerification: Codable, Equatable {
             let status: String
             let evidenceSummary: String?
 
@@ -106,7 +106,7 @@ struct CodexResetFeed: Decodable, Equatable {
     }
 }
 
-struct CodexResetSnapshot: Equatable {
+struct CodexResetSnapshot: Codable, Equatable {
     let forecast: CodexResetForecast
     let feed: CodexResetFeed
 

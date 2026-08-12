@@ -796,6 +796,24 @@ enum L10n {
         }
     }
 
+    static var showResetRadar: String {
+        switch lang {
+        case .en:    return "Show Codex Reset Radar"
+        case .ja:    return "Codex Reset Radarを表示"
+        case .zhHans: return "显示 Codex Reset Radar"
+        case .zhHant: return "顯示 Codex Reset Radar"
+        }
+    }
+
+    static var showResetRadarDesc: String {
+        switch lang {
+        case .en:    return "Show the community reset forecast above account quotas"
+        case .ja:    return "アカウントの利用枠の上にコミュニティのリセット予測を表示"
+        case .zhHans: return "在账户额度上方显示社区重置概率预测"
+        case .zhHant: return "在帳戶額度上方顯示社群重置機率預測"
+        }
+    }
+
     static var usageAlertThreshold: String {
         switch lang {
         case .en:    return "Usage Alert Threshold"

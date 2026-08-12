@@ -517,6 +517,7 @@ struct PreferencesContentView: View {
     @State private var displayMode: DisplayMode = .remaining
     @State private var alertThreshold: Double = 80
     @State private var showMenuBarText: Bool = false
+    @State private var showResetRadar: Bool = true
     @State private var resetTimeFormat: ResetTimeFormat = .relative
     @State private var selectedLanguage: LanguageOption = .system
     @State private var autoImportEnabled: Bool = false
@@ -572,6 +573,18 @@ struct PreferencesContentView: View {
             .onChange(of: showMenuBarText) { _, newValue in
                 UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showMenuBarText)
                 NotificationCenter.default.post(name: .menuBarTextChanged, object: nil)
+            }
+
+            CardDivider()
+
+            SettingsCheckbox(
+                title: L10n.showResetRadar,
+                description: L10n.showResetRadarDesc,
+                isChecked: $showResetRadar
+            )
+            .onChange(of: showResetRadar) { _, newValue in
+                UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showResetRadar)
+                NotificationCenter.default.post(name: .resetRadarVisibilityChanged, object: nil)
             }
 
             CardDivider()
@@ -964,6 +977,8 @@ struct PreferencesContentView: View {
         alertThreshold = savedThreshold > 0 ? Double(savedThreshold) : 80
 
         showMenuBarText = UserDefaults.standard.bool(forKey: PreferencesKeys.showMenuBarText)
+
+        showResetRadar = (UserDefaults.standard.object(forKey: PreferencesKeys.showResetRadar) as? Bool) ?? true
 
         let formatString = UserDefaults.standard.string(forKey: PreferencesKeys.resetTimeFormat) ?? ResetTimeFormat.relative.rawValue
         resetTimeFormat = ResetTimeFormat(rawValue: formatString) ?? .relative

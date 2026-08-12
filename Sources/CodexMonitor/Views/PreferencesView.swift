@@ -62,6 +62,7 @@ enum PreferencesKeys {
     static let displayMode = "displayMode"
     static let alertThreshold = "alertThreshold"
     static let showMenuBarText = "showMenuBarText"
+    static let showResetRadar = "showResetRadar"
     static let resetTimeFormat = "resetTimeFormat"
     static let autoImportEnabled = "auto_import_enabled"
     static let usageAlertEnabled = "usageAlertEnabled"
@@ -147,6 +148,7 @@ struct PreferencesView: View {
     @State private var displayMode: DisplayMode = .remaining
     @State private var alertThreshold: Double = 80
     @State private var showMenuBarText: Bool = false
+    @State private var showResetRadar: Bool = true
     @State private var resetTimeFormat: ResetTimeFormat = .relative
 
     var body: some View {
@@ -245,6 +247,27 @@ struct PreferencesView: View {
 
                 Divider().opacity(0.4)
 
+                // Codex Reset Radar Toggle
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label(L10n.showResetRadar, systemImage: "dot.radiowaves.left.and.right")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Toggle("", isOn: $showResetRadar)
+                            .labelsHidden()
+                    }
+                    .onChange(of: showResetRadar) { _, newValue in
+                        UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showResetRadar)
+                        NotificationCenter.default.post(name: .resetRadarVisibilityChanged, object: nil)
+                    }
+
+                    Text(L10n.showResetRadarDesc)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+
+                Divider().opacity(0.4)
+
                 // Alert Threshold
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -327,6 +350,8 @@ struct PreferencesView: View {
         // Load menu bar text toggle
         showMenuBarText = UserDefaults.standard.bool(forKey: PreferencesKeys.showMenuBarText)
 
+        showResetRadar = (UserDefaults.standard.object(forKey: PreferencesKeys.showResetRadar) as? Bool) ?? true
+
         // Load reset time format
         let formatString = UserDefaults.standard.string(forKey: PreferencesKeys.resetTimeFormat) ?? ResetTimeFormat.relative.rawValue
         resetTimeFormat = ResetTimeFormat(rawValue: formatString) ?? .relative
@@ -351,6 +376,7 @@ extension Notification.Name {
     static let displayModeChanged = Notification.Name("CodexMonitor.displayModeChanged")
     static let menuBarTextChanged = Notification.Name("CodexMonitor.menuBarTextChanged")
     static let resetTimeFormatChanged = Notification.Name("CodexMonitor.resetTimeFormatChanged")
+    static let resetRadarVisibilityChanged = Notification.Name("CodexMonitor.resetRadarVisibilityChanged")
     static let autoImportChanged = Notification.Name("CodexMonitor.autoImportChanged")
     static let usageAlertEnabledChanged = Notification.Name("CodexMonitor.usageAlertEnabledChanged")
     static let recoveryNotificationEnabledChanged = Notification.Name("CodexMonitor.recoveryNotificationEnabledChanged")

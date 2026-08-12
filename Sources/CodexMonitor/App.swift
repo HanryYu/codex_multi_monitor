@@ -17,6 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var accountStore: AccountStore!
+    var codexResetService: CodexResetService!
     var authFileMonitor: AuthFileMonitor?
     var timer: Timer?
     var eventMonitor: Any?
@@ -37,9 +38,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             PreferencesKeys.autoImportEnabled: true,
             PreferencesKeys.automaticUpdatesEnabled: true,
             PreferencesKeys.alertThreshold: 80,
+            PreferencesKeys.showResetRadar: true,
         ])
 
         accountStore = AccountStore()
+        codexResetService = CodexResetService()
         fiveHourRefreshScheduler = FiveHourQuotaRefreshScheduler(accountStore: accountStore)
         fiveHourRefreshScheduler?.start()
         weeklyQuotaActivationScheduler = WeeklyQuotaActivationScheduler(accountStore: accountStore)
@@ -81,7 +84,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         popover.behavior = .transient
         popover.animates = true
 
-        let contentView = MenuBarView(accountStore: accountStore)
+        let contentView = MenuBarView(
+            accountStore: accountStore,
+            codexResetService: codexResetService
+        )
         popover.contentViewController = NSHostingController(rootView: contentView)
 
         // Close popover on outside click (extra safety)
@@ -161,6 +167,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             if popover.isShown {
                 popover.performClose(nil)
             } else {
+                refreshCodexResetIfEnabled()
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
                 NSApp.activate(ignoringOtherApps: true)
             }
@@ -219,6 +226,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             Task { @MainActor in
                 await self?.accountStore.refreshAll()
             }
+        }
+    }
+
+    private func refreshCodexResetIfEnabled() {
+        guard UserDefaults.standard.bool(forKey: PreferencesKeys.showResetRadar) else { return }
+        Task { @MainActor [weak self] in
+            await self?.codexResetService.refreshIfNeeded()
         }
     }
 

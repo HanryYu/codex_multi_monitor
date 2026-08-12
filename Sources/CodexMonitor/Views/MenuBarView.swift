@@ -614,13 +614,18 @@ struct LimitOverlayView: View {
 struct MenuBarView: View {
     @ObservedObject var accountStore: AccountStore
     @ObservedObject var localeManager = LocaleManager.shared
-    @StateObject private var codexResetService = CodexResetService()
+    @ObservedObject var codexResetService: CodexResetService
     @State private var displayMode: DisplayMode = .remaining
     @State private var resetTimeFormat: ResetTimeFormat = .relative
+    @State private var showResetRadar = true
 
     var body: some View {
         VStack(spacing: 0) {
-            CodexResetRadarView(service: codexResetService)
+            if showResetRadar {
+                CodexResetRadarView(service: codexResetService)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+            }
 
             // Content
             if accountStore.isLoading && accountStore.accounts.isEmpty {
@@ -637,12 +642,15 @@ struct MenuBarView: View {
         .frame(width: 300)
         .frame(maxHeight: 600)
         .background(.ultraThinMaterial)
-        .onAppear { loadDisplayMode(); loadResetTimeFormat() }
+        .onAppear { loadDisplayMode(); loadResetTimeFormat(); loadResetRadarVisibility() }
         .onReceive(NotificationCenter.default.publisher(for: .displayModeChanged)) { _ in
             loadDisplayMode()
         }
         .onReceive(NotificationCenter.default.publisher(for: .resetTimeFormatChanged)) { _ in
             loadResetTimeFormat()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .resetRadarVisibilityChanged)) { _ in
+            loadResetRadarVisibility()
         }
     }
 
@@ -654,6 +662,10 @@ struct MenuBarView: View {
     private func loadResetTimeFormat() {
         let formatString = UserDefaults.standard.string(forKey: PreferencesKeys.resetTimeFormat) ?? ResetTimeFormat.relative.rawValue
         resetTimeFormat = ResetTimeFormat(rawValue: formatString) ?? .relative
+    }
+
+    private func loadResetRadarVisibility() {
+        showResetRadar = (UserDefaults.standard.object(forKey: PreferencesKeys.showResetRadar) as? Bool) ?? true
     }
 
     private func isRateLimited(_ usage: UsageResponse) -> Bool {
