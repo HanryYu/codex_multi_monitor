@@ -29,7 +29,7 @@ struct CodexResetRadarView: View {
 
                 radarTitle
 
-                Spacer(minLength: 6)
+                Spacer(minLength: 4)
 
                 probabilityValue
 
@@ -97,7 +97,7 @@ struct CodexResetRadarView: View {
                     .lineLimit(1)
             }
         }
-        .layoutPriority(1)
+        .layoutPriority(2)
     }
 
     private func formattedResetTime(
@@ -146,7 +146,8 @@ struct CodexResetRadarView: View {
                         Capsule()
                             .strokeBorder(accentColor.opacity(0.14), lineWidth: 0.5)
                     }
-                    .frame(width: 76, alignment: .trailing)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(minWidth: 54, alignment: .trailing)
                     .transition(.opacity)
             } else {
                 Text(probabilityText)
@@ -295,12 +296,15 @@ private struct CodexResetFeedCard: View {
                     }
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
                     .help(displayedPostDate(snapshot)?.formatted(date: .abbreviated, time: .shortened) ?? "")
                 }
+                .layoutPriority(1)
 
-                Spacer()
+                Spacer(minLength: 8)
 
-                if let status = noteworthyFeedStatus(snapshot) {
+                if let status = headerFeedStatus(snapshot) {
                     Text(status.title)
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(status.color)
@@ -489,6 +493,12 @@ private struct CodexResetFeedCard: View {
         if snapshot.latestTweet?.verificationStatus == "confirmed" { return ("Reset confirmed", .green) }
         if snapshot.latestTweet?.resetVerificationCandidate == true { return ("Reset candidate", .orange) }
         return nil
+    }
+
+    private func headerFeedStatus(_ snapshot: CodexResetSnapshot) -> (title: String, color: Color)? {
+        if snapshot.feed.stale { return ("Feed delayed", .orange) }
+        if snapshot.resetSchedule() != nil { return nil }
+        return noteworthyFeedStatus(snapshot)
     }
 
     private func forecastTitle(_ snapshot: CodexResetSnapshot) -> String {

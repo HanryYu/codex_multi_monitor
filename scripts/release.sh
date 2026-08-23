@@ -253,6 +253,14 @@ if [[ "$SKIP_CHECKS" == false && "$RESUME" == false ]]; then
     xcrun swiftc -parse-as-library \
         -sdk "$SDK_PATH" \
         -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/version-module-cache" \
+        Sources/CodexMonitor/Services/SemanticVersionComparator.swift \
+        scripts/test_semantic_version_comparator.swift \
+        -o "$TMP_ROOT/version-tests"
+    "$TMP_ROOT/version-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
         -module-cache-path "$TMP_ROOT/policy-module-cache" \
         Sources/CodexMonitor/Services/WeeklyQuotaActivationPolicy.swift \
         scripts/test_weekly_quota_activation_policy.swift \

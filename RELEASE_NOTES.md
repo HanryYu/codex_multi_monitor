@@ -18,7 +18,9 @@ This release adds authoritative OpenCode Go quota monitoring and rebuilds Codex 
 ## Radar design and reliability
 
 - Uses semantic system colors: blue for a confirmed future reset, green for a completed reset, orange for delayed data, and red for refresh failure.
+- Prevents the compact confirmed-reset title and the Tibo handle/timestamp row from wrapping despite available horizontal space.
 - Keeps the menu card compact while moving the full signal, local/source times, data-health warnings, refresh action, and source links into the detail panel.
 - Invalidates cache entries from the previous provider and validates Observatory schema, probability, forced-reset, Banked Reset, and timing behavior with focused tests.
+- Selects app updates by semantic version instead of GitHub publication order, while the release workflow explicitly marks the new version as Latest.
 
 Codex Reset Observatory is an independent community project and is not affiliated with OpenAI.

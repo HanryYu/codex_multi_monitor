@@ -3,7 +3,7 @@ import Foundation
 import UserNotifications
 
 enum AppVersion {
-    static let fallback = "0.7.7"
+    static let fallback = "0.7.9"
 
     static var current: String {
         let info = Bundle.main.infoDictionary
@@ -66,7 +66,7 @@ final class GitHubReleaseUpdater: ObservableObject {
             latestRelease = release
 
             let releaseVersion = release.versionNumber
-            guard VersionComparator.compare(releaseVersion, AppVersion.current) == .orderedDescending else {
+            guard SemanticVersionComparator.compare(releaseVersion, AppVersion.current) == .orderedDescending else {
                 availableVersion = nil
                 downloadedURL = nil
                 statusText = L10n.updateStatusCurrent(version: AppVersion.current)
@@ -137,7 +137,7 @@ final class GitHubReleaseUpdater: ObservableObject {
     }
 
     private func fetchLatestRelease() async throws -> GitHubRelease {
-        let url = URL(string: "https://api.github.com/repos/\(owner)/\(repository)/releases/latest")!
+        let url = URL(string: "https://api.github.com/repos/\(owner)/\(repository)/releases?per_page=100")!
         var request = URLRequest(url: url)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("CodexMonitor/\(AppVersion.current)", forHTTPHeaderField: "User-Agent")
@@ -149,7 +149,17 @@ final class GitHubReleaseUpdater: ObservableObject {
         guard http.statusCode == 200 else {
             throw UpdateError.httpStatus(http.statusCode)
         }
-        return try JSONDecoder().decode(GitHubRelease.self, from: data)
+        let releases = try JSONDecoder().decode([GitHubRelease].self, from: data)
+        let publishedReleases = releases.filter {
+            !$0.isDraft && !$0.isPrerelease && $0.dmgAsset != nil
+        }
+        guard let release = publishedReleases.max(by: {
+                SemanticVersionComparator.compare($0.versionNumber, $1.versionNumber) == .orderedAscending
+            })
+        else {
+            throw UpdateError.noPublishedRelease
+        }
+        return release
     }
 
     private func download(asset: GitHubAsset) async throws -> URL {
@@ -261,11 +271,15 @@ private struct GitHubRelease: Decodable {
     let tagName: String
     let htmlURL: URL
     let assets: [GitHubAsset]
+    let isDraft: Bool
+    let isPrerelease: Bool
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
         case htmlURL = "html_url"
         case assets
+        case isDraft = "draft"
+        case isPrerelease = "prerelease"
     }
 
     var versionNumber: String {
@@ -293,6 +307,7 @@ private enum UpdateError: LocalizedError {
     case invalidResponse
     case httpStatus(Int)
     case invalidDownload
+    case noPublishedRelease
 
     var errorDescription: String? {
         switch self {
@@ -302,29 +317,8 @@ private enum UpdateError: LocalizedError {
             return "HTTP \(status)"
         case .invalidDownload:
             return "Invalid download"
+        case .noPublishedRelease:
+            return "No published release with a DMG was found"
         }
-    }
-}
-
-private enum VersionComparator {
-    static func compare(_ lhs: String, _ rhs: String) -> ComparisonResult {
-        let left = components(lhs)
-        let right = components(rhs)
-        let count = max(left.count, right.count)
-
-        for index in 0..<count {
-            let l = index < left.count ? left[index] : 0
-            let r = index < right.count ? right[index] : 0
-            if l < r { return .orderedAscending }
-            if l > r { return .orderedDescending }
-        }
-        return .orderedSame
-    }
-
-    private static func components(_ version: String) -> [Int] {
-        let core = version.split(separator: "-").first ?? ""
-        return core
-            .split(separator: ".")
-            .map { Int($0) ?? 0 }
     }
 }
