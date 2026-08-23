@@ -14,6 +14,12 @@ class APIService {
             return try await fetchClaudeUsage(authToken: account.authToken)
         case .grok:
             return try await fetchGrokUsage(authToken: account.authToken)
+        case .openCodeGo:
+            return try await OpenCodeGoUsageService.shared.fetchUsage(
+                accountID: account.id,
+                credential: account.authToken,
+                workspaceIDOverride: account.openCodeWorkspaceID
+            )
         }
     }
 
@@ -331,6 +337,7 @@ enum APIError: LocalizedError {
     case httpError(statusCode: Int)
     case decodingError(Error)
     case unsupported
+    case message(String)
     
     var errorDescription: String? {
         switch self {
@@ -348,6 +355,8 @@ enum APIError: LocalizedError {
             return "Decoding error: \(error.localizedDescription)"
         case .unsupported:
             return "Not supported"
+        case .message(let message):
+            return message
         }
     }
 }

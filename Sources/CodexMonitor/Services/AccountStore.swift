@@ -49,7 +49,8 @@ class AccountStore: ObservableObject {
                 if let rateLimit = usage.rateLimit {
                     let primaryUsed = rateLimit.primaryWindow?.usedPercent ?? 0
                     let secondaryUsed = rateLimit.secondaryWindow?.usedPercent ?? 0
-                    let maxUsed = max(primaryUsed, secondaryUsed)
+                    let tertiaryUsed = rateLimit.tertiaryWindow?.usedPercent ?? 0
+                    let maxUsed = max(primaryUsed, secondaryUsed, tertiaryUsed)
                     
                     if rateLimit.limitReached {
                         hasCritical = true
@@ -194,7 +195,8 @@ class AccountStore: ObservableObject {
                     accountID: synced.accountID,
                     accountEmail: synced.accountEmail,
                     localAuthInvalid: synced.localAuthInvalid,
-                    provider: AccountProvider(rawValue: synced.provider ?? "codex") ?? .codex
+                    provider: AccountProvider(rawValue: synced.provider ?? "codex") ?? .codex,
+                    openCodeWorkspaceID: synced.openCodeWorkspaceID
                 )
             }
 
@@ -215,6 +217,7 @@ class AccountStore: ObservableObject {
                 accountEmail: account.accountEmail,
                 localAuthInvalid: account.localAuthInvalid,
                 provider: account.provider.rawValue,
+                openCodeWorkspaceID: account.openCodeWorkspaceID,
                 updatedAt: revision
             )
         }

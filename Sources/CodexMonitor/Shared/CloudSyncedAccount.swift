@@ -10,6 +10,7 @@ struct CloudSyncedAccount: Codable, Identifiable, Equatable {
     var accountEmail: String?
     var localAuthInvalid: Bool
     var provider: String? = nil
+    var openCodeWorkspaceID: String? = nil
     var updatedAt: Date
 
     var displayName: String {

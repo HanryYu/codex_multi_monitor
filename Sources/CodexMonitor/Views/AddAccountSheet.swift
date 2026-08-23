@@ -9,13 +9,14 @@ struct AddAccountSheet: View {
     @State private var name: String = ""
     @State private var accountEmail: String = ""
     @State private var authToken: String = ""
+    @State private var openCodeWorkspaceID: String = ""
     @State private var provider: AccountProvider = .codex
     @State private var showError = false
     @State private var errorMessage = ""
     @FocusState private var focusedField: Field?
 
     enum Field {
-        case name, email, token
+        case name, email, token, workspace
     }
 
     var isEditing: Bool {
@@ -84,6 +85,22 @@ struct AddAccountSheet: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
+
+                if provider == .openCodeGo {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(L10n.openCodeWorkspaceID, systemImage: "square.stack.3d.up")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        TextField(L10n.openCodeWorkspacePlaceholder, text: $openCodeWorkspaceID)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($focusedField, equals: .workspace)
+
+                        Text(L10n.openCodeWorkspaceHint)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
             }
 
             // Error
@@ -125,6 +142,7 @@ struct AddAccountSheet: View {
                 accountEmail = account.accountEmail ?? ""
                 authToken = account.authToken
                 provider = account.provider
+                openCodeWorkspaceID = account.openCodeWorkspaceID ?? ""
             } else {
                 focusedField = .name
             }
@@ -142,6 +160,22 @@ struct AddAccountSheet: View {
             return
         }
 
+        var normalizedWorkspaceID: String?
+        if provider == .openCodeGo {
+            do {
+                _ = try OpenCodeGoUsageService.shared.normalizedCookieHeader(trimmedToken)
+                normalizedWorkspaceID = try OpenCodeGoUsageService.shared.normalizedWorkspaceID(
+                    openCodeWorkspaceID
+                )
+            } catch {
+                withAnimation {
+                    showError = true
+                    errorMessage = error.localizedDescription
+                }
+                return
+            }
+        }
+
         let identity = AuthTokenIdentityParser.parse(accessToken: trimmedToken)
         let email = AuthTokenIdentityParser.normalizedEmail(accountEmail) ?? identity.email
         let accountID = identity.accountID
@@ -155,6 +189,7 @@ struct AddAccountSheet: View {
             }
             updatedAccount.authToken = trimmedToken
             updatedAccount.provider = provider
+            updatedAccount.openCodeWorkspaceID = provider == .openCodeGo ? normalizedWorkspaceID : nil
             accountStore.updateAccount(updatedAccount)
         } else {
             let newAccount = Account(
@@ -162,7 +197,8 @@ struct AddAccountSheet: View {
                 authToken: trimmedToken,
                 accountID: accountID,
                 accountEmail: email,
-                provider: provider
+                provider: provider,
+                openCodeWorkspaceID: normalizedWorkspaceID
             )
             accountStore.addAccount(newAccount)
         }

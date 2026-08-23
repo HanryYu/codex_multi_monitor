@@ -11,6 +11,7 @@ enum AccountProvider: String, Codable, CaseIterable, Identifiable, Sendable {
     case codex
     case claude
     case grok
+    case openCodeGo
 
     var id: String { rawValue }
 
@@ -19,6 +20,7 @@ enum AccountProvider: String, Codable, CaseIterable, Identifiable, Sendable {
         case .codex: return "Codex"
         case .claude: return "Claude"
         case .grok: return "Grok"
+        case .openCodeGo: return "OpenCode Go"
         }
     }
 
@@ -27,6 +29,7 @@ enum AccountProvider: String, Codable, CaseIterable, Identifiable, Sendable {
         case .codex: return "ProviderCodex"
         case .claude: return "ProviderClaude"
         case .grok: return "ProviderGrok"
+        case .openCodeGo: return "ProviderOpenCodeGo"
         }
     }
 }
@@ -44,6 +47,8 @@ struct Account: Codable, Identifiable, Sendable {
     /// 本地认证文件是否已失效（文件被删除时标记）
     var localAuthInvalid: Bool
     var provider: AccountProvider
+    /// Optional OpenCode dashboard workspace override, e.g. wrk_... or wk_...
+    var openCodeWorkspaceID: String?
 
     init(
         id: UUID = UUID(),
@@ -54,7 +59,8 @@ struct Account: Codable, Identifiable, Sendable {
         accountID: String? = nil,
         accountEmail: String? = nil,
         localAuthInvalid: Bool = false,
-        provider: AccountProvider = .codex
+        provider: AccountProvider = .codex,
+        openCodeWorkspaceID: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -65,6 +71,7 @@ struct Account: Codable, Identifiable, Sendable {
         self.accountEmail = AuthTokenIdentityParser.normalizedEmail(accountEmail)
         self.localAuthInvalid = localAuthInvalid
         self.provider = provider
+        self.openCodeWorkspaceID = openCodeWorkspaceID?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // Custom decoder for backward compatibility with v0.4.x JSON
@@ -80,5 +87,6 @@ struct Account: Codable, Identifiable, Sendable {
         accountEmail = AuthTokenIdentityParser.normalizedEmail(try container.decodeIfPresent(String.self, forKey: .accountEmail))
         localAuthInvalid = try container.decodeIfPresent(Bool.self, forKey: .localAuthInvalid) ?? false
         provider = try container.decodeIfPresent(AccountProvider.self, forKey: .provider) ?? .codex
+        openCodeWorkspaceID = try container.decodeIfPresent(String.self, forKey: .openCodeWorkspaceID)
     }
 }

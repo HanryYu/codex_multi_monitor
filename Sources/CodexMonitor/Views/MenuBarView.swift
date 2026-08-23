@@ -196,7 +196,8 @@ struct QuotaCardsGridView: View {
             let reachedType = usage.rateLimitReachedType?.type.lowercased()
             let primaryUsed = rateLimit.primaryWindow?.usedPercent ?? -1
             let secondaryUsed = rateLimit.secondaryWindow?.usedPercent ?? -1
-            let maxUsed = max(primaryUsed, secondaryUsed)
+            let tertiaryUsed = rateLimit.tertiaryWindow?.usedPercent ?? -1
+            let maxUsed = max(primaryUsed, secondaryUsed, tertiaryUsed)
 
             HStack(spacing: 8) {
                 if let primary = rateLimit.primaryWindow {
@@ -235,6 +236,21 @@ struct QuotaCardsGridView: View {
                         isLimited: secondaryLimited,
                         resetAfterSeconds: secondary.resetAfterSeconds,
                         resetAt: secondary.resetAt,
+                        resetTimeFormat: resetTimeFormat
+                    )
+                }
+
+                if let tertiary = rateLimit.tertiaryWindow {
+                    QuotaCardView(
+                        label: formatWindowLabel(seconds: tertiary.limitWindowSeconds),
+                        displayPercent: displayMode == .remaining
+                            ? (100 - tertiary.usedPercent)
+                            : tertiary.usedPercent,
+                        usedPercent: tertiary.usedPercent,
+                        displayMode: displayMode,
+                        isLimited: tertiary.usedPercent >= 100,
+                        resetAfterSeconds: tertiary.resetAfterSeconds,
+                        resetAt: tertiary.resetAt,
                         resetTimeFormat: resetTimeFormat
                     )
                 }
@@ -278,7 +294,9 @@ struct QuotaCardsGridView: View {
 
     func formatWindowLabel(seconds: Int) -> String {
         let hours = seconds / 3600
-        if hours >= 168 {
+        if hours >= 24 * 28 {
+            return L10n.monthlyLimit()
+        } else if hours >= 168 {
             return L10n.weeklyLimit()
         } else if hours >= 24 {
             return L10n.hourlyLimit(hours: hours)
@@ -311,6 +329,99 @@ struct QuotaCardsGridView: View {
         }
 
         return window.usedPercent >= 100
+    }
+}
+
+// MARK: - OpenCode Go Compact Quota Panel
+
+struct OpenCodeGoQuotaView: View {
+    let usage: UsageResponse
+    let displayMode: DisplayMode
+    var isLimited: Bool = false
+    var resetTimeFormat: ResetTimeFormat = .relative
+
+    var body: some View {
+        if let rateLimit = usage.rateLimit {
+            VStack(spacing: 0) {
+                if let window = rateLimit.primaryWindow {
+                    quotaRow(window)
+                }
+                if let window = rateLimit.secondaryWindow {
+                    compactDivider
+                    quotaRow(window)
+                }
+                if let window = rateLimit.tertiaryWindow {
+                    compactDivider
+                    quotaRow(window)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Color.primary.opacity(0.03))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .opacity(isLimited ? 0.78 : 1)
+        }
+    }
+
+    private var compactDivider: some View {
+        Divider()
+            .opacity(0.18)
+            .padding(.leading, 42)
+    }
+
+    private func quotaRow(_ window: WindowUsage) -> some View {
+        let displayPercent = displayMode == .remaining
+            ? 100 - window.usedPercent
+            : window.usedPercent
+
+        return VStack(spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(L10n.compactQuotaWindow(seconds: window.limitWindowSeconds))
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 37, alignment: .leading)
+
+                Text("\(displayPercent)%")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .monospacedDigit()
+
+                Text(displayMode == .remaining ? L10n.remaining : L10n.used)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary.opacity(0.72))
+
+                Spacer(minLength: 4)
+
+                if let resetText = resetText(for: window) {
+                    Text(resetText)
+                        .font(.system(size: 10).monospacedDigit())
+                        .foregroundStyle(.secondary.opacity(0.72))
+                        .lineLimit(1)
+                }
+            }
+
+            CompactProgressBar(percentage: window.usedPercent)
+                .padding(.leading, 42)
+        }
+        .padding(.vertical, 5)
+    }
+
+    private func resetText(for window: WindowUsage) -> String? {
+        let targetDate: Date
+        if window.resetAt > 0 {
+            targetDate = Date(timeIntervalSince1970: TimeInterval(window.resetAt))
+        } else if window.resetAfterSeconds > 0 {
+            targetDate = Date().addingTimeInterval(TimeInterval(window.resetAfterSeconds))
+        } else {
+            return nil
+        }
+
+        if resetTimeFormat == .absolute {
+            return L10n.compactDateTime(targetDate)
+        }
+        let seconds = max(0, Int(targetDate.timeIntervalSinceNow))
+        guard seconds > 0 else { return nil }
+        return RelativeResetTime(seconds: seconds).compactDescription
     }
 }
 
@@ -781,12 +892,23 @@ struct MenuBarView: View {
                             switch usageResult {
                             case .success(let usage):
                                 VStack(spacing: 0) {
-                                    QuotaCardsGridView(
-                                        usage: usage,
-                                        displayMode: displayMode,
-                                        isLimited: limited,
-                                        resetTimeFormat: resetTimeFormat
-                                    )
+                                    Group {
+                                        if account.provider == .openCodeGo {
+                                            OpenCodeGoQuotaView(
+                                                usage: usage,
+                                                displayMode: displayMode,
+                                                isLimited: limited,
+                                                resetTimeFormat: resetTimeFormat
+                                            )
+                                        } else {
+                                            QuotaCardsGridView(
+                                                usage: usage,
+                                                displayMode: displayMode,
+                                                isLimited: limited,
+                                                resetTimeFormat: resetTimeFormat
+                                            )
+                                        }
+                                    }
                                     .padding(.horizontal, 8)
                                     .padding(.bottom, 8)
                                     .blur(radius: limited ? 1.5 : 0)
@@ -857,6 +979,11 @@ struct MenuBarView: View {
     }
 
     private func providerPlanLabel(account: Account, usage: UsageResponse) -> String {
+        if account.provider == .openCodeGo {
+            let plan = usage.planType.lowercased()
+            if plan.contains("cached") { return L10n.cachedShort }
+            return L10n.dashboardShort
+        }
         let provider = account.provider.displayName
         let plan = usage.displayPlanType
         if provider.caseInsensitiveCompare(plan) == .orderedSame { return provider }

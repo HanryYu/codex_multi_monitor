@@ -33,6 +33,7 @@ struct ProviderIconView: View {
         case .codex: return Color.black.opacity(0.10)
         case .claude: return Color.black.opacity(0.06)
         case .grok: return Color.white.opacity(0.18)
+        case .openCodeGo: return Color.black.opacity(0.08)
         }
     }
 
@@ -41,6 +42,7 @@ struct ProviderIconView: View {
         case .codex: return Color.white
         case .claude: return Color(hex: "D97757")
         case .grok: return Color.black
+        case .openCodeGo: return Color(hex: "6D5CE7")
         }
     }
 
@@ -63,6 +65,10 @@ struct ProviderIconView: View {
         case .grok:
             Text("𝕏")
                 .font(.system(size: size * 0.74, weight: .semibold))
+                .foregroundStyle(.white)
+        case .openCodeGo:
+            Text("OC")
+                .font(.system(size: size * 0.44, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
         }
     }

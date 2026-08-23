@@ -269,6 +269,15 @@ if [[ "$SKIP_CHECKS" == false && "$RESUME" == false ]]; then
     xcrun swiftc -parse-as-library \
         -sdk "$SDK_PATH" \
         -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/opencode-go-module-cache" \
+        Sources/CodexMonitor/Models/UsageResponse.swift \
+        Sources/CodexMonitor/Services/OpenCodeGoUsageService.swift \
+        scripts/test_opencode_go_usage.swift \
+        -o "$TMP_ROOT/opencode-go-tests"
+    "$TMP_ROOT/opencode-go-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
         -module-cache-path "$TMP_ROOT/reset-radar-module-cache" \
         Sources/CodexMonitor/Models/CodexResetModels.swift \
         scripts/test_codex_reset_decoding.swift \

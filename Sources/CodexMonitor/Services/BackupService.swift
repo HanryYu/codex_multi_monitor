@@ -22,6 +22,7 @@ enum BackupService {
         let accountID: String?
         let accountEmail: String?
         let provider: AccountProvider?
+        let openCodeWorkspaceID: String?
     }
 
     // MARK: - Export
@@ -42,7 +43,8 @@ enum BackupService {
                     source: account.source,
                     accountID: account.accountID,
                     accountEmail: account.accountEmail,
-                    provider: account.provider
+                    provider: account.provider,
+                    openCodeWorkspaceID: account.openCodeWorkspaceID
                 )
             }
         )
@@ -149,7 +151,8 @@ enum BackupService {
                 source: backupAccount.source,
                 accountID: backupAccount.accountID,
                 accountEmail: backupAccount.accountEmail,
-                provider: backupAccount.provider ?? .codex
+                provider: backupAccount.provider ?? .codex,
+                openCodeWorkspaceID: backupAccount.openCodeWorkspaceID
             )
             accountStore.addAccount(account)
             imported += 1

@@ -120,6 +120,45 @@ enum L10n {
         }
     }
 
+    static var dashboardShort: String {
+        switch lang {
+        case .en: return "Dashboard"
+        case .ja: return "公式"
+        case .zhHans: return "官网"
+        case .zhHant: return "官網"
+        }
+    }
+
+    static var cachedShort: String {
+        switch lang {
+        case .en: return "Cached"
+        case .ja: return "キャッシュ"
+        case .zhHans: return "缓存"
+        case .zhHant: return "快取"
+        }
+    }
+
+    static func compactQuotaWindow(seconds: Int) -> String {
+        let hours = seconds / 3600
+        if hours >= 24 * 28 {
+            switch lang {
+            case .en: return "Month"
+            case .ja: return "月"
+            case .zhHans: return "每月"
+            case .zhHant: return "每月"
+            }
+        }
+        if hours >= 168 {
+            switch lang {
+            case .en: return "Week"
+            case .ja: return "週"
+            case .zhHans: return "每周"
+            case .zhHant: return "每週"
+            }
+        }
+        return "\(hours)h"
+    }
+
     static func resetRelative(_ time: RelativeResetTime) -> String {
         switch lang {
         case .en:
@@ -339,6 +378,15 @@ enum L10n {
         case .ja:    return "週間上限"
         case .zhHans: return "每周限额"
         case .zhHant: return "每週限額"
+        }
+    }
+
+    static func monthlyLimit() -> String {
+        switch lang {
+        case .en:    return "Monthly Limit"
+        case .ja:    return "月間上限"
+        case .zhHans: return "每月限额"
+        case .zhHant: return "每月限額"
         }
     }
 
@@ -901,6 +949,7 @@ enum L10n {
         case .codex: return "ChatGPT Bearer Token"
         case .claude: return "Claude OAuth Token / Auth JSON"
         case .grok: return "Grok Token / Cookie / Auth JSON"
+        case .openCodeGo: return "OpenCode Go Session Cookie"
         }
     }
 
@@ -909,6 +958,7 @@ enum L10n {
         case .codex: return "Bearer eyJ..."
         case .claude: return "sk-ant-oat01-... or Claude auth JSON"
         case .grok: return "Bearer token, Cookie header, or Grok auth JSON"
+        case .openCodeGo: return "Fe26.2**… or auth=Fe26.2**…"
         }
     }
 
@@ -917,15 +967,41 @@ enum L10n {
         case (.en, .codex): return "Copy the Bearer token from the ChatGPT usage request."
         case (.en, .claude): return "Paste a Claude Bearer token or auth JSON; local Claude login is imported automatically."
         case (.en, .grok): return "Paste a Grok token/auth JSON, or the full Cookie header from GetGrokCreditsConfig."
+        case (.en, .openCodeGo): return "Copy auth or __Host-auth from an opencode.ai request in your browser DevTools."
         case (.ja, .codex): return "ChatGPT の使用量リクエストから Bearer トークンをコピーします。"
         case (.ja, .claude): return "Claude のトークンまたは auth JSON を貼り付けます。ローカルログインは自動インポートされます。"
         case (.ja, .grok): return "Grok のトークン/auth JSON、または GetGrokCreditsConfig の Cookie を貼り付けます。"
+        case (.ja, .openCodeGo): return "ブラウザの DevTools で opencode.ai リクエストの auth または __Host-auth をコピーします。"
         case (.zhHans, .codex): return "从 ChatGPT 用量请求中复制 Bearer Token。"
         case (.zhHans, .claude): return "粘贴 Claude Token 或 auth JSON；本地 Claude 登录会自动导入。"
         case (.zhHans, .grok): return "粘贴 Grok Token/auth JSON，或 GetGrokCreditsConfig 的完整 Cookie。"
+        case (.zhHans, .openCodeGo): return "从浏览器开发者工具中的 opencode.ai 请求复制 auth 或 __Host-auth。"
         case (.zhHant, .codex): return "從 ChatGPT 用量請求中複製 Bearer Token。"
         case (.zhHant, .claude): return "貼上 Claude Token 或 auth JSON；本機 Claude 登入會自動匯入。"
         case (.zhHant, .grok): return "貼上 Grok Token/auth JSON，或 GetGrokCreditsConfig 的完整 Cookie。"
+        case (.zhHant, .openCodeGo): return "從瀏覽器開發者工具中的 opencode.ai 請求複製 auth 或 __Host-auth。"
+        }
+    }
+
+    static var openCodeWorkspaceID: String {
+        switch lang {
+        case .en: return "Workspace ID (Optional)"
+        case .ja: return "Workspace ID（任意）"
+        case .zhHans: return "Workspace ID（可选）"
+        case .zhHant: return "Workspace ID（選填）"
+        }
+    }
+
+    static var openCodeWorkspacePlaceholder: String {
+        "wrk_… / wk_…"
+    }
+
+    static var openCodeWorkspaceHint: String {
+        switch lang {
+        case .en: return "Leave blank for automatic lookup. If needed, copy it from /workspace/wrk_…/go."
+        case .ja: return "通常は空欄。自動検出に失敗した場合は /workspace/wrk_…/go からコピーします。"
+        case .zhHans: return "通常留空自动获取；失败时从 /workspace/wrk_…/go 地址中复制。"
+        case .zhHant: return "通常留空自動取得；失敗時從 /workspace/wrk_…/go 網址中複製。"
         }
     }
 

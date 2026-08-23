@@ -79,12 +79,20 @@ struct RateLimit: Codable {
     let limitReached: Bool
     let primaryWindow: WindowUsage?
     let secondaryWindow: WindowUsage?
+    let tertiaryWindow: WindowUsage?
 
-    init(allowed: Bool, limitReached: Bool, primaryWindow: WindowUsage?, secondaryWindow: WindowUsage?) {
+    init(
+        allowed: Bool,
+        limitReached: Bool,
+        primaryWindow: WindowUsage?,
+        secondaryWindow: WindowUsage?,
+        tertiaryWindow: WindowUsage? = nil
+    ) {
         self.allowed = allowed
         self.limitReached = limitReached
         self.primaryWindow = primaryWindow
         self.secondaryWindow = secondaryWindow
+        self.tertiaryWindow = tertiaryWindow
     }
     
     enum CodingKeys: String, CodingKey {
@@ -92,6 +100,7 @@ struct RateLimit: Codable {
         case limitReached = "limit_reached"
         case primaryWindow = "primary_window"
         case secondaryWindow = "secondary_window"
+        case tertiaryWindow = "tertiary_window"
     }
     
     init(from decoder: Decoder) throws {
@@ -100,6 +109,7 @@ struct RateLimit: Codable {
         limitReached = (try? container.decode(Bool.self, forKey: .limitReached)) ?? false
         primaryWindow = try? container.decodeIfPresent(WindowUsage.self, forKey: .primaryWindow)
         secondaryWindow = try? container.decodeIfPresent(WindowUsage.self, forKey: .secondaryWindow)
+        tertiaryWindow = try? container.decodeIfPresent(WindowUsage.self, forKey: .tertiaryWindow)
     }
 }
 
