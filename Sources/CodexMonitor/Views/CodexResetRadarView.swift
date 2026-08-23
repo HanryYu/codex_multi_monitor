@@ -548,7 +548,6 @@ private struct RadarIconView: View {
     private static let image: NSImage? = {
         let image = NSImage(named: NSImage.Name("RadarLucide"))
             ?? Bundle.main.url(forResource: "RadarLucide", withExtension: "png").flatMap(NSImage.init(contentsOf:))
-            ?? Bundle.module.url(forResource: "RadarLucide", withExtension: "png").flatMap(NSImage.init(contentsOf:))
         image?.isTemplate = true
         return image
     }()

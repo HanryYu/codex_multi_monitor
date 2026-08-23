@@ -95,9 +95,11 @@ fi
 
 for APP_RESOURCE in ProviderCodex.png ProviderClaude.png ProviderGrok.png RadarLucide.png Lucide_LICENSE.txt; do
     APP_RESOURCE_SRC="$PROJECT_DIR/Sources/CodexMonitor/Resources/$APP_RESOURCE"
-    if [ -f "$APP_RESOURCE_SRC" ]; then
-        cp "$APP_RESOURCE_SRC" "$APP_BUNDLE/Contents/Resources/$APP_RESOURCE"
+    if [[ ! -f "$APP_RESOURCE_SRC" ]]; then
+        echo "❌ Required app resource is missing: $APP_RESOURCE"
+        exit 1
     fi
+    cp "$APP_RESOURCE_SRC" "$APP_BUNDLE/Contents/Resources/$APP_RESOURCE"
 done
 
 TEAM_IDENTIFIER_PREFIX="${TEAM_IDENTIFIER_PREFIX:-}"

@@ -1,6 +1,13 @@
-# CodexMonitor 0.7.9
+# CodexMonitor 0.7.10
 
-This release adds authoritative OpenCode Go quota monitoring and rebuilds Codex Reset Radar around a more structured community data source.
+This hotfix replaces the withdrawn v0.7.9 build and includes authoritative OpenCode Go quota monitoring plus the rebuilt Codex Reset Radar.
+
+## Packaging hotfix
+
+- Fixes a launch-time crash when opening the menu from the signed release build.
+- Removes runtime `Bundle.module` lookups from the manually packaged app and loads packaged resources only through `Bundle.main`.
+- Makes optional provider icons fall back safely instead of triggering SwiftPM's fatal resource accessor.
+- Keeps the distributed app in the standard macOS bundle layout while continuing to verify every copied resource during packaging.
 
 ## OpenCode Go monitoring
 

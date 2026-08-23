@@ -49,7 +49,6 @@ struct ProviderIconView: View {
     private var providerImage: NSImage? {
         NSImage(named: NSImage.Name(provider.assetName))
             ?? Bundle.main.url(forResource: provider.assetName, withExtension: "png").flatMap(NSImage.init(contentsOf:))
-            ?? Bundle.module.url(forResource: provider.assetName, withExtension: "png").flatMap(NSImage.init(contentsOf:))
     }
 
     @ViewBuilder
