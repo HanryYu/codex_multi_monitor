@@ -1,22 +1,24 @@
-# CodexMonitor 0.7.8
+# CodexMonitor 0.7.9
 
-This release refines Codex Reset Radar with a clearer menu-bar presentation, a dedicated detail panel, and more reliable data refresh behavior.
+This release adds authoritative OpenCode Go quota monitoring and rebuilds Codex Reset Radar around a more structured community data source.
 
-## Radar experience
+## OpenCode Go monitoring
 
-- Presents Codex Reset Radar as a compact card above account quotas with a dedicated radar icon.
-- Opens the X-style feed in a separate floating detail panel by click or a delayed hover.
-- Shows the post timestamp alongside Tibo's account information and adapts status presentation to the feed state.
-- Adds a localized Settings option to show or hide the Radar.
+- Adds OpenCode Go as a provider with dedicated account setup, iconography, encrypted session-cookie storage, and optional Workspace ID override.
+- Reads authoritative 5-hour, weekly, and monthly quota windows from the signed-in `opencode.ai` dashboard instead of estimating from local usage.
+- Shows a compact three-window quota panel and keeps only a recent, clearly labeled cached dashboard result when a refresh fails.
 
-## Refresh reliability
+## Reset Radar accuracy
 
-- Restores cached Radar data immediately at launch instead of waiting for the network.
-- Refreshes automatically only when the menu opens and cached data is old enough, avoiding frequent background requests.
-- Adds a refresh button inside the detail panel that explicitly requests the latest forecast and feed.
-- Shows a visible refreshing state, prevents duplicate requests, and keeps the last successful data if a refresh fails.
+- Replaces the previous forecast/feed source with the public Codex Reset Observatory `public-v1` API.
+- Treats confirmed forced-reset notices separately from Banked Reset and regular weekly events.
+- Shows **Next Reset Confirmed**, `100%`, and the next reset using the Relative or Absolute time preference when an exact future reset is available.
+- Selects the latest confirmed global reset without confusing it with a newer Banked Reset distribution.
 
-## Assets and attribution
+## Radar design and reliability
 
-- Preloads and caches Tibo's avatar to avoid repeated downloads.
-- Includes the Lucide radar icon and its license in the distributed app bundle.
+- Uses semantic system colors: blue for a confirmed future reset, green for a completed reset, orange for delayed data, and red for refresh failure.
+- Keeps the menu card compact while moving the full signal, local/source times, data-health warnings, refresh action, and source links into the detail panel.
+- Invalidates cache entries from the previous provider and validates Observatory schema, probability, forced-reset, Banked Reset, and timing behavior with focused tests.
+
+Codex Reset Observatory is an independent community project and is not affiliated with OpenAI.

@@ -4,7 +4,7 @@
 
 [English](README.md) | [中文](README_zh.md) | [日本語](README_ja.md)
 
-A lightweight macOS menu bar app for monitoring Codex, Claude, and Grok quotas across multiple accounts.
+A lightweight macOS menu bar app for monitoring Codex, Claude, Grok, and OpenCode Go quotas across multiple accounts.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/HanryYu/codex_multi_monitor/main/assets/codexmonitor-screenshot.png" alt="CodexMonitor Screenshot" width="420">
@@ -36,7 +36,9 @@ A lightweight macOS menu bar app for monitoring Codex, Claude, and Grok quotas a
 - **Auto Account Sync** — Automatically detect and add local Codex accounts on launch
 - **Claude Monitoring** — Import local Claude OAuth credentials, refresh rotated tokens, and show 5-hour/weekly limits
 - **Grok Monitoring** — Read local Grok billing data or the shared weekly quota from a grok.com browser session
-- **Provider-Aware UI** — Distinguish Codex, Claude, and Grok accounts with official icons and provider-specific forms
+- **OpenCode Go Monitoring** — Show authoritative 5-hour, weekly, and monthly quotas from the signed-in OpenCode dashboard
+- **Provider-Aware UI** — Distinguish Codex, Claude, Grok, and OpenCode Go accounts with provider-specific forms
+- **Codex Reset Radar** — Track community reset forecasts and confirmed future reset times from Codex Reset Observatory
 - **Multi-Language** — English, 简体中文, 繁體中文, 日本語
 - **Automatic Updates** — Check, download, and install new versions from GitHub Releases
 
@@ -124,7 +126,7 @@ Copy the output and paste it into CodexMonitor.
 
 Treat access tokens and `~/.codex/auth.json` like passwords. Do not commit or share them.
 
-### Claude and Grok
+### Claude, Grok, and OpenCode Go
 
 Choose the agent type before adding an account. The account form changes its title, labels, placeholders, and credential instructions for the selected provider.
 
@@ -142,6 +144,13 @@ Choose the agent type before adding an account. The account form changes its tit
 - To use the same shared weekly quota shown on `https://grok.com/?_s=usage`, open Developer Tools → Network, select `GetGrokCreditsConfig`, and copy its complete `Cookie` request header into the Grok credential field.
 - The web response uses gRPC-Web/Protobuf and includes the weekly usage percentage and reset time.
 
+**OpenCode Go**
+
+- OpenCode API keys do not expose the account's real quota windows, so CodexMonitor does not estimate remaining quota from local usage.
+- Manually add an OpenCode Go account and paste the `auth` or `__Host-auth` Cookie from a signed-in `opencode.ai` request. A raw `Fe26.2**…` value and the full Cookie header are both accepted.
+- The Workspace ID is discovered automatically. If discovery fails, copy the `wrk_…` or `wk_…` value from the `/workspace/{id}/go` dashboard URL into the optional override field.
+- A failed refresh can show that account's last successful dashboard result for up to 30 minutes, clearly labeled `Cached`; it never falls back to an estimated quota.
+
 Tokens and browser cookies grant account access. They are stored using CodexMonitor's encrypted token storage; do not share them or include them in bug reports.
 
 ## Usage
@@ -153,6 +162,12 @@ Tokens and browser cookies grant account access. They are stored using CodexMoni
 5. Enable **Weekly Quota Cycle** in Settings if you want CodexMonitor to send the one-time activation request after weekly quota recovery or a 100% weekly reset
 6. Expand the reset-credit row on an account card to inspect grant and expiration times
 
+### Codex Reset Radar
+
+The compact Radar card shows the current 24-hour community forecast. When Codex Reset Observatory reports a confirmed future reset, the menu changes to **Next Reset Confirmed**, shows `100%`, and displays the next reset using the Relative or Absolute time format selected in Settings. Click the card, or hover briefly, to open the detail panel with the original signal, 24/48-hour outlook, local and source times, data-health warnings, refresh action, and source links.
+
+Codex Reset Observatory is an independent community project and is not affiliated with OpenAI. Its global reset signals are separate from the authoritative personal quota windows shown on each account card.
+
 ## Status Colors
 
 | Color | Meaning |
@@ -160,6 +175,8 @@ Tokens and browser cookies grant account access. They are stored using CodexMoni
 | 🟢 Green | > 50% quota remaining |
 | 🟡 Yellow | 20-50% quota remaining |
 | 🔴 Red | < 20% quota remaining |
+
+The Reset Radar uses semantic status colors: blue for a confirmed future reset, green for an observed completed reset, orange for delayed data, and red for a failed refresh.
 
 When a limit is reached (5-hour or weekly), the status area shows a "Limit Reached" overlay with the estimated reset time.
 If recovery notifications are enabled, CodexMonitor schedules a system notification for that reset time instead of waiting for the next usage refresh.

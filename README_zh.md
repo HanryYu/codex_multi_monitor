@@ -4,7 +4,7 @@
 
 [English](README.md) | [中文](README_zh.md) | [日本語](README_ja.md)
 
-一款 macOS 菜单栏应用，实时监控 ChatGPT Codex 的使用额度、重置 credit 和周额度周期启动状态。
+一款 macOS 菜单栏应用，实时监控 Codex、Claude、Grok 与 OpenCode Go 的使用额度、重置 credit 和周额度周期启动状态。
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/HanryYu/codex_multi_monitor/main/assets/codexmonitor-screenshot.png" alt="CodexMonitor 截图" width="420">
@@ -34,6 +34,8 @@
 - **周额度周期启动 (Beta)** — 周额度恢复后，或检测到云端重置导致周额度回到 100% 时，发送一次简短 Codex 请求来启动新的周订阅额度周期
 - **5 小时额度定时刷新 (Beta)** — 每天在指定时间用极简、最低思考请求启动新的 5 小时窗口；高级设置支持不同账号单独启停、设置时间和选择轻量模型
 - **自动账户同步** — 启动时自动检测本地 Codex 账户并添加
+- **OpenCode Go 监控** — 从登录后的 OpenCode 官网看板获取真实的 5 小时、周和月额度
+- **Codex Reset Radar** — 从 Codex Reset Observatory 获取社区重置预测和已确认的下一次重置时间
 - **多语言** — English、中文、日本語
 - **版本更新提醒** — GitHub 有新版本时自动提醒
 
@@ -118,9 +120,9 @@ cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); pr
 
 复制输出结果并粘贴到 CodexMonitor。
 
-### Claude 与 Grok
+### Claude、Grok 与 OpenCode Go
 
-CodexMonitor 支持 Codex、Claude 和 Grok 三种账户类型：
+CodexMonitor 支持 Codex、Claude、Grok 和 OpenCode Go 四种账户类型：
 
 - **本地自动导入**：Claude Code 从 macOS 钥匙串中的 `Claude Code-credentials`（或 `~/.claude/.credentials.json`）读取；Grok Build 从 `~/.grok/auth.json` 读取。Claude access token 过期时会使用官方 OAuth refresh 流程，并把轮换后的 access/refresh token 写回原凭证存储，保持 Claude Code 登录有效。
 - **手动添加**：先选择 Agent 类型，再粘贴 Bearer token。输入框也接受完整的 `Authorization: Bearer ...` 文本，以及 Claude/Grok 的本地 auth JSON。
@@ -129,6 +131,8 @@ CodexMonitor 支持 Codex、Claude 和 Grok 三种账户类型：
 - **Grok 网页登录态**：打开 `https://grok.com/?_s=usage`，在开发者工具 Network 中选择 `GetGrokCreditsConfig` 请求，复制完整的 `Cookie` 请求头并粘贴。网页模式读取与设置页面一致的共享周额度。
 
 Claude 额度来自 `https://api.anthropic.com/api/oauth/usage`；Grok 本地模式读取 CLI billing，网页模式读取 `GetGrokCreditsConfig` 的共享周额度。应用会尝试自动刷新本地 Claude/Grok 凭证；刷新凭证无效时，再运行 `claude` 或 `grok login` 重新登录。
+
+**OpenCode Go**：OpenCode API Key 不提供账号的真实额度窗口，因此应用不再根据本地用量估算剩余额度。请手动添加 OpenCode Go 账号，并从已登录的 `opencode.ai` 请求中复制 `auth` 或 `__Host-auth` Cookie；支持直接粘贴 `Fe26.2**…` 原始值或完整 Cookie 请求头。Workspace ID 默认自动获取，失败时可从 `/workspace/wrk_…/go` 地址复制到可选输入框。官网刷新失败时，只会保留该账号 30 分钟内最后一次成功的官网数据并标记“缓存”，不会回退到估算值。
 
 ## 使用说明
 
@@ -139,6 +143,12 @@ Claude 额度来自 `https://api.anthropic.com/api/oauth/usage`；Grok 本地模
 5. 如果希望自动启动新的周额度周期，请在设置里开启 **每周额度周期**
 6. 在账户卡片中展开重置 credit 行，可以查看每次 credit 的发放时间和到期时间
 
+### Codex Reset Radar
+
+紧凑的 Radar 卡片默认显示未来 24 小时社区预测。当 Codex Reset Observatory 提供明确的未来重置公告时，菜单会显示 **Next Reset Confirmed**、`100%`，并按照设置中的“相对时间”或“绝对时间”展示下一次重置。点击卡片或短暂停留，可展开详情面板，查看原始信号、24/48 小时数据、本地与来源时区、数据延迟提示、刷新按钮和来源链接。
+
+Codex Reset Observatory 是独立社区项目，与 OpenAI 无隶属或合作关系。它提供的是全局社区重置信号；个人账户卡片里的额度窗口仍以账号的真实数据为准。
+
 ## 状态颜色
 
 | 颜色 | 含义 |
@@ -146,6 +156,8 @@ Claude 额度来自 `https://api.anthropic.com/api/oauth/usage`；Grok 本地模
 | 🟢 绿色 | 剩余额度 > 50% |
 | 🟡 黄色 | 剩余额度 20-50% |
 | 🔴 红色 | 剩余额度 < 20% |
+
+Reset Radar 使用语义状态色：蓝色表示已确认的未来重置，绿色表示已观察到重置完成，橙色表示数据延迟，红色表示刷新失败。
 
 当达到限额（5 小时或周限额）时，状态区域会显示 "Limit Reached" 遮罩和预计重置时间。
 开启额度恢复提醒后，CodexMonitor 会直接为该重置时间预约系统通知，而不是等下一次用量刷新后再提醒。
