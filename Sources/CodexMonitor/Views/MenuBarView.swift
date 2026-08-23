@@ -733,7 +733,10 @@ struct MenuBarView: View {
     var body: some View {
         VStack(spacing: 0) {
             if showResetRadar {
-                CodexResetRadarView(service: codexResetService)
+                CodexResetRadarView(
+                    service: codexResetService,
+                    resetTimeFormat: resetTimeFormat
+                )
                     .padding(.horizontal, 12)
                     .padding(.top, 10)
             }

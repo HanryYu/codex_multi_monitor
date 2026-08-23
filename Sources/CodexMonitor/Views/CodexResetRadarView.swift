@@ -3,27 +3,31 @@ import SwiftUI
 
 struct CodexResetRadarView: View {
     @ObservedObject var service: CodexResetService
+    let resetTimeFormat: ResetTimeFormat
     @StateObject private var detailsPanel = CodexResetDetailsPanelController()
     @StateObject private var avatarStore = CodexResetAvatarStore()
     @State private var delayedHoverTask: Task<Void, Never>?
     @State private var isHovering = false
 
-    private let siteURL = URL(string: "https://codex-reset.com")!
-    private let avatarURL = URL(string: "https://codex-reset.com/tibo-avatar.jpg")!
+    private let siteURL = URL(string: "https://codex.gussuriworks.com/en")!
 
     var body: some View {
         Button(action: toggleDetails) {
             HStack(spacing: 8) {
                 ZStack {
                     Circle()
-                        .fill(accentColor.opacity(0.11))
-                    RadarIconView(color: accentColor)
+                        .fill(accentColor.opacity(service.snapshot?.resetSchedule() == nil ? 0.08 : 0.12))
+                    if service.snapshot?.resetSchedule() != nil {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(accentColor)
+                    } else {
+                        RadarIconView(color: accentColor)
+                    }
                 }
                 .frame(width: 24, height: 24)
 
-                Text("Codex Reset Radar")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
+                radarTitle
 
                 Spacer(minLength: 6)
 
@@ -37,23 +41,18 @@ struct CodexResetRadarView: View {
             }
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity)
-            .frame(height: 40)
+            .frame(height: radarHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(height: 40)
+        .frame(height: radarHeight)
         .background(CodexResetPanelAnchor(controller: detailsPanel))
-        .background(
-            Color.primary.opacity(detailsPanel.isShown ? 0.065 : (isHovering ? 0.045 : 0.03))
-        )
+        .background(cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.075), lineWidth: 0.5)
+                .strokeBorder(cardBorderColor, lineWidth: 0.5)
                 .allowsHitTesting(false)
-        }
-        .task {
-            await avatarStore.preload(from: avatarURL)
         }
         .onDisappear {
             delayedHoverTask?.cancel()
@@ -66,8 +65,57 @@ struct CodexResetRadarView: View {
     }
 
     private var probabilityText: String {
-        guard let probability = service.snapshot?.probability24h else { return "--%" }
+        guard let probability = service.snapshot?.primaryProbability24h() else { return "--%" }
         return "\(probability)%"
+    }
+
+    private var radarHeight: CGFloat {
+        service.snapshot?.resetSchedule() == nil ? 40 : 46
+    }
+
+    private var radarTitle: some View {
+        Group {
+            if let schedule = service.snapshot?.resetSchedule() {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Next Reset Confirmed")
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Text(formattedResetTime(schedule))
+                        .font(.system(size: 12.5, weight: .bold).monospacedDigit())
+                        .foregroundStyle(.blue)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+                .help(scheduledResetHelp(schedule))
+                .accessibilityHidden(true)
+            } else {
+                Text("Codex Reset Radar")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .layoutPriority(1)
+    }
+
+    private func formattedResetTime(
+        _ schedule: CodexResetSchedule,
+        relativeTo date: Date = Date()
+    ) -> String {
+        switch resetTimeFormat {
+        case .relative:
+            let seconds = max(0, Int(schedule.expectedAt.timeIntervalSince(date)))
+            return L10n.resetRelative(RelativeResetTime(seconds: seconds))
+        case .absolute:
+            return L10n.resetAbsoluteTime(schedule.expectedAt)
+        }
+    }
+
+    private func scheduledResetHelp(_ schedule: CodexResetSchedule) -> String {
+        let localTime = L10n.compactDateTime(schedule.expectedAt)
+        return "Next reset confirmed: \(localTime) · \(schedule.originalTimeLabel)"
     }
 
     @ViewBuilder
@@ -87,11 +135,26 @@ struct CodexResetRadarView: View {
             .frame(width: 76, alignment: .trailing)
             .transition(.opacity)
         } else {
-            Text(probabilityText)
-                .font(.system(size: 15, weight: .semibold).monospacedDigit())
-                .foregroundStyle(accentColor)
-                .frame(width: 76, alignment: .trailing)
-                .transition(.opacity)
+            if service.snapshot?.resetSchedule() != nil {
+                Text(probabilityText)
+                    .font(.system(size: 13, weight: .bold).monospacedDigit())
+                    .foregroundStyle(accentColor)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(accentColor.opacity(0.10), in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(accentColor.opacity(0.14), lineWidth: 0.5)
+                    }
+                    .frame(width: 76, alignment: .trailing)
+                    .transition(.opacity)
+            } else {
+                Text(probabilityText)
+                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(accentColor)
+                    .frame(width: 76, alignment: .trailing)
+                    .transition(.opacity)
+            }
         }
     }
 
@@ -100,6 +163,12 @@ struct CodexResetRadarView: View {
         if service.isLoading {
             return "Codex Reset Radar, \(L10n.refreshing). \(action)"
         }
+        if service.snapshot?.hasRecentConfirmedReset() == true {
+            return "Codex Reset Radar, verified reset signal. \(action)"
+        }
+        if let schedule = service.snapshot?.resetSchedule() {
+            return "Codex Reset Radar, next reset confirmed, \(formattedResetTime(schedule)). \(action)"
+        }
         return "Codex Reset Radar, \(probabilityText) in the next 24 hours. \(action)"
     }
 
@@ -107,11 +176,36 @@ struct CodexResetRadarView: View {
         guard let snapshot = service.snapshot else {
             return service.errorMessage == nil ? .secondary : .red
         }
-        if snapshot.feed.stale || service.errorMessage != nil { return .orange }
-        if snapshot.activeSignal != nil { return .purple }
-        if snapshot.probability24h >= 70 { return .red }
-        if snapshot.probability24h >= 40 { return .orange }
+        if service.errorMessage != nil { return .red }
+        if snapshot.feed.stale { return .orange }
+        if snapshot.hasRecentConfirmedReset() { return .green }
         return .blue
+    }
+
+    private var cardBackground: Color {
+        if service.errorMessage != nil {
+            return Color.red.opacity(detailsPanel.isShown ? 0.07 : (isHovering ? 0.05 : 0.035))
+        }
+        if service.snapshot?.feed.stale == true {
+            return Color.orange.opacity(detailsPanel.isShown ? 0.07 : (isHovering ? 0.05 : 0.035))
+        }
+        if service.snapshot?.resetSchedule() != nil {
+            return Color.blue.opacity(detailsPanel.isShown ? 0.09 : (isHovering ? 0.07 : 0.045))
+        }
+        return Color.primary.opacity(detailsPanel.isShown ? 0.065 : (isHovering ? 0.045 : 0.03))
+    }
+
+    private var cardBorderColor: Color {
+        if service.errorMessage != nil {
+            return Color.red.opacity(0.15)
+        }
+        if service.snapshot?.feed.stale == true {
+            return Color.orange.opacity(0.15)
+        }
+        if service.snapshot?.resetSchedule() != nil {
+            return Color.blue.opacity(0.16)
+        }
+        return Color.primary.opacity(0.075)
     }
 
     private func toggleDetails() {
@@ -139,6 +233,7 @@ struct CodexResetRadarView: View {
         CodexResetFeedCard(
             service: service,
             avatarStore: avatarStore,
+            resetTimeFormat: resetTimeFormat,
             sourceURL: siteURL
         )
     }
@@ -147,6 +242,7 @@ struct CodexResetRadarView: View {
 private struct CodexResetFeedCard: View {
     @ObservedObject var service: CodexResetService
     @ObservedObject var avatarStore: CodexResetAvatarStore
+    let resetTimeFormat: ResetTimeFormat
     let sourceURL: URL
 
     var body: some View {
@@ -225,7 +321,6 @@ private struct CodexResetFeedCard: View {
                 .textSelection(.enabled)
 
             if let tweet = snapshot.latestTweet,
-               snapshot.activeSignal == nil,
                tweet.replies != nil || tweet.likes != nil {
                 HStack(spacing: 15) {
                     if let replies = tweet.replies {
@@ -242,22 +337,53 @@ private struct CodexResetFeedCard: View {
 
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Community forecast · Next 24h")
+                    Text(forecastTitle(snapshot))
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(.secondary)
-                    Text("\(snapshot.probability24h)%")
+                    Text("\(snapshot.primaryProbability24h())%")
                         .font(.system(size: 19, weight: .bold).monospacedDigit())
-                        .foregroundStyle(forecastColor(snapshot.probability24h))
+                        .foregroundStyle(snapshot.resetSchedule() == nil
+                                         ? forecastColor(snapshot.primaryProbability24h())
+                                         : Color.blue)
                 }
 
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: 3) {
-                    Text("48h  \(snapshot.probability48h)%")
+                    Text("48h  \(snapshot.primaryProbability48h())%")
                         .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                    Text(snapshot.forecast.confidence.capitalized + " confidence")
+                    Text(snapshot.resetSchedule() == nil
+                         ? snapshot.forecast.confidence.capitalized + " confidence"
+                         : "Time announced")
                         .font(.system(size: 9.5))
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            if let schedule = snapshot.resetSchedule() {
+                HStack(alignment: .firstTextBaseline, spacing: 9) {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.blue)
+                        .frame(width: 18)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Next Reset Confirmed")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Text(formattedResetTime(schedule))
+                            .font(.system(size: 14, weight: .bold).monospacedDigit())
+                            .foregroundStyle(.blue)
+                        Text(schedule.originalTimeLabel)
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.blue.opacity(0.075), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(Color.blue.opacity(0.14), lineWidth: 0.5)
                 }
             }
 
@@ -277,7 +403,7 @@ private struct CodexResetFeedCard: View {
             }
 
             HStack {
-                Link("codex-reset.com ↗", destination: sourceURL)
+                Link("Codex Reset Observatory ↗", destination: sourceURL)
                     .font(.system(size: 8.5))
                     .foregroundStyle(.tertiary)
                 Spacer()
@@ -294,7 +420,7 @@ private struct CodexResetFeedCard: View {
         HStack(spacing: 10) {
             HStack(spacing: 9) {
                 ProgressView().controlSize(.small)
-                Text("Checking Tibo's latest feed…")
+                Text("Checking Observatory's latest signal…")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -331,7 +457,7 @@ private struct CodexResetFeedCard: View {
 
     private var errorContent: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Codex Reset is unavailable", systemImage: "wifi.exclamationmark")
+            Label("Codex Reset Observatory is unavailable", systemImage: "wifi.exclamationmark")
                 .font(.system(size: 12, weight: .semibold))
             Text(service.errorMessage ?? "The community API did not respond.")
                 .font(.system(size: 10))
@@ -346,20 +472,42 @@ private struct CodexResetFeedCard: View {
     }
 
     private func displayText(_ snapshot: CodexResetSnapshot) -> String {
-        if let signal = snapshot.activeSignal { return signal.summary }
-        return snapshot.latestTweet?.text ?? "No recent posts were returned by the feed."
+        snapshot.latestTweet?.text
+            ?? snapshot.activeSignal?.summary
+            ?? "No recent posts were returned by the feed."
     }
 
     private func displayedPostDate(_ snapshot: CodexResetSnapshot) -> Date? {
-        (snapshot.activeSignal?.at ?? snapshot.latestTweet?.at)?.codexResetDate
+        (snapshot.latestTweet?.at ?? snapshot.activeSignal?.at)?.codexResetDate
     }
 
     private func noteworthyFeedStatus(_ snapshot: CodexResetSnapshot) -> (title: String, color: Color)? {
         if snapshot.feed.stale { return ("Feed delayed", .orange) }
-        if snapshot.activeSignal != nil { return ("Active signal", .purple) }
+        if snapshot.hasRecentConfirmedReset() { return ("Reset confirmed", .green) }
+        if snapshot.resetSchedule() != nil { return ("Reset scheduled", .blue) }
+        if snapshot.activeSignal != nil { return ("Active signal", .blue) }
         if snapshot.latestTweet?.verificationStatus == "confirmed" { return ("Reset confirmed", .green) }
         if snapshot.latestTweet?.resetVerificationCandidate == true { return ("Reset candidate", .orange) }
         return nil
+    }
+
+    private func forecastTitle(_ snapshot: CodexResetSnapshot) -> String {
+        if snapshot.hasRecentConfirmedReset() { return "Verified reset signal" }
+        if snapshot.resetSchedule() != nil { return "Scheduled reset · Next 24h" }
+        return "Community forecast · Next 24h"
+    }
+
+    private func formattedResetTime(
+        _ schedule: CodexResetSchedule,
+        relativeTo date: Date = Date()
+    ) -> String {
+        switch resetTimeFormat {
+        case .relative:
+            let seconds = max(0, Int(schedule.expectedAt.timeIntervalSince(date)))
+            return L10n.resetRelative(RelativeResetTime(seconds: seconds))
+        case .absolute:
+            return L10n.resetAbsoluteTime(schedule.expectedAt)
+        }
     }
 
     private func metric(_ systemImage: String, count: Int) -> some View {
@@ -374,14 +522,12 @@ private struct CodexResetFeedCard: View {
     }
 
     private func forecastColor(_ probability: Int) -> Color {
-        if probability >= 70 { return .red }
-        if probability >= 40 { return .orange }
-        return .blue
+        probability > 0 ? .blue : .secondary
     }
 
     private func openDisplayedPost() {
         guard let snapshot = service.snapshot else { return }
-        let url = snapshot.activeSignal?.url ?? snapshot.latestTweet?.url ?? URL(string: "https://x.com/thsottiaux")!
+        let url = snapshot.latestTweet?.url ?? snapshot.activeSignal?.url ?? URL(string: "https://x.com/thsottiaux")!
         NSWorkspace.shared.open(url)
     }
 }

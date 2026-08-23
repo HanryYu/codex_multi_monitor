@@ -8,10 +8,11 @@ final class CodexResetService: ObservableObject {
 
     private let session: URLSession
     private let cacheURL: URL?
-    private let forecastURL = URL(string: "https://codex-reset.com/api/forecast")!
-    private let feedURL = URL(string: "https://codex-reset.com/api/feed")!
+    private let currentURL = URL(string: "https://codex.gussuriworks.com/api/current?locale=en")!
     private var lastAttemptAt: Date?
     private var lastSuccessfulAt: Date?
+
+    private static let cacheProvider = "codex-reset-observatory"
 
     init(session: URLSession = .shared, fileManager: FileManager = .default) {
         self.session = session
@@ -19,7 +20,8 @@ final class CodexResetService: ObservableObject {
             .appendingPathComponent("CodexMonitor/CodexReset", isDirectory: true)
         cacheURL = cacheDirectory?.appendingPathComponent("snapshot.json")
 
-        if let cached = Self.loadCache(from: cacheURL) {
+        if let cached = Self.loadCache(from: cacheURL),
+           cached.provider == Self.cacheProvider {
             snapshot = cached.snapshot
             lastSuccessfulAt = cached.savedAt
         }
@@ -36,10 +38,13 @@ final class CodexResetService: ObservableObject {
     }
 
     func refreshLatest() async {
-        await performRefresh(cachePolicy: .reloadIgnoringLocalCacheData)
+        await performRefresh(cachePolicy: .reloadIgnoringLocalCacheData, forceFresh: true)
     }
 
-    private func performRefresh(cachePolicy: URLRequest.CachePolicy) async {
+    private func performRefresh(
+        cachePolicy: URLRequest.CachePolicy,
+        forceFresh: Bool = false
+    ) async {
         guard !isLoading else { return }
         isLoading = true
         errorMessage = nil
@@ -47,24 +52,40 @@ final class CodexResetService: ObservableObject {
         defer { isLoading = false }
 
         do {
-            async let forecast: CodexResetForecast = fetch(forecastURL, cachePolicy: cachePolicy)
-            async let feed: CodexResetFeed = fetch(feedURL, cachePolicy: cachePolicy)
-            let refreshedSnapshot = try await CodexResetSnapshot(forecast: forecast, feed: feed)
+            let response: CodexResetObservatoryResponse = try await fetch(
+                currentURL,
+                cachePolicy: cachePolicy,
+                forceFresh: forceFresh
+            )
+            let refreshedSnapshot = try response.makeSnapshot()
             let savedAt = Date()
             snapshot = refreshedSnapshot
             lastSuccessfulAt = savedAt
-            persist(CodexResetCacheEntry(savedAt: savedAt, snapshot: refreshedSnapshot))
+            persist(CodexResetCacheEntry(
+                provider: Self.cacheProvider,
+                savedAt: savedAt,
+                snapshot: refreshedSnapshot
+            ))
         } catch {
             errorMessage = error.localizedDescription
-            print("[CodexMonitor] Codex Reset fetch failed: \(error)")
+            print("[CodexMonitor] Codex Reset Observatory fetch failed: \(error)")
         }
     }
 
     private func fetch<Value: Decodable>(
         _ url: URL,
-        cachePolicy: URLRequest.CachePolicy
+        cachePolicy: URLRequest.CachePolicy,
+        forceFresh: Bool
     ) async throws -> Value {
-        var request = URLRequest(url: url)
+        let requestURL: URL
+        if forceFresh, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "_fresh", value: "1")]
+            requestURL = components.url ?? url
+        } else {
+            requestURL = url
+        }
+
+        var request = URLRequest(url: requestURL)
         request.timeoutInterval = 15
         request.cachePolicy = cachePolicy
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -85,7 +106,7 @@ final class CodexResetService: ObservableObject {
         do {
             return try JSONDecoder().decode(CodexResetCacheEntry.self, from: data)
         } catch {
-            print("[CodexMonitor] Ignoring invalid Codex Reset cache: \(error)")
+            print("[CodexMonitor] Ignoring invalid Codex Reset Observatory cache: \(error)")
             return nil
         }
     }
@@ -100,12 +121,13 @@ final class CodexResetService: ObservableObject {
             let data = try JSONEncoder().encode(entry)
             try data.write(to: cacheURL, options: .atomic)
         } catch {
-            print("[CodexMonitor] Codex Reset cache write failed: \(error)")
+            print("[CodexMonitor] Codex Reset Observatory cache write failed: \(error)")
         }
     }
 }
 
 private struct CodexResetCacheEntry: Codable {
+    let provider: String?
     let savedAt: Date
     let snapshot: CodexResetSnapshot
 }
@@ -117,9 +139,9 @@ private enum CodexResetServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            return "Invalid Codex Reset response"
+            return "Invalid Codex Reset Observatory response"
         case .httpStatus(let code):
-            return "Codex Reset HTTP \(code)"
+            return "Codex Reset Observatory HTTP \(code)"
         }
     }
 }

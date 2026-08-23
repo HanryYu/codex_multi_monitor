@@ -704,13 +704,13 @@ enum L10n {
     static var aboutCodexResetAcknowledgement: String {
         switch lang {
         case .en:
-            return "Thanks to Codex Reset, an independent community project, for the public APIs used for reset forecasts and Tibo's public feed. Codex Reset is not affiliated with OpenAI."
+            return "Thanks to Codex Reset Observatory, an independent community project, for the public API used for reset forecasts and Tibo's public signals. Codex Reset Observatory is not affiliated with OpenAI."
         case .ja:
-            return "リセット予測と Tibo の公開フィードに使用する公開 API を提供している、独立したコミュニティプロジェクト Codex Reset に感謝します。Codex Reset は OpenAI とは提携していません。"
+            return "リセット予測と Tibo の公開シグナルに使用する公開 API を提供している、独立したコミュニティプロジェクト Codex Reset Observatory に感謝します。Codex Reset Observatory は OpenAI とは提携していません。"
         case .zhHans:
-            return "感谢独立社区项目 Codex Reset 提供重置概率预测和 Tibo 公开动态所使用的公共 API。Codex Reset 与 OpenAI 无隶属或合作关系。"
+            return "感谢独立社区项目 Codex Reset Observatory 提供用于重置预测和 Tibo 公开信号的公共 API。Codex Reset Observatory 与 OpenAI 无隶属或合作关系。"
         case .zhHant:
-            return "感謝獨立社群專案 Codex Reset 提供重置機率預測與 Tibo 公開動態所使用的公開 API。Codex Reset 與 OpenAI 無隸屬或合作關係。"
+            return "感謝獨立社群專案 Codex Reset Observatory 提供用於重置預測與 Tibo 公開訊號的公開 API。Codex Reset Observatory 與 OpenAI 無隸屬或合作關係。"
         }
     }
 

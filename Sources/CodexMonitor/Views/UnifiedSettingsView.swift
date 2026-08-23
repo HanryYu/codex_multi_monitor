@@ -1174,9 +1174,8 @@ struct AboutSettingsContentView: View {
     private let xURL = URL(string: "https://x.com/ryanhan_top")!
     private let feedbackURL = URL(string: "mailto:suggestion@hanry.top?subject=Codex%20Monitor%20Feedback")!
     private let licenseURL = URL(string: "https://github.com/HanryYu/codex_multi_monitor/blob/main/LICENSE")!
-    private let codexResetURL = URL(string: "https://codex-reset.com")!
-    private let codexResetForecastURL = URL(string: "https://codex-reset.com/api/forecast")!
-    private let codexResetFeedURL = URL(string: "https://codex-reset.com/api/feed")!
+    private let codexResetURL = URL(string: "https://codex.gussuriworks.com/en")!
+    private let codexResetAPIURL = URL(string: "https://codex.gussuriworks.com/api/current?locale=en")!
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1233,7 +1232,7 @@ struct AboutSettingsContentView: View {
 
                     Spacer()
 
-                    Link("Codex Reset ↗", destination: codexResetURL)
+                    Link("Codex Reset Observatory ↗", destination: codexResetURL)
                         .font(.system(size: 11, weight: .semibold))
                 }
 
@@ -1244,9 +1243,7 @@ struct AboutSettingsContentView: View {
 
                 HStack(spacing: 6) {
                     Text(L10n.aboutReferences + ":")
-                    Link("/api/forecast", destination: codexResetForecastURL)
-                    Text("·")
-                    Link("/api/feed", destination: codexResetFeedURL)
+                    Link("/api/current", destination: codexResetAPIURL)
                 }
                 .font(.system(size: 10))
                 .foregroundStyle(SettingsPalette.tertiaryText)
