@@ -1,33 +1,36 @@
-# CodexMonitor 0.7.10
+# CodexMonitor 0.7.11
 
-This hotfix replaces the withdrawn v0.7.9 build and includes authoritative OpenCode Go quota monitoring plus the rebuilt Codex Reset Radar.
+This release improves quota planning, account credential reliability, and five-hour refresh behavior across Codex, Claude, Grok, and OpenCode Go.
 
-## Packaging hotfix
+## Weekly quota planning
 
-- Fixes a launch-time crash when opening the menu from the signed release build.
-- Removes runtime `Bundle.module` lookups from the manually packaged app and loads packaged resources only through `Bundle.main`.
-- Makes optional provider icons fall back safely instead of triggering SwiftPM's fatal resource accessor.
-- Keeps the distributed app in the standard macOS bundle layout while continuing to verify every copied resource during packaging.
+- Shows the remaining weekly allowance as an approximate number of complete 5-hour allowances directly inside the weekly quota card.
+- Uses OpenCode Go's published `$30 weekly / $12 per 5 hours = 2.5x` capacity ratio.
+- Starts Codex and Claude with provider-aware full-window baselines, then refines the ratio from each account's paired 5-hour and weekly usage changes.
+- Keeps the conversion independent of the current 5-hour remaining percentage, so a fresh 100% 5-hour window does not change the weekly estimate.
+- Adds a Display setting to hide the compact conversion hint.
 
-## OpenCode Go monitoring
+## Account and credential reliability
 
-- Adds OpenCode Go as a provider with dedicated account setup, iconography, encrypted session-cookie storage, and optional Workspace ID override.
-- Reads authoritative 5-hour, weekly, and monthly quota windows from the signed-in `opencode.ai` dashboard instead of estimating from local usage.
-- Shows a compact three-window quota panel and keeps only a recent, clearly labeled cached dashboard result when a refresh fails.
+- Refreshes expiring Codex credentials from saved, active, or app-managed auth sources while preserving the newest matching full auth bundle.
+- Adds explicit reconnect actions for Codex and Grok accounts and clearer authentication-expired versus upstream-format errors.
+- Prevents an older switched `auth.json` from replacing a newer saved credential bundle.
+- Adds account reordering, hide/show controls, safer deletion confirmation, and persistent ordering through iCloud sync and backups.
 
-## Reset Radar accuracy
+## Five-hour quota refresh
 
-- Replaces the previous forecast/feed source with the public Codex Reset Observatory `public-v1` API.
-- Treats confirmed forced-reset notices separately from Banked Reset and regular weekly events.
-- Shows **Next Reset Confirmed**, `100%`, and the next reset using the Relative or Absolute time preference when an exact future reset is available.
-- Selects the latest confirmed global reset without confusing it with a newer Banked Reset distribution.
+- Starts and stops the scheduler with the setting instead of leaving its timer active while disabled.
+- Records a scheduled refresh only after the minimal Codex request succeeds, then refreshes displayed usage immediately.
+- Prevents overlapping attempts, retries transient failures within the scheduled window, and reports actionable failure reasons.
+- Makes wake-schedule enablement and cleanup transactional, including recovery from legacy leftover schedules.
 
-## Radar design and reliability
+## Grok usage compatibility
 
-- Uses semantic system colors: blue for a confirmed future reset, green for a completed reset, orange for delayed data, and red for refresh failure.
-- Prevents the compact confirmed-reset title and the Tibo handle/timestamp row from wrapping despite available horizontal space.
-- Keeps the menu card compact while moving the full signal, local/source times, data-health warnings, refresh action, and source links into the detail panel.
-- Invalidates cache entries from the previous provider and validates Observatory schema, probability, forced-reset, Banked Reset, and timing behavior with focused tests.
-- Selects app updates by semantic version instead of GitHub publication order, while the release workflow explicitly marks the new version as Latest.
+- Supports legacy and unified Grok billing responses without deriving subscription quota from on-demand currency fields.
+- Uses the installed Grok client version when requesting billing data and distinguishes authentication failures from upstream response changes.
+- Preserves valid zero-usage responses at the start of a new billing period.
 
-Codex Reset Observatory is an independent community project and is not affiliated with OpenAI.
+## Validation
+
+- Adds focused regression coverage for Codex auth bundle selection, Grok billing and web usage decoding, five-hour refresh controls, and weekly-to-5-hour quota conversion.
+- Continues validating OpenCode Go dashboard parsing, weekly activation policy, relative reset times, Reset Observatory data, and semantic release ordering.
