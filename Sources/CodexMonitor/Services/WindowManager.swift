@@ -41,7 +41,9 @@ final class WindowManager {
         window.backgroundColor = .clear
         window.isOpaque = false
         window.hasShadow = true
-        window.isMovableByWindowBackground = true
+        // Keep content gestures (notably account row reordering) separate from window movement.
+        // The title toolbar exposes the only draggable window region via WindowDragGesture.
+        window.isMovableByWindowBackground = false
         window.center()
         window.isReleasedWhenClosed = false
         window.level = .floating

@@ -752,6 +752,43 @@ enum L10n {
         }
     }
 
+    static var accountActions: String {
+        localized("Account settings", "アカウント設定", "账号设置", "帳號設定")
+    }
+
+    static var hideAccount: String {
+        localized("Hide Account", "アカウントを非表示", "隐藏账号", "隱藏帳號")
+    }
+
+    static var showAccount: String {
+        localized("Show Account", "アカウントを表示", "显示账号", "顯示帳號")
+    }
+
+    static var accountHidden: String {
+        localized("Hidden from menu bar", "メニューバーで非表示", "已从菜单栏隐藏", "已從選單列隱藏")
+    }
+
+    static var allAccountsHidden: String {
+        localized("All accounts are hidden", "すべてのアカウントが非表示です", "所有账号均已隐藏", "所有帳號均已隱藏")
+    }
+
+    static var manageAccounts: String {
+        localized("Manage Accounts", "アカウントを管理", "管理账号", "管理帳號")
+    }
+
+    static var dragAccountToReorder: String {
+        localized("Drag to reorder", "ドラッグして並べ替え", "拖动调整顺序", "拖動調整順序")
+    }
+
+    static func deleteAccountConfirmation(accountName: String) -> String {
+        localized(
+            "Delete \"\(accountName)\"? Saved credentials and local quota data for this account will also be removed. This cannot be undone.",
+            "「\(accountName)」を削除しますか？保存された認証情報とローカルのクォータデータも削除されます。この操作は取り消せません。",
+            "确定删除“\(accountName)”吗？该账号保存的凭证和本地额度数据也会一并删除，此操作无法撤销。",
+            "確定刪除「\(accountName)」嗎？該帳號儲存的憑證和本機額度資料也會一併刪除，此操作無法復原。"
+        )
+    }
+
     // MARK: - Preferences / Settings
 
     static var dataRefreshInterval: String {
@@ -859,6 +896,68 @@ enum L10n {
         case .ja:    return "アカウントの利用枠の上にコミュニティのリセット予測を表示"
         case .zhHans: return "在账户额度上方显示社区重置概率预测"
         case .zhHant: return "在帳戶額度上方顯示社群重置機率預測"
+        }
+    }
+
+    static var showQuotaAllowanceSummary: String {
+        switch lang {
+        case .en: return "Show weekly allowance conversion"
+        case .ja: return "週間残量の5時間枠換算を表示"
+        case .zhHans: return "显示周额度换算提示"
+        case .zhHant: return "顯示週額度換算提示"
+        }
+    }
+
+    static var showQuotaAllowanceSummaryDesc: String {
+        switch lang {
+        case .en: return "Show the remaining number of complete 5-hour allowances inside the weekly quota"
+        case .ja: return "週間クォータ内に、完全な5時間枠の残り回数を表示します"
+        case .zhHans: return "在周额度内部显示还相当于多少个完整的 5 小时额度"
+        case .zhHant: return "在週額度內部顯示還相當於多少個完整的 5 小時額度"
+        }
+    }
+
+    static func quotaAllowanceSummary(_ summary: QuotaAllowanceSummary) -> String {
+        guard let equivalents = summary.remainingFiveHourEquivalents else {
+            switch lang {
+            case .en: return "Calibrating"
+            case .ja: return "調整中"
+            case .zhHans: return "校准中"
+            case .zhHant: return "校準中"
+            }
+        }
+        let value = String(format: "%.1f", equivalents)
+        switch lang {
+        case .en, .ja, .zhHans, .zhHant: return "≈\(value)×5h"
+        }
+    }
+
+    static func quotaAllowanceHelp(summary: QuotaAllowanceSummary) -> String {
+        if summary.source == .calibrating {
+            switch lang {
+            case .en: return "The approximate ratio appears after the first measurable paired usage change, then keeps correcting itself."
+            case .ja: return "最初の測定可能な同時利用変化の後に概算比率を表示し、その後も継続して補正します。"
+            case .zhHans: return "首次观察到可测量的成对用量变化后即显示近似倍数，之后会持续自动修正。"
+            case .zhHant: return "首次觀察到可測量的成對用量變化後即顯示近似倍數，之後會持續自動修正。"
+            }
+        }
+
+        let value = String(format: "%.2f", summary.remainingFiveHourEquivalents ?? 0)
+        let ratio = String(format: "%.2f", summary.capacityRatio ?? 0)
+        switch (lang, summary.source) {
+        case (.en, .exactOpenCodeGo): return "OpenCode Go: $30 weekly ÷ $12 per 5h = 2.5×. At \(summary.weeklyRemainingPercent)% weekly remaining, about \(value) complete 5h allowances remain."
+        case (.en, .estimatedBaseline): return "Uses an initial full-5h capacity baseline of \(ratio)×. Current 5h remaining is not part of the calculation; account observations will refine the ratio automatically."
+        case (.en, .learned): return "This account's observed weekly-to-5h capacity ratio is about \(ratio)×. At \(summary.weeklyRemainingPercent)% weekly remaining, about \(value) complete 5h allowances remain."
+        case (.ja, .exactOpenCodeGo): return "OpenCode Go: 週$30 ÷ 5時間$12 = 2.5倍。週間残量\(summary.weeklyRemainingPercent)%は、完全な5時間枠約\(value)回分です。"
+        case (.ja, .estimatedBaseline): return "完全な5時間枠を基準に、初期容量比\(ratio)倍で計算します。現在の5時間残量は計算に含めず、実測後に自動補正します。"
+        case (.ja, .learned): return "このアカウントで観測した週/5時間容量比は約\(ratio)倍です。週間残量\(summary.weeklyRemainingPercent)%は、完全な5時間枠約\(value)回分です。"
+        case (.zhHans, .exactOpenCodeGo): return "OpenCode Go：每周 $30 ÷ 每 5 小时 $12 = 2.5 倍。当前周余 \(summary.weeklyRemainingPercent)%，约等于 \(value) 个完整 5 小时额度。"
+        case (.zhHans, .estimatedBaseline): return "按完整 100% 的 5 小时额度，以 \(ratio) 倍初始容量比计算；当前 5 小时剩余不参与计算，获得账号实测数据后会自动修正。"
+        case (.zhHans, .learned): return "根据该账号实际消耗校准，周/5 小时容量比约为 \(ratio) 倍。当前周余 \(summary.weeklyRemainingPercent)%，约等于 \(value) 个完整 5 小时额度。"
+        case (.zhHant, .exactOpenCodeGo): return "OpenCode Go：每週 $30 ÷ 每 5 小時 $12 = 2.5 倍。目前週餘 \(summary.weeklyRemainingPercent)%，約等於 \(value) 個完整 5 小時額度。"
+        case (.zhHant, .estimatedBaseline): return "按完整 100% 的 5 小時額度，以 \(ratio) 倍初始容量比計算；目前 5 小時剩餘不參與計算，取得帳戶實測資料後會自動修正。"
+        case (.zhHant, .learned): return "根據該帳戶實際消耗校準，週/5 小時容量比約為 \(ratio) 倍。目前週餘 \(summary.weeklyRemainingPercent)%，約等於 \(value) 個完整 5 小時額度。"
+        case (_, .calibrating): return ""
         }
     }
 
@@ -1395,10 +1494,42 @@ enum L10n {
     static var wakeMacDesc: String { localized("Required for reliable refresh while the Mac is asleep", "Macのスリープ中も確実に更新するため必須", "必须开启，否则 Mac 睡眠时可能无法发送刷新请求", "必須開啟，否則 Mac 睡眠時可能無法傳送重新整理請求") }
     static var wakeScheduleFailed: String { localized("Automatic wake was not enabled", "自動起動解除を有効にできませんでした", "未能启用自动唤醒", "未能啟用自動喚醒") }
     static var wakeRequiredFailed: String { localized("Automatic wake is required to enable this feature", "この機能には自動起動解除が必要です", "启用此功能必须先开启自动唤醒", "啟用此功能必須先開啟自動喚醒") }
+    static var wakeScheduleCancelFailed: String {
+        localized("Refresh is off, but the system wake schedule could not be removed. Retry and authorize the change.", "更新はオフですが、システムの起動予約を解除できませんでした。再試行して変更を許可してください。", "定时刷新已停止，但系统唤醒定时未能关闭，请重试并允许系统授权。", "定時重新整理已停止，但系統喚醒排程未能關閉，請重試並允許系統授權。")
+    }
+    static var wakeScheduleCleanupNeeded: String {
+        localized("A saved wake schedule still needs cleanup.", "保存された起動予約の解除が必要です。", "仍有已保存的系统唤醒定时需要清理。", "仍有已儲存的系統喚醒排程需要清理。")
+    }
+    static var cancelWakeSchedule: String {
+        localized("Remove system wake schedule", "システムの起動予約を解除", "关闭系统定时", "關閉系統排程")
+    }
     static var modelsLoadedLive: String { localized("Live model list", "リアルタイムモデル一覧", "实时模型列表", "即時模型列表") }
     static var modelsLoadedFromCache: String { localized("Using Codex's last synced model list", "Codexの最終同期モデル一覧を使用", "正在使用 Codex 最近同步的模型列表", "正在使用 Codex 最近同步的模型列表") }
     static var modelsUnavailable: String { localized("Open Codex once, then refresh", "Codexを一度開いてから更新してください", "请先打开一次 Codex，然后刷新", "請先開啟一次 Codex，然後重新整理") }
     static var fiveHourRefreshScopeNote: String { localized("CodexMonitor must be running. Auto Account Sync is required to refresh saved accounts; the request is exactly “Reply only: hi”.", "CodexMonitorの起動が必要です。保存済みアカウントには自動同期が必要です。リクエストは「Reply only: hi」のみです。", "CodexMonitor 需保持运行；刷新已保存账号需开启自动账号同步。请求内容固定为“Reply only: hi”。", "CodexMonitor 需保持執行；重新整理已儲存帳戶需開啟自動帳戶同步。請求內容固定為「Reply only: hi」。") }
+    static var fiveHourRefreshFailureTitle: String { localized("Quota refresh failed", "クォータ更新に失敗", "额度刷新失败", "額度重新整理失敗") }
+    static func fiveHourRefreshFailureBody(accountName: String, reason: String) -> String {
+        localized(
+            "\(accountName): \(reason)",
+            "\(accountName)：\(reason)",
+            "\(accountName)：\(reason)",
+            "\(accountName)：\(reason)"
+        )
+    }
+    static var reconnectAccount: String {
+        localized("Reconnect account", "アカウントを再接続", "重新连接账号", "重新連接帳戶")
+    }
+    static func reconnectAccountRunning(provider: String) -> String {
+        localized(
+            "Complete the \(provider) sign-in in your browser…",
+            "ブラウザで \(provider) のサインインを完了してください…",
+            "请在浏览器中完成 \(provider) 登录…",
+            "請在瀏覽器中完成 \(provider) 登入…"
+        )
+    }
+    static var reconnectAccountSucceeded: String {
+        localized("Account reconnected", "アカウントを再接続しました", "账号已重新连接", "帳戶已重新連接")
+    }
 
     private static func localized(_ en: String, _ ja: String, _ zhHans: String, _ zhHant: String) -> String {
         switch lang { case .en: en; case .ja: ja; case .zhHans: zhHans; case .zhHant: zhHant }
@@ -1515,6 +1646,15 @@ enum L10n {
         localized("Refreshing this account…", "このアカウントを更新中…", "正在刷新此账号…", "正在重新整理此帳戶…")
     }
 
+    static var manualAccountWeeklyRefreshQueued: String {
+        localized(
+            "Waiting for the current quota refresh to finish…",
+            "実行中のクォータ更新が完了するまで待機しています…",
+            "正在等待当前额度刷新完成…",
+            "正在等待目前額度重新整理完成…"
+        )
+    }
+
     static var manualAccountWeeklyRefreshSucceeded: String {
         localized("Weekly quota refreshed", "週間クォータを更新しました", "周额度刷新成功", "每週額度重新整理成功")
     }
@@ -1533,6 +1673,42 @@ enum L10n {
 
     static var manualAccountWeeklyRefreshUnavailable: String {
         localized("This account cannot be refreshed", "このアカウントは更新できません", "此账号无法刷新", "此帳戶無法重新整理")
+    }
+
+    static var manualAccountWeeklyRefreshTimedOut: String {
+        localized(
+            "Refresh timed out after 2 minutes. Check the network and try again.",
+            "2分後に更新がタイムアウトしました。ネットワークを確認して再試行してください。",
+            "刷新请求在 2 分钟后超时，请检查网络后重试。",
+            "重新整理請求在 2 分鐘後逾時，請檢查網路後重試。"
+        )
+    }
+
+    static var manualAccountWeeklyRefreshLaunchFailed: String {
+        localized(
+            "Codex could not be launched. Check the quota log for details.",
+            "Codex を起動できませんでした。詳細はクォータログを確認してください。",
+            "无法启动 Codex，请查看额度日志了解详情。",
+            "無法啟動 Codex，請查看額度日誌了解詳情。"
+        )
+    }
+
+    static func manualAccountWeeklyRefreshCommandFailed(exitStatus: Int32) -> String {
+        localized(
+            "Codex exited with status \(exitStatus). Check credentials, network, or the quota log.",
+            "Codex がステータス \(exitStatus) で終了しました。認証情報、ネットワーク、またはクォータログを確認してください。",
+            "Codex 请求失败（退出码 \(exitStatus)），请检查凭证、网络或额度日志。",
+            "Codex 請求失敗（結束碼 \(exitStatus)），請檢查憑證、網路或額度日誌。"
+        )
+    }
+
+    static var manualAccountWeeklyRefreshUnexpectedReply: String {
+        localized(
+            "Codex returned an unexpected response, so the refresh was not recorded.",
+            "Codex から予期しない応答が返されたため、更新は記録されませんでした。",
+            "Codex 返回了非预期结果，本次刷新未记为成功。",
+            "Codex 回傳了非預期結果，本次重新整理未記為成功。"
+        )
     }
 
     static var notificationTestSent: String {

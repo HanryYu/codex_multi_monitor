@@ -97,38 +97,45 @@ struct SettingsTopToolbar: View {
     @Binding var selectedTab: UnifiedSettingsView.SettingsTab
 
     var body: some View {
-        HStack(spacing: 12) {
-            ForEach(UnifiedSettingsView.SettingsTab.allCases, id: \.self) { tab in
-                Button {
-                    selectedTab = tab
-                } label: {
-                    VStack(spacing: 5) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 25, weight: selectedTab == tab ? .medium : .regular))
-                            .symbolRenderingMode(.monochrome)
-                            .frame(height: 26)
+        ZStack {
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(WindowDragGesture())
+                .allowsWindowActivationEvents(true)
+                .accessibilityHidden(true)
 
-                        Text(tab.label)
-                            .font(.system(size: 11, weight: .semibold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                    }
-                    .foregroundStyle(selectedTab == tab ? SettingsPalette.primaryText : SettingsPalette.secondaryText)
-                    .frame(width: 64, height: 52)
-                    .background {
-                        if selectedTab == tab {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(SettingsPalette.selectedFill)
+            HStack(spacing: 12) {
+                ForEach(UnifiedSettingsView.SettingsTab.allCases, id: \.self) { tab in
+                    Button {
+                        selectedTab = tab
+                    } label: {
+                        VStack(spacing: 5) {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: 25, weight: selectedTab == tab ? .medium : .regular))
+                                .symbolRenderingMode(.monochrome)
+                                .frame(height: 26)
+
+                            Text(tab.label)
+                                .font(.system(size: 11, weight: .semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                        }
+                        .foregroundStyle(selectedTab == tab ? SettingsPalette.primaryText : SettingsPalette.secondaryText)
+                        .frame(width: 64, height: 52)
+                        .background {
+                            if selectedTab == tab {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(SettingsPalette.selectedFill)
+                            }
                         }
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(tab.label)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(tab.label)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 24)
-        .padding(.bottom, 12)
+        .frame(height: 88)
         .background(SettingsPalette.canvas)
     }
 }
@@ -169,9 +176,11 @@ struct AccountManagementContentView: View {
     @ObservedObject var localeManager = LocaleManager.shared
     @State private var showingAddForm = false
     @State private var editingAccount: Account?
+    @State private var accountPendingDeletion: Account?
     @State private var refreshingAccountIDs: Set<UUID> = []
     @State private var accountRefreshResults: [UUID: WeeklyQuotaAccountRefreshResult] = [:]
-    @State private var accountRefreshFeedbackTokens: [UUID: UUID] = [:]
+    @State private var reconnectingAccountIDs: Set<UUID> = []
+    @State private var accountReconnectResults: [UUID: AccountReconnectResult] = [:]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -226,24 +235,34 @@ struct AccountManagementContentView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
-                            AccountSettingsRow(
-                                account: account,
-                                status: accountStatus(for: account),
-                                showDivider: index != accountStore.accounts.count - 1,
-                                isRefreshingQuota: refreshingAccountIDs.contains(account.id),
-                                refreshResult: accountRefreshResults[account.id],
-                                refreshQuotaAction: { forceRefreshWeeklyQuota(for: account) },
-                                editAction: { editingAccount = account },
-                                deleteAction: { accountStore.deleteAccount(id: account.id) }
-                            )
-                        }
+                List {
+                    ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
+                        AccountSettingsRow(
+                            account: account,
+                            status: accountStatus(for: account),
+                            showDivider: index != accountStore.accounts.count - 1,
+                            isRefreshingQuota: refreshingAccountIDs.contains(account.id),
+                            isQueuedForRefresh: accountStore.queuedWeeklyRefreshAccountIDs.contains(account.id),
+                            refreshResult: accountRefreshResults[account.id],
+                            isReconnecting: reconnectingAccountIDs.contains(account.id),
+                            reconnectResult: accountReconnectResults[account.id],
+                            refreshQuotaAction: { forceRefreshWeeklyQuota(for: account) },
+                            reconnectAction: { reconnect(account) },
+                            editAction: { editingAccount = account },
+                            hideAction: { accountStore.setAccountHidden(!account.isHidden, id: account.id) },
+                            deleteAction: { accountPendingDeletion = account }
+                        )
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(SettingsPalette.canvas)
+                        .moveDisabled(refreshingAccountIDs.contains(account.id))
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 16)
+                    .onMove(perform: accountStore.moveAccounts(fromOffsets:toOffset:))
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
             }
         }
         .background(SettingsPalette.canvas)
@@ -252,6 +271,20 @@ struct AccountManagementContentView: View {
         }
         .sheet(item: $editingAccount) { account in
             EditAccountSheetWrapper(accountStore: accountStore, account: account, editingAccount: $editingAccount)
+        }
+        .alert(item: $accountPendingDeletion) { account in
+            Alert(
+                title: Text(L10n.deleteAccount),
+                message: Text(L10n.deleteAccountConfirmation(accountName: account.accountEmail ?? account.name)),
+                primaryButton: .destructive(Text(L10n.deleteAccount)) {
+                    accountStore.deleteAccount(id: account.id)
+                    accountRefreshResults[account.id] = nil
+                    refreshingAccountIDs.remove(account.id)
+                    accountReconnectResults[account.id] = nil
+                    reconnectingAccountIDs.remove(account.id)
+                },
+                secondaryButton: .cancel(Text(L10n.cancel))
+            )
         }
     }
 
@@ -315,19 +348,29 @@ struct AccountManagementContentView: View {
 
         refreshingAccountIDs.insert(account.id)
         accountRefreshResults[account.id] = nil
-        let feedbackToken = UUID()
-        accountRefreshFeedbackTokens[account.id] = feedbackToken
 
         Task { @MainActor in
             let result = await accountStore.forceRefreshWeeklyQuota(accountID: account.id)
             accountRefreshResults[account.id] = result
             refreshingAccountIDs.remove(account.id)
+        }
+    }
 
-            try? await Task.sleep(for: .seconds(4))
-            if accountRefreshFeedbackTokens[account.id] == feedbackToken {
-                accountRefreshResults[account.id] = nil
-                accountRefreshFeedbackTokens[account.id] = nil
+    private func reconnect(_ account: Account) {
+        guard [.codex, .grok].contains(account.provider),
+              !reconnectingAccountIDs.contains(account.id)
+        else { return }
+
+        reconnectingAccountIDs.insert(account.id)
+        accountReconnectResults[account.id] = nil
+        Task { @MainActor in
+            do {
+                try await accountStore.reauthenticateAccount(id: account.id)
+                accountReconnectResults[account.id] = .succeeded
+            } catch {
+                accountReconnectResults[account.id] = .failed(error.localizedDescription)
             }
+            reconnectingAccountIDs.remove(account.id)
         }
     }
 }
@@ -337,19 +380,37 @@ private struct AccountSettingsStatus {
     let color: Color
 }
 
+private enum AccountReconnectResult {
+    case succeeded
+    case failed(String)
+}
+
 private struct AccountSettingsRow: View {
     let account: Account
     let status: AccountSettingsStatus?
     let showDivider: Bool
     let isRefreshingQuota: Bool
+    let isQueuedForRefresh: Bool
     let refreshResult: WeeklyQuotaAccountRefreshResult?
+    let isReconnecting: Bool
+    let reconnectResult: AccountReconnectResult?
     let refreshQuotaAction: () -> Void
+    let reconnectAction: () -> Void
     let editAction: () -> Void
+    let hideAction: () -> Void
     let deleteAction: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(SettingsPalette.tertiaryText)
+                    .frame(width: 14, height: 28)
+                    .contentShape(Rectangle())
+                    .help(L10n.dragAccountToReorder)
+                    .accessibilityLabel(L10n.dragAccountToReorder)
+
                 Circle()
                     .fill(SettingsPalette.subtleFill)
                     .frame(width: 36, height: 36)
@@ -363,6 +424,12 @@ private struct AccountSettingsRow: View {
                         .foregroundStyle(SettingsPalette.primaryText)
                         .lineLimit(1)
                         .truncationMode(.middle)
+
+                    if account.isHidden {
+                        Label(L10n.accountHidden, systemImage: "eye.slash")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(SettingsPalette.tertiaryText)
+                    }
 
                     Text(detailLabel)
                         .font(.system(size: 11).monospaced())
@@ -402,23 +469,44 @@ private struct AccountSettingsRow: View {
                         .accessibilityLabel(refreshHelp)
                     }
 
-                    Button(action: editAction) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 16, weight: .regular))
-                            .frame(width: 26, height: 26)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(SettingsPalette.secondaryText)
-                    .help(L10n.editAccount)
+                    Menu {
+                        if account.provider == .codex || account.provider == .grok {
+                            Button(action: reconnectAction) {
+                                Label(L10n.reconnectAccount, systemImage: "person.badge.key")
+                            }
+                            .disabled(isReconnecting)
 
-                    Button(action: deleteAction) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 16, weight: .regular))
+                            Divider()
+                        }
+
+                        Button(action: editAction) {
+                            Label(L10n.editAccount, systemImage: "pencil")
+                        }
+
+                        Button(action: hideAction) {
+                            Label(
+                                account.isHidden ? L10n.showAccount : L10n.hideAccount,
+                                systemImage: account.isHidden ? "eye" : "eye.slash"
+                            )
+                        }
+
+                        Divider()
+
+                        Button(role: .destructive, action: deleteAction) {
+                            Label(L10n.deleteAccount, systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(SettingsPalette.secondaryText)
                             .frame(width: 26, height: 26)
+                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(SettingsPalette.secondaryText)
-                    .help(L10n.deleteAccount)
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .disabled(isRefreshingQuota || isReconnecting)
+                    .help(L10n.accountActions)
                 }
                 .padding(.horizontal, 5)
                 .padding(.vertical, 2)
@@ -430,6 +518,46 @@ private struct AccountSettingsRow: View {
                 }
             }
             .padding(.vertical, 14)
+
+            if isQueuedForRefresh || refreshResult != nil {
+                HStack(spacing: 5) {
+                    Image(systemName: isQueuedForRefresh ? "clock" : refreshIcon)
+                    Text(isQueuedForRefresh ? L10n.manualAccountWeeklyRefreshQueued : refreshHelp)
+                }
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(isQueuedForRefresh ? Color.orange : refreshColor)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 48)
+                .padding(.bottom, 10)
+                .accessibilityLabel(isQueuedForRefresh ? L10n.manualAccountWeeklyRefreshQueued : refreshHelp)
+            }
+
+            if isReconnecting || reconnectResult != nil {
+                HStack(spacing: 5) {
+                    if isReconnecting {
+                        ProgressView().controlSize(.small)
+                        Text(L10n.reconnectAccountRunning(provider: account.provider.displayName))
+                            .foregroundStyle(Color.orange)
+                    } else {
+                        switch reconnectResult {
+                        case .succeeded:
+                            Image(systemName: "checkmark.circle.fill")
+                            Text(L10n.reconnectAccountSucceeded)
+                                .foregroundStyle(Color(hex: "22C55E"))
+                        case .failed(let message):
+                            Image(systemName: "exclamationmark.circle.fill")
+                            Text(message)
+                                .foregroundStyle(Color(hex: "EF4444"))
+                        case nil:
+                            EmptyView()
+                        }
+                    }
+                }
+                .font(.system(size: 10.5, weight: .medium))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 48)
+                .padding(.bottom, 10)
+            }
 
             if showDivider {
                 Divider()
@@ -459,7 +587,8 @@ private struct AccountSettingsRow: View {
         switch refreshResult {
         case .succeeded:
             return "checkmark.circle.fill"
-        case .failed, .busy, .missingCredentials, .codexNotFound, .accountNotFound, .unsupportedProvider:
+        case .failed, .busy, .missingCredentials, .codexNotFound, .accountNotFound,
+             .unsupportedProvider, .timedOut, .launchFailed, .commandFailed, .unexpectedReply:
             return "exclamationmark.circle.fill"
         case nil:
             return "arrow.clockwise"
@@ -470,8 +599,11 @@ private struct AccountSettingsRow: View {
         switch refreshResult {
         case .succeeded:
             return Color(hex: "22C55E")
-        case .failed, .busy, .missingCredentials, .codexNotFound, .accountNotFound, .unsupportedProvider:
+        case .failed, .missingCredentials, .codexNotFound, .accountNotFound,
+             .unsupportedProvider, .timedOut, .launchFailed, .commandFailed, .unexpectedReply:
             return Color(hex: "EF4444")
+        case .busy:
+            return Color.orange
         case nil:
             return SettingsPalette.secondaryText
         }
@@ -495,6 +627,14 @@ private struct AccountSettingsRow: View {
             return L10n.quotaActivationCodexNotFound
         case .accountNotFound, .unsupportedProvider:
             return L10n.manualAccountWeeklyRefreshUnavailable
+        case .timedOut:
+            return L10n.manualAccountWeeklyRefreshTimedOut
+        case .launchFailed:
+            return L10n.manualAccountWeeklyRefreshLaunchFailed
+        case .commandFailed(let exitStatus):
+            return L10n.manualAccountWeeklyRefreshCommandFailed(exitStatus: exitStatus)
+        case .unexpectedReply:
+            return L10n.manualAccountWeeklyRefreshUnexpectedReply
         case nil:
             return L10n.manualAccountWeeklyRefreshHelp
         }
@@ -518,6 +658,7 @@ struct PreferencesContentView: View {
     @State private var alertThreshold: Double = 80
     @State private var showMenuBarText: Bool = false
     @State private var showResetRadar: Bool = true
+    @State private var showQuotaAllowanceSummary: Bool = true
     @State private var resetTimeFormat: ResetTimeFormat = .relative
     @State private var selectedLanguage: LanguageOption = .system
     @State private var autoImportEnabled: Bool = false
@@ -534,6 +675,7 @@ struct PreferencesContentView: View {
     @State private var cloudModels: [CodexCloudModel] = []
     @State private var accountRefreshEnabled: [UUID: Bool] = [:]
     @State private var wakeMacForRefresh = false
+    @State private var ownsWakeSchedule = false
     @State private var wakeScheduleStatus: String?
     @State private var isLoadingModels = false
     @State private var modelSourceText: String?
@@ -585,6 +727,18 @@ struct PreferencesContentView: View {
             .onChange(of: showResetRadar) { _, newValue in
                 UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showResetRadar)
                 NotificationCenter.default.post(name: .resetRadarVisibilityChanged, object: nil)
+            }
+
+            CardDivider()
+
+            SettingsCheckbox(
+                title: L10n.showQuotaAllowanceSummary,
+                description: L10n.showQuotaAllowanceSummaryDesc,
+                isChecked: $showQuotaAllowanceSummary
+            )
+            .onChange(of: showQuotaAllowanceSummary) { _, newValue in
+                UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showQuotaAllowanceSummary)
+                NotificationCenter.default.post(name: .quotaAllowanceSummaryVisibilityChanged, object: nil)
             }
 
             CardDivider()
@@ -754,56 +908,63 @@ struct PreferencesContentView: View {
                 title: L10n.fiveHourRefreshLabel,
                 description: L10n.fiveHourRefreshDesc,
                 badge: "Beta",
-                isChecked: $fiveHourRefreshEnabled
+                isChecked: Binding(
+                    get: { fiveHourRefreshEnabled },
+                    set: { setFiveHourRefreshEnabled($0) }
+                )
             )
-            .onChange(of: fiveHourRefreshEnabled) { _, value in
-                UserDefaults.standard.set(value, forKey: PreferencesKeys.fiveHourRefreshEnabled)
-                if value && !wakeMacForRefresh {
-                    wakeMacForRefresh = true
+
+            // This stays mounted when the main switch is off, including for legacy leftovers.
+            if let wakeScheduleStatus {
+                Text(wakeScheduleStatus)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.red)
+                    .padding(.leading, 24)
+            }
+            if FiveHourRefreshControl.State(
+                refreshEnabled: fiveHourRefreshEnabled,
+                wakeEnabled: wakeMacForRefresh,
+                ownsWakeSchedule: ownsWakeSchedule
+            ).needsWakeCleanup {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L10n.wakeScheduleCleanupNeeded)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    SettingsActionButton(title: L10n.cancelWakeSchedule) {
+                        setFiveHourRefreshEnabled(false)
+                    }
                 }
-                if !value, wakeMacForRefresh {
-                    wakeMacForRefresh = false
-                }
+                .padding(.leading, 24)
             }
 
             if fiveHourRefreshEnabled {
                 HStack {
                     SettingTextBlock(title: L10n.refreshTimeLabel, description: L10n.refreshTimeDesc)
                     Spacer()
-                    SettingsTimePicker(selection: $fiveHourRefreshTime)
-                        .onChange(of: fiveHourRefreshTime) { _, value in
-                            FiveHourQuotaRefreshSettings.setTime(value, for: nil)
-                            if wakeMacForRefresh, !MacWakeScheduler.configure(for: value, enabled: true) {
+                    SettingsTimePicker(selection: Binding(
+                        get: { fiveHourRefreshTime },
+                        set: { value in
+                            guard !wakeMacForRefresh || MacWakeScheduler.configure(for: value, enabled: true) else {
                                 wakeScheduleStatus = L10n.wakeScheduleFailed
+                                return
                             }
+                            fiveHourRefreshTime = value
+                            FiveHourQuotaRefreshSettings.setTime(value, for: nil)
+                            wakeScheduleStatus = nil
                         }
+                    ))
                 }
                 .padding(.leading, 24)
 
-                SettingsCheckbox(title: L10n.wakeMacLabel, description: L10n.wakeMacDesc, isChecked: $wakeMacForRefresh)
-                    .padding(.leading, 24)
-                    .onChange(of: wakeMacForRefresh) { _, enabled in
-                        if !enabled && fiveHourRefreshEnabled {
-                            fiveHourRefreshEnabled = false
-                            UserDefaults.standard.set(false, forKey: PreferencesKeys.fiveHourRefreshEnabled)
-                        }
-                        let success = MacWakeScheduler.configure(for: fiveHourRefreshTime, enabled: enabled)
-                        if success {
-                            UserDefaults.standard.set(enabled, forKey: PreferencesKeys.fiveHourRefreshWakeEnabled)
-                            wakeScheduleStatus = nil
-                        } else {
-                            wakeMacForRefresh = !enabled
-                            wakeScheduleStatus = L10n.wakeScheduleFailed
-                            if enabled {
-                                fiveHourRefreshEnabled = false
-                                UserDefaults.standard.set(false, forKey: PreferencesKeys.fiveHourRefreshEnabled)
-                            }
-                        }
-                    }
-
-                if let wakeScheduleStatus {
-                    Text(wakeScheduleStatus).font(.system(size: 10)).foregroundStyle(.red).padding(.leading, 24)
-                }
+                SettingsCheckbox(
+                    title: L10n.wakeMacLabel,
+                    description: L10n.wakeMacDesc,
+                    isChecked: Binding(
+                        get: { wakeMacForRefresh },
+                        set: { setFiveHourRefreshEnabled($0) }
+                    )
+                )
+                .padding(.leading, 24)
 
                 SettingsCheckbox(title: L10n.advancedSettingsLabel, description: L10n.advancedSettingsDesc, isChecked: $fiveHourRefreshAdvanced)
                     .padding(.leading, 24)
@@ -980,6 +1141,10 @@ struct PreferencesContentView: View {
 
         showResetRadar = (UserDefaults.standard.object(forKey: PreferencesKeys.showResetRadar) as? Bool) ?? true
 
+        showQuotaAllowanceSummary = (UserDefaults.standard.object(
+            forKey: PreferencesKeys.showQuotaAllowanceSummary
+        ) as? Bool) ?? true
+
         let formatString = UserDefaults.standard.string(forKey: PreferencesKeys.resetTimeFormat) ?? ResetTimeFormat.relative.rawValue
         resetTimeFormat = ResetTimeFormat(rawValue: formatString) ?? .relative
 
@@ -1004,11 +1169,41 @@ struct PreferencesContentView: View {
         fiveHourRefreshTime = FiveHourQuotaRefreshSettings.time(for: nil)
         fiveHourRefreshAdvanced = UserDefaults.standard.bool(forKey: PreferencesKeys.fiveHourRefreshAdvanced)
         wakeMacForRefresh = UserDefaults.standard.bool(forKey: PreferencesKeys.fiveHourRefreshWakeEnabled)
+        ownsWakeSchedule = UserDefaults.standard.bool(forKey: PreferencesKeys.fiveHourRefreshOwnsWakeSchedule)
         accountRefreshEnabled = Dictionary(uniqueKeysWithValues: accountStore.accounts.map { ($0.id, FiveHourQuotaRefreshSettings.accountEnabled($0.id)) })
         Task { await loadCloudModels() }
 
         let automaticUpdatesVal = UserDefaults.standard.object(forKey: PreferencesKeys.automaticUpdatesEnabled) as? Bool
         automaticUpdatesEnabled = automaticUpdatesVal ?? true
+    }
+
+    private func setFiveHourRefreshEnabled(_ enabled: Bool) {
+        let defaults = UserDefaults.standard
+        let result = FiveHourRefreshControl.setEnabled(
+            enabled,
+            current: .init(
+                refreshEnabled: defaults.bool(forKey: PreferencesKeys.fiveHourRefreshEnabled),
+                wakeEnabled: defaults.bool(forKey: PreferencesKeys.fiveHourRefreshWakeEnabled),
+                ownsWakeSchedule: defaults.bool(forKey: PreferencesKeys.fiveHourRefreshOwnsWakeSchedule)
+            ),
+            stopRefreshing: {
+                defaults.set(false, forKey: PreferencesKeys.fiveHourRefreshEnabled)
+                NotificationCenter.default.post(name: .fiveHourRefreshChanged, object: nil)
+            },
+            configureWake: { MacWakeScheduler.configure(for: fiveHourRefreshTime, enabled: $0) }
+        )
+        fiveHourRefreshEnabled = result.state.refreshEnabled
+        wakeMacForRefresh = result.state.wakeEnabled
+        ownsWakeSchedule = result.state.ownsWakeSchedule
+        defaults.set(result.state.refreshEnabled, forKey: PreferencesKeys.fiveHourRefreshEnabled)
+        defaults.set(result.state.wakeEnabled, forKey: PreferencesKeys.fiveHourRefreshWakeEnabled)
+        defaults.set(result.state.ownsWakeSchedule, forKey: PreferencesKeys.fiveHourRefreshOwnsWakeSchedule)
+        switch result.failure {
+        case .enableWake: wakeScheduleStatus = L10n.wakeRequiredFailed
+        case .disableWake: wakeScheduleStatus = L10n.wakeScheduleCancelFailed
+        case nil: wakeScheduleStatus = nil
+        }
+        NotificationCenter.default.post(name: .fiveHourRefreshChanged, object: nil)
     }
 
     @MainActor

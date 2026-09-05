@@ -1,5 +1,20 @@
 import Foundation
 
+enum CodexQuotaActivationResult: Sendable, Equatable {
+    case succeeded
+    case automaticDisabled
+    case missingAccountID
+    case missingCredentials
+    case alreadyInProgress
+    case codexNotFound
+    case timedOut
+    case launchFailed
+    case commandFailed(exitStatus: Int32)
+    case unexpectedReply
+
+    var succeeded: Bool { self == .succeeded }
+}
+
 actor CodexQuotaActivationService {
     static let shared = CodexQuotaActivationService()
 
@@ -35,31 +50,41 @@ actor CodexQuotaActivationService {
         account: Account,
         allowWhenAutomaticActivationIsDisabled: Bool = false
     ) async -> Bool {
+        (await activateDetailed(
+            account: account,
+            allowWhenAutomaticActivationIsDisabled: allowWhenAutomaticActivationIsDisabled
+        )).succeeded
+    }
+
+    func activateDetailed(
+        account: Account,
+        allowWhenAutomaticActivationIsDisabled: Bool = false
+    ) async -> CodexQuotaActivationResult {
         guard allowWhenAutomaticActivationIsDisabled
                 || UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled)
         else {
             WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=automatic-disabled")
-            return false
+            return .automaticDisabled
         }
 
         guard let accountID = account.accountID else {
             WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=missing-account-id")
-            return false
+            return .missingAccountID
         }
 
         guard let authBundleData = Self.authBundleData(for: account) else {
             WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=missing-auth-bundle")
-            return false
+            return .missingCredentials
         }
 
         guard !activatingAccountIDs.contains(accountID) else {
             WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=already-in-progress")
-            return false
+            return .alreadyInProgress
         }
 
         guard let executableURL = Self.codexExecutableURL() else {
             WeeklyQuotaLogger.log("activation skipped account=\(account.name) reason=codex-cli-not-found")
-            return false
+            return .codexNotFound
         }
 
         activatingAccountIDs.insert(accountID)
@@ -72,79 +97,77 @@ actor CodexQuotaActivationService {
             authBundleData: authBundleData,
             model: nil
         )
-        if result.succeeded {
+        if result.outcome.succeeded {
             if let refreshedAuthBundleData = result.refreshedAuthBundleData {
                 CodexAuthBundleStore.save(accountID: account.id, authJSONData: refreshedAuthBundleData)
             }
             WeeklyQuotaLogger.log(
                 "activation completed account=\(account.name) exitStatus=\(result.exitStatus) durationMs=\(result.durationMilliseconds) reply=\(result.lastMessageSummary)"
             )
-            return true
+            return .succeeded
         } else {
             WeeklyQuotaLogger.log(
                 "activation failed account=\(account.name) exitStatus=\(result.exitStatus) durationMs=\(result.durationMilliseconds) reply=\(result.lastMessageSummary) output=\(result.outputSummary)"
             )
-            return false
+            return result.outcome
         }
     }
 
-    func refreshFiveHourQuota(account: Account, model: String?) async {
-        guard let accountID = account.accountID,
-              let authBundleData = Self.authBundleData(for: account),
-              let executableURL = Self.codexExecutableURL() else { return }
+    func refreshFiveHourQuota(account: Account, model: String?) async -> CodexQuotaActivationResult {
+        guard let accountID = account.accountID else {
+            WeeklyQuotaLogger.log("5-hour refresh skipped account=\(account.name) reason=missing-account-id")
+            return .missingAccountID
+        }
+        guard let authBundleData = Self.authBundleData(for: account) else {
+            WeeklyQuotaLogger.log("5-hour refresh skipped account=\(account.name) reason=missing-auth-bundle")
+            return .missingCredentials
+        }
+        guard let executableURL = Self.codexExecutableURL() else {
+            WeeklyQuotaLogger.log("5-hour refresh skipped account=\(account.name) reason=codex-cli-not-found")
+            return .codexNotFound
+        }
 
         guard !activatingAccountIDs.contains(accountID) else {
             WeeklyQuotaLogger.log(
                 "5-hour refresh skipped account=\(account.name) reason=already-in-progress"
             )
-            return
+            return .alreadyInProgress
         }
 
         activatingAccountIDs.insert(accountID)
         defer { activatingAccountIDs.remove(accountID) }
+        WeeklyQuotaLogger.log("5-hour refresh started account=\(account.name) cli=\(executableURL.path)")
         let result = await Self.runCodex(
             executableURL: executableURL,
             accountID: accountID,
             authBundleData: authBundleData,
             model: model
         )
-        if result.succeeded, let refreshed = result.refreshedAuthBundleData {
+        if result.outcome.succeeded, let refreshed = result.refreshedAuthBundleData {
             CodexAuthBundleStore.save(accountID: account.id, authJSONData: refreshed)
         }
+        if result.outcome.succeeded {
+            WeeklyQuotaLogger.log(
+                "5-hour refresh completed account=\(account.name) exitStatus=\(result.exitStatus) durationMs=\(result.durationMilliseconds)"
+            )
+        } else {
+            WeeklyQuotaLogger.log(
+                "5-hour refresh failed account=\(account.name) exitStatus=\(result.exitStatus) durationMs=\(result.durationMilliseconds) reply=\(result.lastMessageSummary) output=\(result.outputSummary)"
+            )
+        }
+        return result.outcome
     }
 
-    private nonisolated static func authBundleData(for account: Account) -> Data? {
-        let autoImportEnabled = UserDefaults.standard.bool(forKey: PreferencesKeys.autoImportEnabled)
-
-        // Auto import controls whether new local credentials are captured. A bundle that was
-        // already captured belongs to this saved account and remains usable for activation.
-        if let savedData = CodexAuthBundleStore.load(accountID: account.id),
-           accountID(fromAuthBundleData: savedData)?.caseInsensitiveCompare(account.accountID ?? "") == .orderedSame {
-            return savedData
-        }
-
-        guard let accountID = account.accountID,
-              let activeAuthData = activeCodexAuthBundleData(),
-              Self.accountID(fromAuthBundleData: activeAuthData)?.caseInsensitiveCompare(accountID) == .orderedSame
-        else { return nil }
-
-        if autoImportEnabled {
-            CodexAuthBundleStore.save(accountID: account.id, authJSONData: activeAuthData)
-        }
-        return activeAuthData
-    }
-
-    private nonisolated static func activeCodexAuthBundleData() -> Data? {
-        let authURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex/auth.json")
-
-        guard let data = try? Data(contentsOf: authURL),
-              accountID(fromAuthBundleData: data) != nil
-        else {
-            return nil
-        }
-
-        return data
+    nonisolated static func authBundleData(for account: Account) -> Data? {
+        let candidates = CodexAuthSourceDiscoveryService.candidates(
+            for: account,
+            savedBundleData: CodexAuthBundleStore.load(accountID: account.id)
+        )
+        guard let candidate = candidates.first else { return nil }
+        return CodexAuthBundleStore.save(
+            accountID: account.id,
+            authJSONData: candidate.bundle.data
+        ) ?? candidate.bundle.data
     }
 
     private nonisolated static func accountID(fromAuthBundleData data: Data) -> String? {
@@ -177,7 +200,7 @@ actor CodexQuotaActivationService {
     }
 
     private struct CodexRunResult {
-        let succeeded: Bool
+        let outcome: CodexQuotaActivationResult
         let refreshedAuthBundleData: Data?
         let exitStatus: Int32
         let durationMilliseconds: Int
@@ -269,7 +292,7 @@ actor CodexQuotaActivationService {
                 process.terminate()
                 _ = completion.wait(timeout: .now() + 5)
                 return CodexRunResult(
-                    succeeded: false,
+                    outcome: .timedOut,
                     refreshedAuthBundleData: nil,
                     exitStatus: -1,
                     durationMilliseconds: Int(Date().timeIntervalSince(startedAt) * 1_000),
@@ -290,9 +313,17 @@ actor CodexQuotaActivationService {
             let lastMessage = (try? String(contentsOf: lastMessageURL, encoding: .utf8))?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let receivedExpectedReply = lastMessage.caseInsensitiveCompare("hi") == .orderedSame
+            let outcome: CodexQuotaActivationResult
+            if process.terminationStatus != 0 {
+                outcome = .commandFailed(exitStatus: process.terminationStatus)
+            } else if !receivedExpectedReply {
+                outcome = .unexpectedReply
+            } else {
+                outcome = .succeeded
+            }
 
             return CodexRunResult(
-                succeeded: process.terminationStatus == 0 && receivedExpectedReply,
+                outcome: outcome,
                 refreshedAuthBundleData: safeRefreshedAuthBundleData,
                 exitStatus: process.terminationStatus,
                 durationMilliseconds: Int(Date().timeIntervalSince(startedAt) * 1_000),
@@ -303,7 +334,7 @@ actor CodexQuotaActivationService {
             WeeklyQuotaLogger.log("activation launch failed error=\(error.localizedDescription)")
             try? fileManager.removeItem(at: tempRoot)
             return CodexRunResult(
-                succeeded: false,
+                outcome: .launchFailed,
                 refreshedAuthBundleData: nil,
                 exitStatus: -1,
                 durationMilliseconds: Int(Date().timeIntervalSince(startedAt) * 1_000),

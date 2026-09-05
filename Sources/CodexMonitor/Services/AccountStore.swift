@@ -10,6 +10,7 @@ class AccountStore: ObservableObject {
     @Published var resetCreditsData: [UUID: Result<RateLimitResetCredits, APIError>] = [:]
     @Published var isLoading = false
     @Published var lastRefreshTime: Date?
+    @Published private(set) var queuedWeeklyRefreshAccountIDs: Set<UUID> = []
     
     private let userDefaults = UserDefaults.standard
     private let accountsKey = "saved_accounts"
@@ -39,12 +40,13 @@ class AccountStore: ObservableObject {
     }
     
     var overallStatus: OverallStatus {
-        guard !accounts.isEmpty else { return .noAccounts }
+        let visibleAccounts = accounts.filter { !$0.isHidden }
+        guard !visibleAccounts.isEmpty else { return .noAccounts }
         
         var hasCritical = false
         var hasWarning = false
         
-        for account in accounts {
+        for account in visibleAccounts {
             if case .success(let usage) = usageData[account.id] {
                 if let rateLimit = usage.rateLimit {
                     let primaryUsed = rateLimit.primaryWindow?.usedPercent ?? 0
@@ -71,10 +73,11 @@ class AccountStore: ObservableObject {
     
     /// Returns the top 2 primary_window.usedPercent values from all accounts, sorted descending
     var topUsagePercentages: [Int] {
-        guard !accounts.isEmpty else { return [] }
+        let visibleAccounts = accounts.filter { !$0.isHidden }
+        guard !visibleAccounts.isEmpty else { return [] }
         
         var percentages: [Int] = []
-        for account in accounts {
+        for account in visibleAccounts {
             if case .success(let usage) = usageData[account.id],
                let primaryPercent = usage.rateLimit?.primaryWindow?.usedPercent {
                 percentages.append(primaryPercent)
@@ -183,22 +186,21 @@ class AccountStore: ObservableObject {
     }
 
     private func applyCloudPayload(_ payload: CloudAccountSyncPayload) {
-        accounts = payload.accounts
-            .sorted { $0.createdAt < $1.createdAt }
-            .map { synced in
-                Account(
-                    id: synced.id,
-                    name: synced.name,
-                    authToken: synced.authToken,
-                    createdAt: synced.createdAt,
-                    source: AccountSource(rawValue: synced.source) ?? .manual,
-                    accountID: synced.accountID,
-                    accountEmail: synced.accountEmail,
-                    localAuthInvalid: synced.localAuthInvalid,
-                    provider: AccountProvider(rawValue: synced.provider ?? "codex") ?? .codex,
-                    openCodeWorkspaceID: synced.openCodeWorkspaceID
-                )
-            }
+        accounts = payload.accounts.map { synced in
+            Account(
+                id: synced.id,
+                name: synced.name,
+                authToken: synced.authToken,
+                createdAt: synced.createdAt,
+                source: AccountSource(rawValue: synced.source) ?? .manual,
+                accountID: synced.accountID,
+                accountEmail: synced.accountEmail,
+                localAuthInvalid: synced.localAuthInvalid,
+                provider: AccountProvider(rawValue: synced.provider ?? "codex") ?? .codex,
+                isHidden: synced.isHidden ?? false,
+                openCodeWorkspaceID: synced.openCodeWorkspaceID
+            )
+        }
 
         userDefaults.set(payload.revision, forKey: cloudRevisionKey)
         saveAccounts(syncToCloud: false)
@@ -217,6 +219,7 @@ class AccountStore: ObservableObject {
                 accountEmail: account.accountEmail,
                 localAuthInvalid: account.localAuthInvalid,
                 provider: account.provider.rawValue,
+                isHidden: account.isHidden,
                 openCodeWorkspaceID: account.openCodeWorkspaceID,
                 updatedAt: revision
             )
@@ -299,6 +302,47 @@ class AccountStore: ObservableObject {
             saveAccounts()
         }
     }
+
+    func reauthenticateAccount(id: UUID) async throws {
+        guard let index = accounts.firstIndex(where: { $0.id == id }) else {
+            throw ProviderReauthenticationError.unsupported
+        }
+        let account = accounts[index]
+
+        switch account.provider {
+        case .codex:
+            let credential = try await ProviderReauthenticationService.shared
+                .reauthenticateCodex(account)
+            accounts[index].authToken = credential.accessToken
+            let identity = AuthTokenIdentityParser.parse(accessToken: credential.accessToken)
+            accounts[index].accountID = identity.accountID ?? accounts[index].accountID
+            accounts[index].accountEmail = identity.email ?? accounts[index].accountEmail
+            accounts[index].localAuthInvalid = false
+        case .grok:
+            let credential = try await ProviderReauthenticationService.shared.reauthenticateGrok()
+            accounts[index].authToken = credential.token
+            accounts[index].accountID = credential.accountID ?? accounts[index].accountID
+            accounts[index].accountEmail = credential.email ?? accounts[index].accountEmail
+            accounts[index].localAuthInvalid = false
+        case .claude, .openCodeGo:
+            throw ProviderReauthenticationError.unsupported
+        }
+
+        saveAccounts()
+        await refreshAll()
+    }
+
+    func setAccountHidden(_ hidden: Bool, id: UUID) {
+        guard let index = accounts.firstIndex(where: { $0.id == id }) else { return }
+        accounts[index].isHidden = hidden
+        saveAccounts()
+    }
+
+    func moveAccounts(fromOffsets source: IndexSet, toOffset destination: Int) {
+        guard !source.isEmpty else { return }
+        accounts.move(fromOffsets: source, toOffset: destination)
+        saveAccounts()
+    }
     
     func deleteAccount(at offsets: IndexSet) {
         for index in offsets {
@@ -335,15 +379,19 @@ class AccountStore: ObservableObject {
         
         isLoading = true
         print("[CodexMonitor] refreshAll: refreshing \(accounts.count) accounts")
+        var credentialUpdates: [UUID: String] = [:]
         
         await withTaskGroup(of: AccountRefreshResult.self) { group in
             for account in accounts {
                 group.addTask {
                     let usageResult: Result<UsageResponse, APIError>
                     let resetCreditsResult: Result<RateLimitResetCredits, APIError>
+                    var requestAccount = account
 
                     do {
-                        let usage = try await APIService.shared.fetchUsage(for: account)
+                        let fetched = try await Self.fetchUsageWithCredentialRecovery(for: account)
+                        requestAccount = fetched.account
+                        let usage = fetched.usage
                         print("[CodexMonitor] refreshAll: [\(account.name)] success — plan=\(usage.planType), rateLimit=\(usage.rateLimit != nil ? "yes" : "nil"), credits=\(usage.credits != nil ? "yes" : "nil")")
                         usageResult = .success(usage)
                     } catch let error as APIError {
@@ -358,10 +406,14 @@ class AccountStore: ObservableObject {
                         guard account.provider == .codex else {
                             throw APIError.unsupported
                         }
-                        let resetCredits = try await APIService.shared.fetchRateLimitResetCredits(
-                            authToken: account.authToken,
-                            accountID: account.accountID
+                        if case .failure(let usageError) = usageResult, usageError.isUnauthorized {
+                            throw usageError
+                        }
+                        let resetResult = try await Self.fetchResetCreditsWithCredentialRecovery(
+                            for: requestAccount
                         )
+                        requestAccount = resetResult.account
+                        let resetCredits = resetResult.credits
                         print("[CodexMonitor] refreshAll: [\(account.name)] reset credits available=\(resetCredits.availableCount)")
                         resetCreditsResult = .success(resetCredits)
                     } catch let error as APIError {
@@ -375,15 +427,38 @@ class AccountStore: ObservableObject {
                     return AccountRefreshResult(
                         accountID: account.id,
                         usage: usageResult,
-                        resetCredits: resetCreditsResult
+                        resetCredits: resetCreditsResult,
+                        refreshedAuthToken: requestAccount.authToken == account.authToken
+                            ? nil
+                            : requestAccount.authToken
                     )
                 }
             }
             
             for await result in group {
+                if case .success(let usage) = result.usage,
+                   let account = accounts.first(where: { $0.id == result.accountID }) {
+                    QuotaEquivalenceEstimator.shared.observe(
+                        accountID: account.id,
+                        provider: account.provider,
+                        usage: usage
+                    )
+                }
                 usageData[result.accountID] = result.usage
                 resetCreditsData[result.accountID] = result.resetCredits
+                if let refreshedAuthToken = result.refreshedAuthToken {
+                    credentialUpdates[result.accountID] = refreshedAuthToken
+                }
             }
+        }
+
+        if !credentialUpdates.isEmpty {
+            for index in accounts.indices {
+                if let refreshedAuthToken = credentialUpdates[accounts[index].id] {
+                    accounts[index].authToken = refreshedAuthToken
+                }
+            }
+            saveAccounts()
         }
         
         isLoading = false
@@ -395,6 +470,116 @@ class AccountStore: ObservableObject {
         if let appDelegate = NSApp.delegate as? AppDelegate {
             appDelegate.updateStatusBarIcon()
         }
+    }
+
+    private nonisolated static func fetchUsageWithCredentialRecovery(
+        for account: Account
+    ) async throws -> (usage: UsageResponse, account: Account) {
+        var requestAccount = account
+
+        if account.provider == .codex {
+            do {
+                requestAccount = try await refreshedCodexAccount(account, forceRefresh: false)
+            } catch {
+                throw authenticationExpiredError(provider: "Codex", error: error)
+            }
+        }
+
+        do {
+            let usage = try await APIService.shared.fetchUsage(for: requestAccount)
+            return (usage, requestAccount)
+        } catch let error as APIError where error.isUnauthorized {
+            do {
+                switch account.provider {
+                case .codex:
+                    requestAccount = try await refreshedCodexAccount(
+                        account,
+                        forceRefresh: true,
+                        rejectedAccessToken: requestAccount.authToken
+                    )
+                case .grok:
+                    let credential = try await AgentAuthDiscoveryService.forceRefreshGrok()
+                    requestAccount.authToken = credential.token
+                    requestAccount.accountEmail = credential.email ?? requestAccount.accountEmail
+                    requestAccount.accountID = credential.accountID ?? requestAccount.accountID
+                case .claude, .openCodeGo:
+                    throw error
+                }
+
+                let usage = try await APIService.shared.fetchUsage(for: requestAccount)
+                return (usage, requestAccount)
+            } catch let retryError as APIError where retryError.isUnauthorized {
+                throw APIError.authenticationExpired(
+                    provider: account.provider.displayName,
+                    detail: "sign in to this account again"
+                )
+            } catch {
+                throw authenticationExpiredError(
+                    provider: account.provider.displayName,
+                    error: error
+                )
+            }
+        }
+    }
+
+    private nonisolated static func fetchResetCreditsWithCredentialRecovery(
+        for account: Account
+    ) async throws -> (credits: RateLimitResetCredits, account: Account) {
+        do {
+            let credits = try await APIService.shared.fetchRateLimitResetCredits(
+                authToken: account.authToken,
+                accountID: account.accountID
+            )
+            return (credits, account)
+        } catch let error as APIError where error.isUnauthorized {
+            do {
+                let refreshedAccount = try await refreshedCodexAccount(
+                    account,
+                    forceRefresh: true,
+                    rejectedAccessToken: account.authToken
+                )
+                let credits = try await APIService.shared.fetchRateLimitResetCredits(
+                    authToken: refreshedAccount.authToken,
+                    accountID: refreshedAccount.accountID
+                )
+                return (credits, refreshedAccount)
+            } catch let retryError as APIError where retryError.isUnauthorized {
+                throw APIError.authenticationExpired(
+                    provider: "Codex",
+                    detail: "sign in to this account again"
+                )
+            } catch {
+                throw authenticationExpiredError(provider: "Codex", error: error)
+            }
+        }
+    }
+
+    private nonisolated static func refreshedCodexAccount(
+        _ account: Account,
+        forceRefresh: Bool,
+        rejectedAccessToken: String? = nil
+    ) async throws -> Account {
+        let credential = try await CodexCredentialRefreshService.shared.credential(
+            for: account,
+            forceRefresh: forceRefresh,
+            rejectedAccessToken: rejectedAccessToken
+        )
+        var refreshedAccount = account
+        refreshedAccount.authToken = credential.accessToken
+        let identity = AuthTokenIdentityParser.parse(accessToken: credential.accessToken)
+        refreshedAccount.accountID = identity.accountID ?? refreshedAccount.accountID
+        refreshedAccount.accountEmail = identity.email ?? refreshedAccount.accountEmail
+        return refreshedAccount
+    }
+
+    private nonisolated static func authenticationExpiredError(
+        provider: String,
+        error: Error
+    ) -> APIError {
+        let detail = String(error.localizedDescription
+            .replacingOccurrences(of: "\n", with: " ")
+            .prefix(240))
+        return .authenticationExpired(provider: provider, detail: detail)
     }
 
     func refreshFullWeeklyQuotaAccounts() async -> WeeklyQuotaManualRefreshResult {
@@ -486,11 +671,29 @@ class AccountStore: ObservableObject {
         guard CodexQuotaActivationService.hasUsableAuthBundle(for: account) else {
             return .missingCredentials
         }
-        guard !weeklyActivationBatchInProgress else {
+        if weeklyActivationBatchInProgress {
             WeeklyQuotaLogger.log(
-                "forced manual activation skipped account=\(account.name) reason=activation-batch-already-in-progress"
+                "forced manual activation queued account=\(account.name) reason=activation-batch-already-in-progress"
             )
-            return .busy
+            queuedWeeklyRefreshAccountIDs.insert(account.id)
+
+            let waitDeadline = Date().addingTimeInterval(5 * 60)
+            while weeklyActivationBatchInProgress,
+                  Date() < waitDeadline,
+                  !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            queuedWeeklyRefreshAccountIDs.remove(account.id)
+            guard !Task.isCancelled else { return .failed }
+            guard !weeklyActivationBatchInProgress else {
+                WeeklyQuotaLogger.log(
+                    "forced manual activation failed account=\(account.name) reason=queue-timeout"
+                )
+                return .busy
+            }
+            guard accounts.contains(where: { $0.id == account.id }) else {
+                return .accountNotFound
+            }
         }
 
         let weeklyWindow: WindowUsage?
@@ -513,11 +716,11 @@ class AccountStore: ObservableObject {
         defer { weeklyActivationBatchInProgress = false }
         WeeklyQuotaLogger.log("forced manual activation started account=\(account.name)")
 
-        let succeeded = await CodexQuotaActivationService.shared.activate(
+        let activationResult = await CodexQuotaActivationService.shared.activateDetailed(
             account: account,
             allowWhenAutomaticActivationIsDisabled: true
         )
-        if succeeded {
+        if activationResult.succeeded {
             commitWeeklyQuotaActivationSuccess(
                 request,
                 scheduleNextCheckFromNow: weeklyWindow == nil
@@ -538,9 +741,28 @@ class AccountStore: ObservableObject {
         }
 
         WeeklyQuotaLogger.log(
-            "forced manual activation failed account=\(account.name) existing schedule preserved"
+            "forced manual activation failed account=\(account.name) reason=\(activationResult.logReason) existing schedule preserved"
         )
-        return .failed
+        switch activationResult {
+        case .succeeded:
+            return .succeeded
+        case .missingAccountID, .missingCredentials:
+            return .missingCredentials
+        case .alreadyInProgress:
+            return .busy
+        case .codexNotFound:
+            return .codexNotFound
+        case .timedOut:
+            return .timedOut
+        case .launchFailed:
+            return .launchFailed
+        case .commandFailed(let exitStatus):
+            return .commandFailed(exitStatus: exitStatus)
+        case .unexpectedReply:
+            return .unexpectedReply
+        case .automaticDisabled:
+            return .failed
+        }
     }
     
     // MARK: - Usage Notifications
@@ -1396,6 +1618,27 @@ enum WeeklyQuotaAccountRefreshResult: Sendable, Equatable {
     case codexNotFound
     case accountNotFound
     case unsupportedProvider
+    case timedOut
+    case launchFailed
+    case commandFailed(exitStatus: Int32)
+    case unexpectedReply
+}
+
+private extension CodexQuotaActivationResult {
+    var logReason: String {
+        switch self {
+        case .succeeded: return "succeeded"
+        case .automaticDisabled: return "automatic-disabled"
+        case .missingAccountID: return "missing-account-id"
+        case .missingCredentials: return "missing-credentials"
+        case .alreadyInProgress: return "already-in-progress"
+        case .codexNotFound: return "codex-not-found"
+        case .timedOut: return "timeout"
+        case .launchFailed: return "launch-failed"
+        case .commandFailed(let exitStatus): return "command-failed-\(exitStatus)"
+        case .unexpectedReply: return "unexpected-reply"
+        }
+    }
 }
 
 private struct WeeklyQuotaActivationRequest: Sendable {
@@ -1415,4 +1658,5 @@ private struct AccountRefreshResult {
     let accountID: UUID
     let usage: Result<UsageResponse, APIError>
     let resetCredits: Result<RateLimitResetCredits, APIError>
+    let refreshedAuthToken: String?
 }

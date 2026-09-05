@@ -60,32 +60,30 @@ class APIService {
         guard let url = URL(string: "https://cli-chat-proxy.grok.com/v1/billing?format=credits") else { throw APIError.invalidURL }
         var request = URLRequest(url: url)
         request.setValue("Bearer \(normalizedToken(authToken))", forHTTPHeaderField: "Authorization")
-        request.setValue("0.2.93", forHTTPHeaderField: "x-grok-client-version")
+        request.setValue(Self.installedGrokVersion(), forHTTPHeaderField: "x-grok-client-version")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 30
 
         let (data, response) = try await URLSession.shared.data(for: request)
         try validate(response: response)
         do {
-            let decoder = JSONDecoder()
-            let envelope = try decoder.decode(GrokBillingEnvelope.self, from: data)
-            guard let payload = envelope.config else {
-                throw APIError.invalidResponse
+            let payload = try GrokBillingUsageDecoder.decode(data)
+            guard let usedPercent = payload.usedPercent else {
+                // Unified-billing responses can legitimately omit subscription usage at the
+                // beginning of a new period. Do not turn a successful response into a decode
+                // failure or infer subscription quota from on-demand currency fields.
+                return UsageResponse(planType: payload.planType, rateLimit: nil)
             }
-            let percent = Int(payload.creditUsagePercent.rounded())
-            let resetDate = payload.currentPeriod?.end.flatMap(Self.parseISODate)
-                ?? payload.billingPeriodEnd.flatMap(Self.parseISODate)
-            let resetAt = resetDate.map { Int($0.timeIntervalSince1970) } ?? 0
-            let period = payload.currentPeriod?.type.uppercased() ?? ""
-            let seconds = period.contains("WEEK") ? 7 * 24 * 60 * 60 : 30 * 24 * 60 * 60
+            let percent = Int(usedPercent.rounded())
+            let resetAt = payload.resetAt
             let window = WindowUsage(
                 usedPercent: percent,
-                limitWindowSeconds: seconds,
+                limitWindowSeconds: payload.periodSeconds,
                 resetAfterSeconds: resetAt > 0 ? max(0, resetAt - Int(Date().timeIntervalSince1970)) : 0,
                 resetAt: resetAt
             )
             return UsageResponse(
-                planType: payload.subscriptionTier ?? "Grok",
+                planType: payload.planType,
                 rateLimit: RateLimit(
                     allowed: percent < 100,
                     limitReached: percent >= 100,
@@ -96,7 +94,7 @@ class APIService {
         } catch let error as APIError {
             throw error
         } catch {
-            throw APIError.decodingError(error)
+            throw APIError.upstreamFormatChanged(provider: "Grok", underlying: error)
         }
     }
 
@@ -139,7 +137,7 @@ class APIService {
         } catch let error as APIError {
             throw error
         } catch {
-            throw APIError.decodingError(error)
+            throw APIError.upstreamFormatChanged(provider: "Grok", underlying: error)
         }
     }
     
@@ -177,7 +175,7 @@ class APIService {
                 print("[CodexMonitor] Decode failed, bytes: \(data.count)")
                 print("[CodexMonitor] Decode error: \(error)")
 #endif
-                throw APIError.decodingError(error)
+                throw APIError.upstreamFormatChanged(provider: "Codex", underlying: error)
             }
         case 401:
             throw APIError.unauthorized
@@ -269,6 +267,18 @@ class APIService {
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
     }
+
+    private static func installedGrokVersion() -> String {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".grok/version.json")
+        guard let data = try? Data(contentsOf: url),
+              data.count <= 64 * 1_024,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let version = root["version"] as? String,
+              !version.isEmpty
+        else { return "1.0.13" }
+        return version
+    }
 }
 
 private struct ClaudeUsagePayload: Decodable {
@@ -301,34 +311,6 @@ private struct ClaudeUsageWindow: Decodable {
     }
 }
 
-private struct GrokBillingPayload: Decodable {
-    let creditUsagePercent: Double
-    let currentPeriod: GrokBillingPeriod?
-    let billingPeriodEnd: String?
-    let subscriptionTier: String?
-
-}
-
-private struct GrokBillingEnvelope: Decodable {
-    let config: GrokBillingPayload?
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        if container.contains(.config) {
-            config = try container.decodeIfPresent(GrokBillingPayload.self, forKey: .config)
-        } else {
-            config = try GrokBillingPayload(from: decoder)
-        }
-    }
-
-    enum CodingKeys: String, CodingKey { case config }
-}
-
-private struct GrokBillingPeriod: Decodable {
-    let type: String
-    let end: String?
-}
-
 enum APIError: LocalizedError {
     case invalidURL
     case invalidResponse
@@ -336,6 +318,8 @@ enum APIError: LocalizedError {
     case rateLimited
     case httpError(statusCode: Int)
     case decodingError(Error)
+    case authenticationExpired(provider: String, detail: String?)
+    case upstreamFormatChanged(provider: String, underlying: Error)
     case unsupported
     case message(String)
     
@@ -353,10 +337,26 @@ enum APIError: LocalizedError {
             return "HTTP error: \(statusCode)"
         case .decodingError(let error):
             return "Decoding error: \(error.localizedDescription)"
+        case .authenticationExpired(let provider, let detail):
+            if let detail, !detail.isEmpty {
+                return "\(provider) authentication unavailable — \(detail)"
+            }
+            return "\(provider) session expired — sign in to this account again"
+        case .upstreamFormatChanged(let provider, _):
+            return "\(provider) usage response changed — update CodexMonitor or try again later"
         case .unsupported:
             return "Not supported"
         case .message(let message):
             return message
+        }
+    }
+
+    var isUnauthorized: Bool {
+        switch self {
+        case .unauthorized, .authenticationExpired:
+            return true
+        default:
+            return false
         }
     }
 }

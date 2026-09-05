@@ -22,6 +22,7 @@ enum BackupService {
         let accountID: String?
         let accountEmail: String?
         let provider: AccountProvider?
+        let isHidden: Bool?
         let openCodeWorkspaceID: String?
     }
 
@@ -44,6 +45,7 @@ enum BackupService {
                     accountID: account.accountID,
                     accountEmail: account.accountEmail,
                     provider: account.provider,
+                    isHidden: account.isHidden,
                     openCodeWorkspaceID: account.openCodeWorkspaceID
                 )
             }
@@ -152,6 +154,7 @@ enum BackupService {
                 accountID: backupAccount.accountID,
                 accountEmail: backupAccount.accountEmail,
                 provider: backupAccount.provider ?? .codex,
+                isHidden: backupAccount.isHidden ?? false,
                 openCodeWorkspaceID: backupAccount.openCodeWorkspaceID
             )
             accountStore.addAccount(account)

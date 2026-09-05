@@ -47,6 +47,8 @@ struct Account: Codable, Identifiable, Sendable {
     /// 本地认证文件是否已失效（文件被删除时标记）
     var localAuthInvalid: Bool
     var provider: AccountProvider
+    /// Hidden accounts remain saved and refreshable, but are omitted from the menu-bar quota list.
+    var isHidden: Bool
     /// Optional OpenCode dashboard workspace override, e.g. wrk_... or wk_...
     var openCodeWorkspaceID: String?
 
@@ -60,6 +62,7 @@ struct Account: Codable, Identifiable, Sendable {
         accountEmail: String? = nil,
         localAuthInvalid: Bool = false,
         provider: AccountProvider = .codex,
+        isHidden: Bool = false,
         openCodeWorkspaceID: String? = nil
     ) {
         self.id = id
@@ -71,6 +74,7 @@ struct Account: Codable, Identifiable, Sendable {
         self.accountEmail = AuthTokenIdentityParser.normalizedEmail(accountEmail)
         self.localAuthInvalid = localAuthInvalid
         self.provider = provider
+        self.isHidden = isHidden
         self.openCodeWorkspaceID = openCodeWorkspaceID?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -87,6 +91,7 @@ struct Account: Codable, Identifiable, Sendable {
         accountEmail = AuthTokenIdentityParser.normalizedEmail(try container.decodeIfPresent(String.self, forKey: .accountEmail))
         localAuthInvalid = try container.decodeIfPresent(Bool.self, forKey: .localAuthInvalid) ?? false
         provider = try container.decodeIfPresent(AccountProvider.self, forKey: .provider) ?? .codex
+        isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
         openCodeWorkspaceID = try container.decodeIfPresent(String.self, forKey: .openCodeWorkspaceID)
     }
 }

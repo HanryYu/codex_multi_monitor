@@ -3,9 +3,15 @@ import Foundation
 enum CodexAuthBundleStore {
     private static let keyPrefix = "codex_auth_bundle:"
 
-    static func save(accountID: UUID, authJSONData: Data) {
-        guard let jsonString = String(data: authJSONData, encoding: .utf8) else { return }
+    @discardableResult
+    static func save(accountID: UUID, authJSONData: Data) -> Data? {
+        let preferredData = CodexStoredAuthBundle.preferred(
+            existing: load(accountID: accountID),
+            candidate: authJSONData
+        )
+        guard let jsonString = String(data: preferredData, encoding: .utf8) else { return nil }
         SecureTokenStore.save(accountID: storageKey(for: accountID), token: jsonString)
+        return preferredData
     }
 
     static func load(accountID: UUID) -> Data? {

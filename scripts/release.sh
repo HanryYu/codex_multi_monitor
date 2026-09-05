@@ -277,6 +277,49 @@ if [[ "$SKIP_CHECKS" == false && "$RESUME" == false ]]; then
     xcrun swiftc -parse-as-library \
         -sdk "$SDK_PATH" \
         -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/codex-auth-bundle-module-cache" \
+        Sources/CodexMonitor/Services/CodexStoredAuthBundle.swift \
+        scripts/test_codex_stored_auth_bundle.swift \
+        -o "$TMP_ROOT/codex-auth-bundle-tests"
+    "$TMP_ROOT/codex-auth-bundle-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/grok-billing-module-cache" \
+        Sources/CodexMonitor/Services/GrokBillingUsageDecoder.swift \
+        scripts/test_grok_billing_usage_decoder.swift \
+        -o "$TMP_ROOT/grok-billing-tests"
+    "$TMP_ROOT/grok-billing-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/grok-web-module-cache" \
+        Sources/CodexMonitor/Services/GrokWebUsageDecoder.swift \
+        scripts/test_grok_web_usage_decoder.swift \
+        -o "$TMP_ROOT/grok-web-tests"
+    "$TMP_ROOT/grok-web-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/five-hour-control-module-cache" \
+        Sources/CodexMonitor/Services/FiveHourRefreshControl.swift \
+        scripts/test_five_hour_refresh_control.swift \
+        -o "$TMP_ROOT/five-hour-control-tests"
+    "$TMP_ROOT/five-hour-control-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/quota-allowance-module-cache" \
+        Sources/CodexMonitor/Models/Account.swift \
+        Sources/CodexMonitor/Models/UsageResponse.swift \
+        Sources/CodexMonitor/Services/AuthTokenIdentity.swift \
+        Sources/CodexMonitor/Services/QuotaAllowanceSummary.swift \
+        scripts/test_quota_allowance_summary.swift \
+        -o "$TMP_ROOT/quota-allowance-tests"
+    "$TMP_ROOT/quota-allowance-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
         -module-cache-path "$TMP_ROOT/opencode-go-module-cache" \
         Sources/CodexMonitor/Models/UsageResponse.swift \
         Sources/CodexMonitor/Services/OpenCodeGoUsageService.swift \

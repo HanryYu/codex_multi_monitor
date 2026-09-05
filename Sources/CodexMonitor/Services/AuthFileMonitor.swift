@@ -206,8 +206,17 @@ final class AuthFileMonitor {
         // 更新或添加账户
         for entry in entries {
             let accountID = entry.accountID
-            let token = entry.authToken
+            var token = entry.authToken
             if let index = matchingAccountIndex(for: entry) {
+                if let authBundleData = entry.authBundleData,
+                   let preferredData = CodexAuthBundleStore.save(
+                       accountID: accountStore.accounts[index].id,
+                       authJSONData: authBundleData
+                   ),
+                   let preferredBundle = CodexStoredAuthBundle(data: preferredData) {
+                    token = preferredBundle.accessToken
+                }
+
                 if accountStore.accounts[index].authToken != token {
                     accountStore.accounts[index].authToken = token
                     hasChanges = true
@@ -236,9 +245,6 @@ final class AuthFileMonitor {
                     hasChanges = true
                 }
 
-                if let authBundleData = entry.authBundleData {
-                    CodexAuthBundleStore.save(accountID: accountStore.accounts[index].id, authJSONData: authBundleData)
-                }
             } else {
                 // 新账户：自动添加
                 let newAccount = Account(
@@ -249,8 +255,14 @@ final class AuthFileMonitor {
                     accountEmail: entry.accountEmail
                 )
                 accountStore.accounts.append(newAccount)
-                if let authBundleData = entry.authBundleData {
-                    CodexAuthBundleStore.save(accountID: newAccount.id, authJSONData: authBundleData)
+                if let authBundleData = entry.authBundleData,
+                   let preferredData = CodexAuthBundleStore.save(
+                       accountID: newAccount.id,
+                       authJSONData: authBundleData
+                   ),
+                   let preferredBundle = CodexStoredAuthBundle(data: preferredData),
+                   let index = accountStore.accounts.firstIndex(where: { $0.id == newAccount.id }) {
+                    accountStore.accounts[index].authToken = preferredBundle.accessToken
                 }
                 hasChanges = true
                 sendNotification(

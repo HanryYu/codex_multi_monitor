@@ -39,12 +39,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             PreferencesKeys.automaticUpdatesEnabled: true,
             PreferencesKeys.alertThreshold: 80,
             PreferencesKeys.showResetRadar: true,
+            PreferencesKeys.showQuotaAllowanceSummary: true,
         ])
 
         accountStore = AccountStore()
         codexResetService = CodexResetService()
         fiveHourRefreshScheduler = FiveHourQuotaRefreshScheduler(accountStore: accountStore)
-        fiveHourRefreshScheduler?.start()
+        if UserDefaults.standard.bool(forKey: PreferencesKeys.fiveHourRefreshEnabled) {
+            fiveHourRefreshScheduler?.start()
+        }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(fiveHourRefreshDidChange),
+            name: .fiveHourRefreshChanged,
+            object: nil
+        )
         weeklyQuotaActivationScheduler = WeeklyQuotaActivationScheduler(accountStore: accountStore)
         if UserDefaults.standard.bool(forKey: PreferencesKeys.quotaActivationEnabled) {
             weeklyQuotaActivationScheduler?.start()
@@ -176,6 +185,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     @objc func refreshIntervalDidChange() {
         scheduleRefreshTimer()
+    }
+
+    @MainActor
+    @objc private func fiveHourRefreshDidChange() {
+        if UserDefaults.standard.bool(forKey: PreferencesKeys.fiveHourRefreshEnabled) {
+            fiveHourRefreshScheduler?.start()
+        } else {
+            fiveHourRefreshScheduler?.stop()
+        }
     }
 
     @objc func displayModeDidChange() {

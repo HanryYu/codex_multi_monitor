@@ -63,6 +63,7 @@ enum PreferencesKeys {
     static let alertThreshold = "alertThreshold"
     static let showMenuBarText = "showMenuBarText"
     static let showResetRadar = "showResetRadar"
+    static let showQuotaAllowanceSummary = "showQuotaAllowanceSummary"
     static let resetTimeFormat = "resetTimeFormat"
     static let autoImportEnabled = "auto_import_enabled"
     static let usageAlertEnabled = "usageAlertEnabled"
@@ -377,6 +378,7 @@ extension Notification.Name {
     static let menuBarTextChanged = Notification.Name("CodexMonitor.menuBarTextChanged")
     static let resetTimeFormatChanged = Notification.Name("CodexMonitor.resetTimeFormatChanged")
     static let resetRadarVisibilityChanged = Notification.Name("CodexMonitor.resetRadarVisibilityChanged")
+    static let quotaAllowanceSummaryVisibilityChanged = Notification.Name("CodexMonitor.quotaAllowanceSummaryVisibilityChanged")
     static let autoImportChanged = Notification.Name("CodexMonitor.autoImportChanged")
     static let usageAlertEnabledChanged = Notification.Name("CodexMonitor.usageAlertEnabledChanged")
     static let recoveryNotificationEnabledChanged = Notification.Name("CodexMonitor.recoveryNotificationEnabledChanged")

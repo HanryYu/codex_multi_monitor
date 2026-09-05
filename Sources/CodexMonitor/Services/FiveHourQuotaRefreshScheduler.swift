@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import UserNotifications
 
 struct CodexCloudModel: Codable, Hashable, Identifiable {
     let slug: String
@@ -162,6 +163,9 @@ enum MacWakeScheduler {
 final class FiveHourQuotaRefreshScheduler {
     private weak var accountStore: AccountStore?
     private var timer: Timer?
+    private var inFlightAccountIDs: Set<UUID> = []
+    private var lastAttemptAt: [UUID: Date] = [:]
+    private var notifiedFailureKeys: Set<String> = []
     init(accountStore: AccountStore) { self.accountStore = accountStore }
 
     func start() {
@@ -179,16 +183,85 @@ final class FiveHourQuotaRefreshScheduler {
         let advanced = defaults.bool(forKey: PreferencesKeys.fiveHourRefreshAdvanced)
         let now = Date(), calendar = Calendar.current
         let dayKey = String(calendar.ordinality(of: .day, in: .era, for: now) ?? 0)
-        var lastRuns = defaults.dictionary(forKey: PreferencesKeys.fiveHourRefreshLastRuns) as? [String: String] ?? [:]
+        let lastRuns = defaults.dictionary(forKey: PreferencesKeys.fiveHourRefreshLastRuns) as? [String: String] ?? [:]
         for account in accountStore.accounts where account.provider == .codex {
             if advanced && !FiveHourQuotaRefreshSettings.accountEnabled(account.id) { continue }
             let scheduled = FiveHourQuotaRefreshSettings.time(for: advanced ? account.id : nil)
             let target = calendar.date(bySettingHour: calendar.component(.hour, from: scheduled), minute: calendar.component(.minute, from: scheduled), second: 0, of: now) ?? now
-            guard now >= target, now.timeIntervalSince(target) < 600, lastRuns[account.id.uuidString] != dayKey else { continue }
-            lastRuns[account.id.uuidString] = dayKey
-            defaults.set(lastRuns, forKey: PreferencesKeys.fiveHourRefreshLastRuns)
+            guard now >= target,
+                  now.timeIntervalSince(target) < 600,
+                  lastRuns[account.id.uuidString] != dayKey,
+                  !inFlightAccountIDs.contains(account.id),
+                  now.timeIntervalSince(lastAttemptAt[account.id] ?? .distantPast) >= 60
+            else { continue }
+
+            inFlightAccountIDs.insert(account.id)
+            lastAttemptAt[account.id] = now
             let savedModel = defaults.string(forKey: PreferencesKeys.fiveHourRefreshModel)
-            Task { await CodexQuotaActivationService.shared.refreshFiveHourQuota(account: account, model: savedModel) }
+            Task { [weak self] in
+                guard let self else { return }
+                let result = await CodexQuotaActivationService.shared.refreshFiveHourQuota(
+                    account: account,
+                    model: savedModel
+                )
+                self.inFlightAccountIDs.remove(account.id)
+
+                if result.succeeded {
+                    var successfulRuns = defaults.dictionary(
+                        forKey: PreferencesKeys.fiveHourRefreshLastRuns
+                    ) as? [String: String] ?? [:]
+                    successfulRuns[account.id.uuidString] = dayKey
+                    defaults.set(successfulRuns, forKey: PreferencesKeys.fiveHourRefreshLastRuns)
+                    self.notifiedFailureKeys.remove("\(account.id.uuidString):\(dayKey)")
+                    await accountStore.refreshAll()
+                } else if self.notifiedFailureKeys.insert("\(account.id.uuidString):\(dayKey)").inserted {
+                    self.sendFailureNotification(accountName: account.name, result: result)
+                }
+            }
+        }
+    }
+
+    private func sendFailureNotification(
+        accountName: String,
+        result: CodexQuotaActivationResult
+    ) {
+        let reason: String
+        switch result {
+        case .missingAccountID, .missingCredentials:
+            reason = L10n.manualAccountWeeklyRefreshMissingCredentials
+        case .alreadyInProgress:
+            reason = L10n.manualAccountWeeklyRefreshBusy
+        case .codexNotFound:
+            reason = L10n.quotaActivationCodexNotFound
+        case .timedOut:
+            reason = L10n.manualAccountWeeklyRefreshTimedOut
+        case .launchFailed:
+            reason = L10n.manualAccountWeeklyRefreshLaunchFailed
+        case .commandFailed(let exitStatus):
+            reason = L10n.manualAccountWeeklyRefreshCommandFailed(exitStatus: exitStatus)
+        case .unexpectedReply:
+            reason = L10n.manualAccountWeeklyRefreshUnexpectedReply
+        case .automaticDisabled:
+            reason = L10n.manualAccountWeeklyRefreshUnavailable
+        case .succeeded:
+            return
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = L10n.fiveHourRefreshFailureTitle
+        content.body = L10n.fiveHourRefreshFailureBody(accountName: accountName, reason: reason)
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "five_hour_refresh_failed_\(accountName)_\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                WeeklyQuotaLogger.log(
+                    "5-hour refresh failure notification failed account=\(accountName) error=\(error.localizedDescription)"
+                )
+            }
         }
     }
 }

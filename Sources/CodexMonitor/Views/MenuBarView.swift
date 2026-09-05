@@ -106,6 +106,7 @@ struct QuotaCardView: View {
     var resetAfterSeconds: Int = 0
     var resetAt: Int = 0
     var resetTimeFormat: ResetTimeFormat = .relative
+    var allowanceSummary: QuotaAllowanceSummary? = nil
 
     private var resetTimeText: String {
         if resetTimeFormat == .relative {
@@ -137,10 +138,17 @@ struct QuotaCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Label
-            Text(label)
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(Color.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(label)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(Color.secondary)
+
+                Spacer(minLength: 2)
+
+                if let allowanceSummary {
+                    QuotaAllowanceInlineView(summary: allowanceSummary)
+                }
+            }
 
             Spacer(minLength: 2)
 
@@ -188,6 +196,7 @@ struct QuotaCardView: View {
 struct QuotaCardsGridView: View {
     let usage: UsageResponse
     let displayMode: DisplayMode
+    let allowanceSummary: QuotaAllowanceSummary?
     var isLimited: Bool = false
     var resetTimeFormat: ResetTimeFormat = .relative
 
@@ -216,7 +225,8 @@ struct QuotaCardsGridView: View {
                         isLimited: primaryLimited,
                         resetAfterSeconds: primary.resetAfterSeconds,
                         resetAt: primary.resetAt,
-                        resetTimeFormat: resetTimeFormat
+                        resetTimeFormat: resetTimeFormat,
+                        allowanceSummary: isWeeklyWindow(primary) ? allowanceSummary : nil
                     )
                 }
 
@@ -236,7 +246,8 @@ struct QuotaCardsGridView: View {
                         isLimited: secondaryLimited,
                         resetAfterSeconds: secondary.resetAfterSeconds,
                         resetAt: secondary.resetAt,
-                        resetTimeFormat: resetTimeFormat
+                        resetTimeFormat: resetTimeFormat,
+                        allowanceSummary: isWeeklyWindow(secondary) ? allowanceSummary : nil
                     )
                 }
 
@@ -251,7 +262,8 @@ struct QuotaCardsGridView: View {
                         isLimited: tertiary.usedPercent >= 100,
                         resetAfterSeconds: tertiary.resetAfterSeconds,
                         resetAt: tertiary.resetAt,
-                        resetTimeFormat: resetTimeFormat
+                        resetTimeFormat: resetTimeFormat,
+                        allowanceSummary: isWeeklyWindow(tertiary) ? allowanceSummary : nil
                     )
                 }
             }
@@ -305,6 +317,10 @@ struct QuotaCardsGridView: View {
         }
     }
 
+    private func isWeeklyWindow(_ window: WindowUsage) -> Bool {
+        (6 * 24 * 60 * 60)...(8 * 24 * 60 * 60) ~= window.limitWindowSeconds
+    }
+
     private func isWindowLimited(
         window: WindowUsage,
         rateLimit: RateLimit,
@@ -337,6 +353,7 @@ struct QuotaCardsGridView: View {
 struct OpenCodeGoQuotaView: View {
     let usage: UsageResponse
     let displayMode: DisplayMode
+    let allowanceSummary: QuotaAllowanceSummary?
     var isLimited: Bool = false
     var resetTimeFormat: ResetTimeFormat = .relative
 
@@ -390,6 +407,10 @@ struct OpenCodeGoQuotaView: View {
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary.opacity(0.72))
 
+                if isWeeklyWindow(window), let allowanceSummary {
+                    QuotaAllowanceInlineView(summary: allowanceSummary)
+                }
+
                 Spacer(minLength: 4)
 
                 if let resetText = resetText(for: window) {
@@ -422,6 +443,27 @@ struct OpenCodeGoQuotaView: View {
         let seconds = max(0, Int(targetDate.timeIntervalSinceNow))
         guard seconds > 0 else { return nil }
         return RelativeResetTime(seconds: seconds).compactDescription
+    }
+
+    private func isWeeklyWindow(_ window: WindowUsage) -> Bool {
+        (6 * 24 * 60 * 60)...(8 * 24 * 60 * 60) ~= window.limitWindowSeconds
+    }
+}
+
+// MARK: - Weekly Quota Allowance Hint
+
+struct QuotaAllowanceInlineView: View {
+    let summary: QuotaAllowanceSummary
+    @ObservedObject var localeManager = LocaleManager.shared
+
+    var body: some View {
+        Text(L10n.quotaAllowanceSummary(summary))
+            .font(.system(size: 8.5, weight: .semibold).monospacedDigit())
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+        .foregroundStyle(Color(hex: "60A5FA"))
+        .help(L10n.quotaAllowanceHelp(summary: summary))
+        .accessibilityLabel(L10n.quotaAllowanceHelp(summary: summary))
     }
 }
 
@@ -729,6 +771,11 @@ struct MenuBarView: View {
     @State private var displayMode: DisplayMode = .remaining
     @State private var resetTimeFormat: ResetTimeFormat = .relative
     @State private var showResetRadar = true
+    @State private var showQuotaAllowanceSummary = true
+
+    private var visibleAccounts: [Account] {
+        accountStore.accounts.filter { !$0.isHidden }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -746,6 +793,8 @@ struct MenuBarView: View {
                 loadingPlaceholder
             } else if accountStore.accounts.isEmpty {
                 emptyStateView
+            } else if visibleAccounts.isEmpty {
+                hiddenAccountsEmptyState
             } else {
                 accountsQuotaView
             }
@@ -756,7 +805,12 @@ struct MenuBarView: View {
         .frame(width: 300)
         .frame(maxHeight: 600)
         .background(.ultraThinMaterial)
-        .onAppear { loadDisplayMode(); loadResetTimeFormat(); loadResetRadarVisibility() }
+        .onAppear {
+            loadDisplayMode()
+            loadResetTimeFormat()
+            loadResetRadarVisibility()
+            loadQuotaAllowanceSummaryVisibility()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .displayModeChanged)) { _ in
             loadDisplayMode()
         }
@@ -765,6 +819,9 @@ struct MenuBarView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .resetRadarVisibilityChanged)) { _ in
             loadResetRadarVisibility()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .quotaAllowanceSummaryVisibilityChanged)) { _ in
+            loadQuotaAllowanceSummaryVisibility()
         }
     }
 
@@ -780,6 +837,12 @@ struct MenuBarView: View {
 
     private func loadResetRadarVisibility() {
         showResetRadar = (UserDefaults.standard.object(forKey: PreferencesKeys.showResetRadar) as? Bool) ?? true
+    }
+
+    private func loadQuotaAllowanceSummaryVisibility() {
+        showQuotaAllowanceSummary = (UserDefaults.standard.object(
+            forKey: PreferencesKeys.showQuotaAllowanceSummary
+        ) as? Bool) ?? true
     }
 
     private func isRateLimited(_ usage: UsageResponse) -> Bool {
@@ -837,6 +900,26 @@ struct MenuBarView: View {
         .padding(.vertical, 32)
     }
 
+    private var hiddenAccountsEmptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "eye.slash")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(.tertiary)
+
+            Text(L10n.allAccountsHidden)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            Button(L10n.manageAccounts) {
+                WindowManager.shared.openSettingsWindow(initialTab: .accounts)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 30)
+    }
+
     // MARK: - Accounts Quota View (Gemini Canvas style — cards grid)
 
     private var accountsQuotaView: some View {
@@ -855,7 +938,7 @@ struct MenuBarView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
-                ForEach(accountStore.accounts) { account in
+                ForEach(visibleAccounts) { account in
                     let usageResult = accountStore.usageData[account.id]
                     let resetCredits = resetCredits(for: account.id)
                     let limited = usageResult.flatMap { result -> Bool? in
@@ -900,6 +983,10 @@ struct MenuBarView: View {
                                             OpenCodeGoQuotaView(
                                                 usage: usage,
                                                 displayMode: displayMode,
+                                                allowanceSummary: quotaAllowanceSummary(
+                                                    account: account,
+                                                    usage: usage
+                                                ),
                                                 isLimited: limited,
                                                 resetTimeFormat: resetTimeFormat
                                             )
@@ -907,6 +994,10 @@ struct MenuBarView: View {
                                             QuotaCardsGridView(
                                                 usage: usage,
                                                 displayMode: displayMode,
+                                                allowanceSummary: quotaAllowanceSummary(
+                                                    account: account,
+                                                    usage: usage
+                                                ),
                                                 isLimited: limited,
                                                 resetTimeFormat: resetTimeFormat
                                             )
@@ -967,7 +1058,7 @@ struct MenuBarView: View {
                 }
             }
             .padding(12)
-            .animation(.easeInOut(duration: 0.3), value: accountStore.accounts.count)
+            .animation(.easeInOut(duration: 0.3), value: visibleAccounts.count)
         }
         .menuBarScrollEdgeTreatment()
     }
@@ -979,6 +1070,19 @@ struct MenuBarView: View {
             return L10n.updatedAt(time: formatter.string(from: time))
         }
         return L10n.notYetUpdated
+    }
+
+    private func quotaAllowanceSummary(account: Account, usage: UsageResponse) -> QuotaAllowanceSummary? {
+        guard showQuotaAllowanceSummary else { return nil }
+        return QuotaAllowanceSummary.make(
+            from: usage.rateLimit,
+            provider: account.provider,
+            calibratedCapacityRatio: QuotaEquivalenceEstimator.shared.capacityRatio(
+                accountID: account.id,
+                provider: account.provider,
+                planType: usage.planType
+            )
+        )
     }
 
     private func providerPlanLabel(account: Account, usage: UsageResponse) -> String {

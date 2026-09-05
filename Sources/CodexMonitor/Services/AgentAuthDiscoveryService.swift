@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-struct DiscoveredAgentAuth {
+struct DiscoveredAgentAuth: Sendable {
     let provider: AccountProvider
     let token: String
     let email: String?
@@ -20,6 +20,14 @@ enum AgentAuthDiscoveryService {
         let claudeResult = await claude
         let grokResult = await grok
         return [claudeResult, grokResult].compactMap { $0 }
+    }
+
+    static func forceRefreshGrok() async throws -> DiscoveredAgentAuth {
+        try await GrokCredentialRefreshCoordinator.shared.credential(forceRefresh: true)
+    }
+
+    static func currentGrokCredential() async throws -> DiscoveredAgentAuth {
+        try await GrokCredentialRefreshCoordinator.shared.credential(forceRefresh: false)
     }
 
     private static func discoverClaude() async -> DiscoveredAgentAuth? {
@@ -141,15 +149,56 @@ enum AgentAuthDiscoveryService {
     }
 
     private static func discoverGrok() async -> DiscoveredAgentAuth? {
+        do {
+            return try await GrokCredentialRefreshCoordinator.shared.credential(forceRefresh: false)
+        } catch {
+            print("[CodexMonitor] Grok credential refresh failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+}
+
+private enum GrokCredentialRefreshError: LocalizedError {
+    case missingCredentials
+    case incompleteRefreshConfiguration
+    case invalidDiscoveryResponse
+    case refreshRejected(statusCode: Int)
+    case invalidRefreshResponse
+
+    var errorDescription: String? {
+        switch self {
+        case .missingCredentials:
+            return "Grok login credentials are missing."
+        case .incompleteRefreshConfiguration:
+            return "Grok login does not include refresh configuration."
+        case .invalidDiscoveryResponse:
+            return "Grok authentication discovery failed."
+        case .refreshRejected(let statusCode):
+            return "Grok rejected the token refresh (HTTP \(statusCode))."
+        case .invalidRefreshResponse:
+            return "Grok returned an invalid token refresh response."
+        }
+    }
+}
+
+private actor GrokCredentialRefreshCoordinator {
+    static let shared = GrokCredentialRefreshCoordinator()
+
+    func credential(forceRefresh: Bool) async throws -> DiscoveredAgentAuth {
         let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".grok/auth.json")
         guard let data = try? Data(contentsOf: url),
-              var root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+              var root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw GrokCredentialRefreshError.missingCredentials
+        }
 
         guard let entry = root.first(where: { (_, value) in
             ((value as? [String: Any])?["key"] as? String)?.isEmpty == false
-        }), var auth = entry.value as? [String: Any] else { return nil }
+        }), var auth = entry.value as? [String: Any] else {
+            throw GrokCredentialRefreshError.missingCredentials
+        }
 
-        if shouldRefreshGrok(auth), let refreshed = await refreshGrok(auth: auth) {
+        if forceRefresh || shouldRefreshGrok(auth) {
+            let refreshed = try await refreshGrok(auth: auth)
             auth["key"] = refreshed.accessToken
             if let refreshToken = refreshed.refreshToken { auth["refresh_token"] = refreshToken }
             auth["expires_at"] = ISO8601DateFormatter().string(
@@ -162,7 +211,9 @@ enum AgentAuthDiscoveryService {
             }
         }
 
-        guard let token = auth["key"] as? String, !token.isEmpty else { return nil }
+        guard let token = auth["key"] as? String, !token.isEmpty else {
+            throw GrokCredentialRefreshError.missingCredentials
+        }
         return DiscoveredAgentAuth(
             provider: .grok,
             token: token,
@@ -171,26 +222,33 @@ enum AgentAuthDiscoveryService {
         )
     }
 
-    private static func shouldRefreshGrok(_ auth: [String: Any]) -> Bool {
+    private func shouldRefreshGrok(_ auth: [String: Any]) -> Bool {
         guard let refresh = auth["refresh_token"] as? String, !refresh.isEmpty else { return false }
         guard let value = auth["expires_at"] as? String,
               let date = parseISODate(value) else { return true }
         return date.timeIntervalSinceNow <= 60
     }
 
-    private static func refreshGrok(auth: [String: Any]) async -> OIDCTokenRefreshResponse? {
+    private func refreshGrok(auth: [String: Any]) async throws -> OIDCTokenRefreshResponse {
         guard let refreshToken = auth["refresh_token"] as? String,
               let clientID = auth["oidc_client_id"] as? String,
-              let issuer = auth["oidc_issuer"] as? String else { return nil }
+              let issuer = auth["oidc_issuer"] as? String else {
+            throw GrokCredentialRefreshError.incompleteRefreshConfiguration
+        }
 
         let discoveryURL = issuer.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             + "/.well-known/openid-configuration"
-        guard let url = URL(string: discoveryURL),
-              let (metadataData, metadataResponse) = try? await URLSession.shared.data(from: url),
+        guard let url = URL(string: discoveryURL) else {
+            throw GrokCredentialRefreshError.invalidDiscoveryResponse
+        }
+        let (metadataData, metadataResponse) = try await URLSession.shared.data(from: url)
+        guard
               let metadataHTTP = metadataResponse as? HTTPURLResponse,
               metadataHTTP.statusCode == 200,
               let metadata = try? JSONDecoder().decode(OIDCMetadata.self, from: metadataData),
-              let tokenURL = URL(string: metadata.tokenEndpoint) else { return nil }
+              let tokenURL = URL(string: metadata.tokenEndpoint) else {
+            throw GrokCredentialRefreshError.invalidDiscoveryResponse
+        }
 
         let fields = [
             "grant_type": "refresh_token",
@@ -205,16 +263,27 @@ enum AgentAuthDiscoveryService {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 20
 
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let http = response as? HTTPURLResponse,
-              http.statusCode == 200 else { return nil }
-        return try? JSONDecoder().decode(OIDCTokenRefreshResponse.self, from: data)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw GrokCredentialRefreshError.invalidRefreshResponse
+        }
+        guard http.statusCode == 200 else {
+            throw GrokCredentialRefreshError.refreshRejected(statusCode: http.statusCode)
+        }
+        guard let refreshed = try? JSONDecoder().decode(OIDCTokenRefreshResponse.self, from: data) else {
+            throw GrokCredentialRefreshError.invalidRefreshResponse
+        }
+        return refreshed
     }
 
-    private static func parseISODate(_ value: String) -> Date? {
+    private func parseISODate(_ value: String) -> Date? {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+    }
+
+    private func urlEncode(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? value
     }
 }
 

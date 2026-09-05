@@ -51,9 +51,15 @@ enum GrokWebUsageDecoder {
             }
         }
 
-        guard let usedPercent else { throw DecodeError.missingUsage }
+        // Proto3 omits scalar zero values. A valid period/reset payload with no field 1
+        // therefore means 0% used, not a malformed response.
+        guard usedPercent != nil || resetAt > 0 else { throw DecodeError.missingUsage }
         let seconds = periodType == 2 ? 7 * 24 * 60 * 60 : 30 * 24 * 60 * 60
-        return GrokWebUsagePayload(usedPercent: usedPercent, resetAt: resetAt, periodSeconds: seconds)
+        return GrokWebUsagePayload(
+            usedPercent: usedPercent ?? 0,
+            resetAt: resetAt,
+            periodSeconds: seconds
+        )
     }
 }
 
