@@ -10,8 +10,6 @@ MAC_PROVISIONING_PROFILE="${MAC_PROVISIONING_PROFILE:-}"
 MAC_PROVISIONING_PROFILE_BASE64="${MAC_PROVISIONING_PROFILE_BASE64:-}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-ARM64_BUILD_DIR="$PROJECT_DIR/.build/arm64/arm64-apple-macosx/release"
-X86_64_BUILD_DIR="$PROJECT_DIR/.build/x86_64/x86_64-apple-macosx/release"
 UNIVERSAL_BUILD_DIR="$PROJECT_DIR/.build/universal"
 APP_BUNDLE="$PROJECT_DIR/.build/$APP_NAME.app"
 DMG_OUTPUT="$PROJECT_DIR/.build/$DMG_NAME-$VERSION.dmg"
@@ -25,6 +23,14 @@ swift build -c release \
     --triple x86_64-apple-macosx15.0 \
     --scratch-path "$PROJECT_DIR/.build/x86_64" 2>&1
 
+# SwiftPM's output layout varies with the selected build system and toolchain.
+ARM64_BUILD_DIR="$(swift build -c release \
+    --triple arm64-apple-macosx15.0 \
+    --scratch-path "$PROJECT_DIR/.build/arm64" --show-bin-path)"
+X86_64_BUILD_DIR="$(swift build -c release \
+    --triple x86_64-apple-macosx15.0 \
+    --scratch-path "$PROJECT_DIR/.build/x86_64" --show-bin-path)"
+
 ARM64_BINARY="$ARM64_BUILD_DIR/$APP_NAME"
 X86_64_BINARY="$X86_64_BUILD_DIR/$APP_NAME"
 if [[ ! -f "$ARM64_BINARY" || ! -f "$X86_64_BINARY" ]]; then
@@ -35,7 +41,8 @@ fi
 mkdir -p "$UNIVERSAL_BUILD_DIR"
 BINARY="$UNIVERSAL_BUILD_DIR/$APP_NAME"
 /usr/bin/lipo -create "$ARM64_BINARY" "$X86_64_BINARY" -output "$BINARY"
-/usr/bin/lipo "$BINARY" -verify_arch arm64 x86_64
+/usr/bin/lipo "$BINARY" -verify_arch arm64
+/usr/bin/lipo "$BINARY" -verify_arch x86_64
 
 echo "📦 Creating .app bundle..."
 rm -rf "$APP_BUNDLE"

@@ -132,8 +132,9 @@ Choose the agent type before adding an account. The account form changes its tit
 
 **Claude**
 
-- Local import reads `Claude Code-credentials` from macOS Keychain, with `~/.claude/.credentials.json` as a fallback.
-- Expired access tokens are refreshed through Claude's OAuth token endpoint. Rotated access and refresh tokens are written back to the original credential store so Claude Code remains signed in.
+- Local import reads `~/.claude/.credentials.json` when available, otherwise `Claude Code-credentials` from macOS Keychain. Background access never opens a Keychain password dialog; if access requires permission, paste a token manually instead.
+- Credential reads are cached and failed attempts are delayed. Concurrent refreshes share one operation rather than repeatedly accessing Keychain.
+- Expiring access tokens are refreshed through Claude's OAuth token endpoint. Rotated credentials are written back without prompting; if writing fails, the app retains the new credentials in memory and retries later. A restart before successful write-back may require signing in to Claude Code again.
 - Manual entry accepts an OAuth Bearer token, a full `Authorization: Bearer ...` header, or Claude auth JSON.
 - Usage is loaded from `https://api.anthropic.com/api/oauth/usage` and shows the 5-hour and 7-day windows.
 

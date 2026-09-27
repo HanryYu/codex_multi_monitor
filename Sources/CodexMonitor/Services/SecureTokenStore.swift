@@ -138,6 +138,8 @@ enum SecureTokenStore {
         var migrated = 0
 
         for id in accountIDs {
+            // Already migrated accounts must not revisit legacy Keychain items on launch.
+            guard load(accountID: id) == nil else { continue }
             let keychainKey = "token_\(id)"
             guard let token = KeychainHelper.load(key: keychainKey) else { continue }
 

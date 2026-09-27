@@ -23,18 +23,10 @@ enum KeychainHelper {
     }
     
     static func load(key: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key,
-            kSecAttrService as String: "com.codex-monitor",
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
-        guard status == errSecSuccess, let data = result as? Data else {
+        guard let data = try? NonInteractiveKeychain.copyGenericPassword(
+            service: "com.codex-monitor",
+            account: key
+        ) else {
             return nil
         }
         
@@ -48,6 +40,9 @@ enum KeychainHelper {
             kSecAttrService as String: "com.codex-monitor"
         ]
         
-        SecItemDelete(query as CFDictionary)
+        // Migration runs on launch, so removing the migrated item must also be silent.
+        _ = try? NonInteractiveKeychainGate.shared.perform {
+            SecItemDelete(query as CFDictionary)
+        }
     }
 }

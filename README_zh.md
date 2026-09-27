@@ -124,7 +124,8 @@ cat ~/.codex/auth.json | python3 -c "import sys,json; d=json.load(sys.stdin); pr
 
 CodexMonitor 支持 Codex、Claude、Grok 和 OpenCode Go 四种账户类型：
 
-- **本地自动导入**：Claude Code 从 macOS 钥匙串中的 `Claude Code-credentials`（或 `~/.claude/.credentials.json`）读取；Grok Build 从 `~/.grok/auth.json` 读取。Claude access token 过期时会使用官方 OAuth refresh 流程，并把轮换后的 access/refresh token 写回原凭证存储，保持 Claude Code 登录有效。
+- **本地自动导入**：Claude Code 优先读取 `~/.claude/.credentials.json`，否则静默读取 macOS 钥匙串中的 `Claude Code-credentials`；需要授权时不会弹出密码框，可手动粘贴 Token。凭据读取有缓存、失败后延迟重试，并发刷新会合并。Grok Build 从 `~/.grok/auth.json` 读取。
+- **Claude 凭据续期**：access token 即将过期时使用 OAuth refresh 流程，轮换后的凭据会静默写回原存储。写入失败时先在内存中保留新凭据并稍后重试；写回成功前若重启应用，可能需要重新登录 Claude Code。
 - **手动添加**：先选择 Agent 类型，再粘贴 Bearer token。输入框也接受完整的 `Authorization: Bearer ...` 文本，以及 Claude/Grok 的本地 auth JSON。
 - **Claude 网页 token**：登录 Claude 后，在开发者工具 Network 中打开 usage 请求，复制 `Authorization` 请求头中的 Bearer token。
 - **Grok token**：可从 Grok CLI 请求的 `Authorization` 请求头复制 Bearer token，或直接把 `~/.grok/auth.json` 内容粘贴到 Grok 类型的 token 输入框。

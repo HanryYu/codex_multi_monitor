@@ -285,6 +285,17 @@ if [[ "$SKIP_CHECKS" == false && "$RESUME" == false ]]; then
     xcrun swiftc -parse-as-library \
         -sdk "$SDK_PATH" \
         -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/claude-auth-module-cache" \
+        Sources/CodexMonitor/Models/Account.swift \
+        Sources/CodexMonitor/Services/AuthTokenIdentity.swift \
+        Sources/CodexMonitor/Services/NonInteractiveKeychain.swift \
+        Sources/CodexMonitor/Services/ClaudeAuthDiscoveryService.swift \
+        scripts/test_claude_auth_discovery.swift \
+        -o "$TMP_ROOT/claude-auth-tests"
+    "$TMP_ROOT/claude-auth-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
         -module-cache-path "$TMP_ROOT/grok-billing-module-cache" \
         Sources/CodexMonitor/Services/GrokBillingUsageDecoder.swift \
         scripts/test_grok_billing_usage_decoder.swift \
@@ -431,7 +442,8 @@ if [[ ! -d "$APP_PATH" ]]; then
 fi
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 spctl -a -vv -t exec "$APP_PATH"
-/usr/bin/lipo "$APP_PATH/Contents/MacOS/CodexMonitor" -verify_arch arm64 x86_64
+/usr/bin/lipo "$APP_PATH/Contents/MacOS/CodexMonitor" -verify_arch arm64
+/usr/bin/lipo "$APP_PATH/Contents/MacOS/CodexMonitor" -verify_arch x86_64
 BUNDLE_VERSION="$(plutil -extract CFBundleShortVersionString raw "$APP_PATH/Contents/Info.plist")"
 if [[ "$BUNDLE_VERSION" != "$VERSION" ]]; then
     echo "Official app version mismatch: expected $VERSION, got $BUNDLE_VERSION" >&2

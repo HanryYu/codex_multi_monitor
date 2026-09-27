@@ -34,6 +34,7 @@ class AccountStore: ObservableObject {
     private var recoveryNotificationObserver: NSObjectProtocol?
     private var weeklyActivationRefreshTask: Task<Void, Never>?
     private var weeklyActivationBatchInProgress = false
+    private var refreshAllTask: Task<Void, Never>?
     
     enum OverallStatus {
         case healthy, warning, critical, noAccounts
@@ -372,6 +373,20 @@ class AccountStore: ObservableObject {
     }
     
     func refreshAll() async {
+        // Timers, wake notifications, and manual refreshes can arrive together.
+        // Wait for the shared refresh, including credential discovery, to finish.
+        if let refreshAllTask {
+            await refreshAllTask.value
+            return
+        }
+
+        let task = Task { await performRefreshAll() }
+        refreshAllTask = task
+        await task.value
+        refreshAllTask = nil
+    }
+
+    private func performRefreshAll() async {
         if UserDefaults.standard.bool(forKey: PreferencesKeys.autoImportEnabled) {
             await syncLocalAgentAccounts()
         }

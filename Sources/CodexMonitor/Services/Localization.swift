@@ -1064,19 +1064,19 @@ enum L10n {
     static func credentialHint(_ provider: AccountProvider) -> String {
         switch (lang, provider) {
         case (.en, .codex): return "Copy the Bearer token from the ChatGPT usage request."
-        case (.en, .claude): return "Paste a Claude Bearer token or auth JSON; local Claude login is imported automatically."
+        case (.en, .claude): return "Paste a Claude Bearer token or auth JSON. Local login is imported when accessible without a password prompt."
         case (.en, .grok): return "Paste a Grok token/auth JSON, or the full Cookie header from GetGrokCreditsConfig."
         case (.en, .openCodeGo): return "Copy auth or __Host-auth from an opencode.ai request in your browser DevTools."
         case (.ja, .codex): return "ChatGPT の使用量リクエストから Bearer トークンをコピーします。"
-        case (.ja, .claude): return "Claude のトークンまたは auth JSON を貼り付けます。ローカルログインは自動インポートされます。"
+        case (.ja, .claude): return "Claude のトークンまたは auth JSON を貼り付けます。パスワード入力なしで読み取れるローカルログインは自動インポートされます。"
         case (.ja, .grok): return "Grok のトークン/auth JSON、または GetGrokCreditsConfig の Cookie を貼り付けます。"
         case (.ja, .openCodeGo): return "ブラウザの DevTools で opencode.ai リクエストの auth または __Host-auth をコピーします。"
         case (.zhHans, .codex): return "从 ChatGPT 用量请求中复制 Bearer Token。"
-        case (.zhHans, .claude): return "粘贴 Claude Token 或 auth JSON；本地 Claude 登录会自动导入。"
+        case (.zhHans, .claude): return "粘贴 Claude Token 或 auth JSON；可免密码提示读取的本地登录会自动导入。"
         case (.zhHans, .grok): return "粘贴 Grok Token/auth JSON，或 GetGrokCreditsConfig 的完整 Cookie。"
         case (.zhHans, .openCodeGo): return "从浏览器开发者工具中的 opencode.ai 请求复制 auth 或 __Host-auth。"
         case (.zhHant, .codex): return "從 ChatGPT 用量請求中複製 Bearer Token。"
-        case (.zhHant, .claude): return "貼上 Claude Token 或 auth JSON；本機 Claude 登入會自動匯入。"
+        case (.zhHant, .claude): return "貼上 Claude Token 或 auth JSON；可免密碼提示讀取的本機登入會自動匯入。"
         case (.zhHant, .grok): return "貼上 Grok Token/auth JSON，或 GetGrokCreditsConfig 的完整 Cookie。"
         case (.zhHant, .openCodeGo): return "從瀏覽器開發者工具中的 opencode.ai 請求複製 auth 或 __Host-auth。"
         }
