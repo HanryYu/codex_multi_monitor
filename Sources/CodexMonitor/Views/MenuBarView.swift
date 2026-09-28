@@ -978,6 +978,19 @@ struct MenuBarView: View {
                             switch usageResult {
                             case .success(let usage):
                                 VStack(spacing: 0) {
+                                    if let metadata = usage.fetchMetadata, metadata.isStale {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            if let retryAt = metadata.retryAt {
+                                                Text(L10n.claudeUsageRateLimited(retryAt: retryAt))
+                                            }
+                                            Text(L10n.cachedUsageAsOf(metadata.fetchedAt))
+                                        }
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.orange)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 12)
+                                        .padding(.bottom, 8)
+                                    }
                                     Group {
                                         if account.provider == .openCodeGo {
                                             OpenCodeGoQuotaView(

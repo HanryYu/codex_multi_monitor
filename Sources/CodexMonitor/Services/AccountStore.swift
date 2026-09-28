@@ -452,6 +452,7 @@ class AccountStore: ObservableObject {
             
             for await result in group {
                 if case .success(let usage) = result.usage,
+                   usage.fetchMetadata?.isStale != true,
                    let account = accounts.first(where: { $0.id == result.accountID }) {
                     QuotaEquivalenceEstimator.shared.observe(
                         accountID: account.id,
@@ -816,6 +817,8 @@ class AccountStore: ObservableObject {
                 continue
             }
 
+            // A stale snapshot is display-only, not evidence of a new quota state.
+            guard usage.fetchMetadata?.isStale != true else { continue }
             let windows = notificationWindows(for: usage)
             let currentLimited = Dictionary(
                 uniqueKeysWithValues: windows
@@ -886,6 +889,7 @@ class AccountStore: ObservableObject {
 
         for account in accounts {
             guard case .success(let usage) = usageData[account.id] else { continue }
+            guard usage.fetchMetadata?.isStale != true else { continue }
             scheduleLimitRecoveryNotificationsIfNeeded(
                 account: account,
                 windows: notificationWindows(for: usage),

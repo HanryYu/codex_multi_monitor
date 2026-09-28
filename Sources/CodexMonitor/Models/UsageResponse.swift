@@ -1,5 +1,12 @@
 import Foundation
 
+/// Local fetch state, kept separate from the provider's usage payload.
+struct UsageFetchMetadata {
+    let fetchedAt: Date
+    let retryAt: Date?
+    let isStale: Bool
+}
+
 struct UsageResponse: Codable {
     let planType: String
     let rateLimit: RateLimit?
@@ -7,6 +14,7 @@ struct UsageResponse: Codable {
     let rateLimitReachedType: RateLimitReached?
     let spendControl: SpendControl?
     let rateLimitResetCredits: RateLimitResetCredits?
+    var fetchMetadata: UsageFetchMetadata? = nil
     
     enum CodingKeys: String, CodingKey {
         case planType = "plan_type"

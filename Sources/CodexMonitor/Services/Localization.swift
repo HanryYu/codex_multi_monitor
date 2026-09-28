@@ -1061,6 +1061,26 @@ enum L10n {
         }
     }
 
+    static func claudeUsageRateLimited(retryAt: Date) -> String {
+        let time = retryAt.formatted(date: .abbreviated, time: .shortened)
+        switch lang {
+        case .en: return "Claude usage requests are temporarily limited. Retry after \(time)."
+        case .ja: return "Claude の使用量取得が一時的に制限されています。\(time) 以降に再試行します。"
+        case .zhHans: return "Claude 用量查询暂时受限，将在 \(time) 后重试。"
+        case .zhHant: return "Claude 用量查詢暫時受限，將在 \(time) 後重試。"
+        }
+    }
+
+    static func cachedUsageAsOf(_ fetchedAt: Date) -> String {
+        let time = fetchedAt.formatted(date: .abbreviated, time: .shortened)
+        switch lang {
+        case .en: return "Showing saved usage from \(time)."
+        case .ja: return "\(time) に取得した使用量を表示しています。"
+        case .zhHans: return "当前显示 \(time) 获取的上次数据。"
+        case .zhHant: return "目前顯示 \(time) 取得的上次資料。"
+        }
+    }
+
     static func credentialHint(_ provider: AccountProvider) -> String {
         switch (lang, provider) {
         case (.en, .codex): return "Copy the Bearer token from the ChatGPT usage request."

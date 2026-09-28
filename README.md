@@ -137,6 +137,7 @@ Choose the agent type before adding an account. The account form changes its tit
 - Expiring access tokens are refreshed through Claude's OAuth token endpoint. Rotated credentials are written back without prompting; if writing fails, the app retains the new credentials in memory and retries later. A restart before successful write-back may require signing in to Claude Code again.
 - Manual entry accepts an OAuth Bearer token, a full `Authorization: Bearer ...` header, or Claude auth JSON.
 - Usage is loaded from `https://api.anthropic.com/api/oauth/usage` and shows the 5-hour and 7-day windows.
+- Usage requests share a five-minute cache. HTTP 429 responses pause requests for at least 15 minutes, honor longer `Retry-After` values, and increase the cooldown after repeated limits. Restarting the app does not reset a saved cooldown. During a cooldown, a snapshot up to 30 minutes old remains visible with its fetch time; otherwise the app shows when it can retry. A usage-query rate limit does not by itself establish that the account's quota is exhausted.
 
 **Grok**
 

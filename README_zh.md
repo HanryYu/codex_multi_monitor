@@ -133,6 +133,8 @@ CodexMonitor 支持 Codex、Claude、Grok 和 OpenCode Go 四种账户类型：
 
 Claude 额度来自 `https://api.anthropic.com/api/oauth/usage`；Grok 本地模式读取 CLI billing，网页模式读取 `GetGrokCreditsConfig` 的共享周额度。应用会尝试自动刷新本地 Claude/Grok 凭证；刷新凭证无效时，再运行 `claude` 或 `grok login` 重新登录。
 
+Claude 用量查询使用 5 分钟缓存。收到 HTTP 429 时至少暂停请求 15 分钟，遵守更长的 `Retry-After`，连续限流会延长冷却时间；重启应用不会清除已保存的冷却时间。冷却期间最多显示 30 分钟前的缓存，并明确标注获取时间；没有有效缓存时显示可重试时间。用量查询被限流本身并不代表账号额度耗尽。
+
 **OpenCode Go**：OpenCode API Key 不提供账号的真实额度窗口，因此应用不再根据本地用量估算剩余额度。请手动添加 OpenCode Go 账号，并从已登录的 `opencode.ai` 请求中复制 `auth` 或 `__Host-auth` Cookie；支持直接粘贴 `Fe26.2**…` 原始值或完整 Cookie 请求头。Workspace ID 默认自动获取，失败时可从 `/workspace/wrk_…/go` 地址复制到可选输入框。官网刷新失败时，只会保留该账号 30 分钟内最后一次成功的官网数据并标记“缓存”，不会回退到估算值。
 
 ## 使用说明

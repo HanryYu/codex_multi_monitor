@@ -296,6 +296,15 @@ if [[ "$SKIP_CHECKS" == false && "$RESUME" == false ]]; then
     xcrun swiftc -parse-as-library \
         -sdk "$SDK_PATH" \
         -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/claude-usage-module-cache" \
+        Sources/CodexMonitor/Models/UsageResponse.swift \
+        Sources/CodexMonitor/Services/ClaudeUsageService.swift \
+        scripts/test_claude_usage.swift \
+        -o "$TMP_ROOT/claude-usage-tests"
+    "$TMP_ROOT/claude-usage-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
         -module-cache-path "$TMP_ROOT/grok-billing-module-cache" \
         Sources/CodexMonitor/Services/GrokBillingUsageDecoder.swift \
         scripts/test_grok_billing_usage_decoder.swift \

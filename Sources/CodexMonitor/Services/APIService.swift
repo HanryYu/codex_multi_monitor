@@ -24,32 +24,17 @@ class APIService {
     }
 
     func fetchClaudeUsage(authToken: String) async throws -> UsageResponse {
-        guard let url = URL(string: "https://api.anthropic.com/api/oauth/usage") else { throw APIError.invalidURL }
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(normalizedToken(authToken))", forHTTPHeaderField: "Authorization")
-        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 30
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response)
         do {
-            let payload = try JSONDecoder().decode(ClaudeUsagePayload.self, from: data)
-            let primary = payload.fiveHour?.window(seconds: 5 * 60 * 60)
-            let secondary = payload.sevenDay?.window(seconds: 7 * 24 * 60 * 60)
-            return UsageResponse(
-                planType: "Claude",
-                rateLimit: RateLimit(
-                    allowed: ![primary, secondary].compactMap { $0 }.contains(where: { $0.usedPercent >= 100 }),
-                    limitReached: [primary, secondary].compactMap { $0 }.contains(where: { $0.usedPercent >= 100 }),
-                    primaryWindow: primary,
-                    secondaryWindow: secondary
-                )
-            )
-        } catch let error as APIError {
-            throw error
-        } catch {
-            throw APIError.decodingError(error)
+            return try await ClaudeUsageService.shared.fetchUsage(authToken: authToken)
+        } catch let error as ClaudeUsageError {
+            switch error {
+            case .rateLimited(let retryAt):
+                throw APIError.usageRateLimited(retryAt: retryAt)
+            case .unauthorized:
+                throw APIError.unauthorized
+            default:
+                throw APIError.message(error.localizedDescription)
+            }
         }
     }
 
@@ -262,12 +247,6 @@ class APIService {
         }
     }
 
-    fileprivate static func parseISODate(_ value: String) -> Date? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
-    }
-
     private static func installedGrokVersion() -> String {
         let url = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".grok/version.json")
@@ -281,41 +260,12 @@ class APIService {
     }
 }
 
-private struct ClaudeUsagePayload: Decodable {
-    let fiveHour: ClaudeUsageWindow?
-    let sevenDay: ClaudeUsageWindow?
-
-    enum CodingKeys: String, CodingKey {
-        case fiveHour = "five_hour"
-        case sevenDay = "seven_day"
-    }
-}
-
-private struct ClaudeUsageWindow: Decodable {
-    let utilization: Double
-    let resetsAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case utilization
-        case resetsAt = "resets_at"
-    }
-
-    func window(seconds: Int) -> WindowUsage {
-        let reset = resetsAt.flatMap(APIService.parseISODate(_:)).map { Int($0.timeIntervalSince1970) } ?? 0
-        return WindowUsage(
-            usedPercent: Int(utilization.rounded()),
-            limitWindowSeconds: seconds,
-            resetAfterSeconds: reset > 0 ? max(0, reset - Int(Date().timeIntervalSince1970)) : 0,
-            resetAt: reset
-        )
-    }
-}
-
 enum APIError: LocalizedError {
     case invalidURL
     case invalidResponse
     case unauthorized
     case rateLimited
+    case usageRateLimited(retryAt: Date)
     case httpError(statusCode: Int)
     case decodingError(Error)
     case authenticationExpired(provider: String, detail: String?)
@@ -333,6 +283,8 @@ enum APIError: LocalizedError {
             return "Unauthorized - check token"
         case .rateLimited:
             return "Rate limited"
+        case .usageRateLimited(let retryAt):
+            return L10n.claudeUsageRateLimited(retryAt: retryAt)
         case .httpError(let statusCode):
             return "HTTP error: \(statusCode)"
         case .decodingError(let error):

@@ -1,18 +1,16 @@
-# CodexMonitor 0.7.12
+# CodexMonitor 0.7.13
 
-This release stops recurring Claude Keychain password prompts during background quota refreshes.
+This release handles Claude usage endpoint rate limits without repeatedly requesting unavailable data or treating query throttling as exhausted account quota.
 
-## Claude credential reliability
+## Claude usage reliability
 
-- Reads and updates local Claude credentials without opening macOS authentication dialogs.
-- Caches credential discovery, delays failed attempts, and shares concurrent credential refreshes.
-- Retains rotated credentials in memory when write-back fails, with delayed persistence retries instead of repeatedly refreshing stale credentials.
-- Preserves saved account tokens when local credentials are temporarily unavailable.
-- Clarifies manual token entry when local credentials cannot be accessed silently.
+- Shares concurrent requests for the same credential and caches successful usage for five minutes.
+- Honors Retry-After on HTTP 429, with a minimum 15-minute cooldown and exponential backoff for repeated limits.
+- Persists cooldowns across app restarts without storing access tokens.
+- Keeps usage snapshots up to 30 minutes old visible during temporary failures, clearly showing when the data was fetched and when requests can resume.
+- Shows the retry time when no recent snapshot is available, and clears cached usage when credentials are rejected.
+- Excludes stale snapshots from new quota notifications and allowance estimates.
 
-## Refresh behavior
+## Validation
 
-- Coalesces overlapping timer, wake, and manual refreshes into one shared refresh cycle.
-- Skips legacy Keychain migration for accounts already stored locally.
-- Adds regression coverage for credential caching, concurrent refreshes, retry delays, and failed write-back recovery.
-- Resolves SwiftPM build output paths dynamically when packaging universal DMGs.
+- Adds regression coverage for request coalescing, credential isolation, Retry-After parsing, backoff, cache expiry, authentication rejection, and cooldown persistence.
