@@ -418,19 +418,28 @@ class AccountStore: ObservableObject {
                     }
 
                     do {
-                        guard account.provider == .codex else {
-                            throw APIError.unsupported
+                        if account.provider == .claude {
+                            // Claude returns reset grants with usage; share its cache and backoff.
+                            let usage = try usageResult.get()
+                            guard let credits = usage.rateLimitResetCredits else {
+                                throw APIError.unsupported
+                            }
+                            resetCreditsResult = .success(credits)
+                        } else {
+                            guard account.provider == .codex else {
+                                throw APIError.unsupported
+                            }
+                            if case .failure(let usageError) = usageResult, usageError.isUnauthorized {
+                                throw usageError
+                            }
+                            let resetResult = try await Self.fetchResetCreditsWithCredentialRecovery(
+                                for: requestAccount
+                            )
+                            requestAccount = resetResult.account
+                            let resetCredits = resetResult.credits
+                            print("[CodexMonitor] refreshAll: [\(account.name)] reset credits available=\(resetCredits.availableCount)")
+                            resetCreditsResult = .success(resetCredits)
                         }
-                        if case .failure(let usageError) = usageResult, usageError.isUnauthorized {
-                            throw usageError
-                        }
-                        let resetResult = try await Self.fetchResetCreditsWithCredentialRecovery(
-                            for: requestAccount
-                        )
-                        requestAccount = resetResult.account
-                        let resetCredits = resetResult.credits
-                        print("[CodexMonitor] refreshAll: [\(account.name)] reset credits available=\(resetCredits.availableCount)")
-                        resetCreditsResult = .success(resetCredits)
                     } catch let error as APIError {
                         print("[CodexMonitor] refreshAll: [\(account.name)] reset credits APIError: \(error.localizedDescription)")
                         resetCreditsResult = .failure(error)

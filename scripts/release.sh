@@ -239,9 +239,9 @@ preflight_homebrew
 
 if [[ "$SKIP_CHECKS" == false && "$RESUME" == false ]]; then
     echo "==> Running release checks"
-    SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
+    SDK_PATH="${SWIFT_BUILD_SDK:-$(xcrun --sdk macosx --show-sdk-path)}"
     TARGET_ARCH="$(uname -m)"
-    swift build
+    swift build --build-system native --sdk "$SDK_PATH"
     xcrun swiftc -parse-as-library \
         -sdk "$SDK_PATH" \
         -target "$TARGET_ARCH-apple-macosx15.0" \
@@ -298,10 +298,20 @@ if [[ "$SKIP_CHECKS" == false && "$RESUME" == false ]]; then
         -target "$TARGET_ARCH-apple-macosx15.0" \
         -module-cache-path "$TMP_ROOT/claude-usage-module-cache" \
         Sources/CodexMonitor/Models/UsageResponse.swift \
+        Sources/CodexMonitor/Services/ClaudeResetCreditsDecoder.swift \
         Sources/CodexMonitor/Services/ClaudeUsageService.swift \
         scripts/test_claude_usage.swift \
         -o "$TMP_ROOT/claude-usage-tests"
     "$TMP_ROOT/claude-usage-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/claude-reset-module-cache" \
+        Sources/CodexMonitor/Models/UsageResponse.swift \
+        Sources/CodexMonitor/Services/ClaudeResetCreditsDecoder.swift \
+        scripts/test_claude_reset_credits.swift \
+        -o "$TMP_ROOT/claude-reset-tests"
+    "$TMP_ROOT/claude-reset-tests"
     xcrun swiftc -parse-as-library \
         -sdk "$SDK_PATH" \
         -target "$TARGET_ARCH-apple-macosx15.0" \

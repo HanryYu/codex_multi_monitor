@@ -1,16 +1,16 @@
-# CodexMonitor 0.7.13
+# CodexMonitor 0.7.14
 
-This release handles Claude usage endpoint rate limits without repeatedly requesting unavailable data or treating query throttling as exhausted account quota.
+Claude limit-reset credits now appear alongside quota usage, with the same compact card and wording as Codex.
 
-## Claude usage reliability
+## Reset credits
 
-- Shares concurrent requests for the same credential and caches successful usage for five minutes.
-- Honors Retry-After on HTTP 429, with a minimum 15-minute cooldown and exponential backoff for repeated limits.
-- Persists cooldowns across app restarts without storing access tokens.
-- Keeps usage snapshots up to 30 minutes old visible during temporary failures, clearly showing when the data was fetched and when requests can resume.
-- Shows the retry time when no recent snapshot is available, and clears cached usage when credentials are rejected.
-- Excludes stale snapshots from new quota notifications and allowance estimates.
+- Show the number of available Claude resets, their expiration date, reset scope, and any requirement to reach a limit before use.
+- Use one detail template for Codex and Claude: expiration first, followed by available grant details. Avoid repeating a single reset count or showing missing-date placeholders beside known details.
+- Open Claude's official usage page from the expanded card; the app does not consume reset credits.
+- Ignore expired, paused, future, duplicate, or malformed grants, and distinguish unavailable data from zero credits.
+- Read grants in the existing Claude usage request and preserve request coalescing, caching, rate-limit backoff, and non-interactive credential access from v0.7.13.
 
 ## Validation
 
-- Adds regression coverage for request coalescing, credential isolation, Retry-After parsing, backoff, cache expiry, authentication rejection, and cooldown persistence.
+- Regression coverage for grant decoding, request metadata, cached grant expiration, malformed data, and existing Claude usage recovery and backoff behavior.
+- Release checks include the new reset-credit decoder tests alongside existing account, quota, and provider tests.

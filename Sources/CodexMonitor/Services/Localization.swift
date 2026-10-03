@@ -520,6 +520,31 @@ enum L10n {
         }
     }
 
+    static var claudeResetCreditsUsagePage: String {
+        localized("View in Claude", "Claude で確認", "前往 Claude 查看", "前往 Claude 查看")
+    }
+
+    static var resetCreditRequiresLimit: String {
+        localized("Use after reaching a limit", "上限到達後に利用可", "达到限额后可使用", "達到限額後可使用")
+    }
+
+    static func resetCreditScope(_ resetType: String?) -> String {
+        let windows = Set((resetType ?? "").split(separator: ",").map(String.init))
+        var scopes: [String] = []
+        if windows.contains("five_hour") {
+            scopes.append(localized("5-hour", "5時間", "5 小时", "5 小時"))
+        }
+        if windows.contains("seven_day") {
+            scopes.append(localized("weekly", "週間", "每周", "每週"))
+        } else {
+            for (key, label) in [("seven_day_opus", "Opus"), ("seven_day_sonnet", "Sonnet"),
+                                 ("seven_day_cowork", "Cowork"), ("seven_day_oauth_apps", "OAuth apps")] {
+                if windows.contains(key) { scopes.append(label) }
+            }
+        }
+        return scopes.joined(separator: " / ")
+    }
+
     // MARK: - Refresh Time (footer)
 
     static func updatedAt(time: String) -> String {

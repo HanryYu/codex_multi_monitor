@@ -529,6 +529,7 @@ struct CreditsCardView: View {
 
 struct ResetCreditsCompactView: View {
     let credits: RateLimitResetCredits
+    var provider: AccountProvider = .codex
     @ObservedObject var localeManager = LocaleManager.shared
     @State private var isExpanded = false
 
@@ -537,7 +538,7 @@ struct ResetCreditsCompactView: View {
     }
 
     private var hiddenCreditCount: Int {
-        max(0, credits.displayCredits.count - visibleCredits.count)
+        credits.displayCredits.dropFirst(visibleCredits.count).reduce(0) { $0 + ($1.remainingCount ?? 1) }
     }
 
     private var isExpiringSoon: Bool {
@@ -598,7 +599,8 @@ struct ResetCreditsCompactView: View {
                             Text(dateLine(for: credit))
                                 .font(.system(size: 9.5, weight: .regular).monospacedDigit())
                                 .foregroundStyle(isExpiringSoon ? Color.orange.opacity(0.85) : Color.secondary)
-                                .lineLimit(1)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
                                 .minimumScaleFactor(0.85)
                         }
 
@@ -608,6 +610,10 @@ struct ResetCreditsCompactView: View {
                                 .foregroundStyle(Color.secondary)
                                 .lineLimit(1)
                         }
+                    }
+                    if provider == .claude {
+                        Link(L10n.claudeResetCreditsUsagePage, destination: URL(string: "https://claude.ai/settings/usage")!)
+                            .font(.system(size: 9.5))
                     }
                 }
             }
@@ -619,9 +625,20 @@ struct ResetCreditsCompactView: View {
     }
 
     private func dateLine(for credit: RateLimitResetCredit) -> String {
-        let granted = credit.grantedDate.map(L10n.compactDateTime) ?? L10n.resetCreditDatesUnavailable
-        let expires = credit.expiresDate.map(L10n.compactDateTime) ?? L10n.resetCreditDatesUnavailable
-        return "\(L10n.resetCreditGranted(date: granted)) · \(L10n.resetCreditExpires(date: expires))"
+        var parts: [String] = []
+        if let expires = credit.expiresDate {
+            parts.append(L10n.resetCreditExpires(date: L10n.compactDateTime(expires)))
+        }
+        if let granted = credit.grantedDate {
+            parts.append(L10n.resetCreditGranted(date: L10n.compactDateTime(granted)))
+        }
+        let scope = L10n.resetCreditScope(credit.resetType)
+        if !scope.isEmpty { parts.append(scope) }
+        if let count = credit.remainingCount, count > 1 {
+            parts.append(L10n.resetCreditsAvailable(count: count))
+        }
+        if credit.requiresLimit == true { parts.append(L10n.resetCreditRequiresLimit) }
+        return parts.isEmpty ? L10n.resetCreditDatesUnavailable : parts.joined(separator: " · ")
     }
 }
 
@@ -1033,7 +1050,7 @@ struct MenuBarView: View {
                                     if let resetCredits {
                                         Divider().opacity(0.25)
                                             .padding(.horizontal, 14)
-                                        ResetCreditsCompactView(credits: resetCredits)
+                                        ResetCreditsCompactView(credits: resetCredits, provider: account.provider)
                                     }
                                 }
                             case .failure(let error):

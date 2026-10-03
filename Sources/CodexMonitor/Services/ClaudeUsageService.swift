@@ -108,13 +108,17 @@ actor ClaudeUsageService {
             return try await existing.value
         }
 
-        guard let url = URL(string: "https://api.anthropic.com/api/oauth/usage") else {
+        guard let url = URL(string: "https://api.anthropic.com/api/oauth/usage?cedar_ember=1&skip_spend=1") else {
             throw ClaudeUsageError.invalidResponse
         }
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(
+            "claude-cli/2.1.288 (external, cli, client-app/CodexMonitor)",
+            forHTTPHeaderField: "User-Agent"
+        )
         request.timeoutInterval = 30
 
         let task = Task {
@@ -149,6 +153,10 @@ actor ClaudeUsageService {
             do {
                 let payload = try JSONDecoder().decode(ClaudeUsagePayload.self, from: result.data)
                 var usage = payload.usage(now: responseTime)
+                usage.rateLimitResetCredits = ClaudeResetCreditsDecoder.decode(
+                    result.data,
+                    now: responseTime
+                )
                 usage.fetchMetadata = UsageFetchMetadata(
                     fetchedAt: responseTime,
                     retryAt: nil,
@@ -237,12 +245,50 @@ actor ClaudeUsageService {
         isStale: Bool
     ) -> UsageResponse {
         var result = usage
+        result.rateLimitResetCredits = unexpiredResetCredits(
+            usage.rateLimitResetCredits,
+            now: now()
+        )
         result.fetchMetadata = UsageFetchMetadata(
             fetchedAt: fetchedAt,
             retryAt: retryAt,
             isStale: isStale
         )
         return result
+    }
+
+    private func unexpiredResetCredits(
+        _ resetCredits: RateLimitResetCredits?,
+        now: Date
+    ) -> RateLimitResetCredits? {
+        guard let resetCredits else { return nil }
+
+        var credits: [RateLimitResetCredit] = []
+        var availableCount = 0
+        for credit in resetCredits.credits {
+            let remainingCount = credit.remainingCount ?? 1
+            guard credit.isAvailable,
+                  remainingCount > 0
+            else {
+                continue
+            }
+
+            if let rawExpiry = credit.expiresAt {
+                guard !rawExpiry.isEmpty,
+                      let expirationDate = credit.expiresDate,
+                      expirationDate > now
+                else {
+                    continue
+                }
+            }
+
+            let (nextCount, overflow) = availableCount.addingReportingOverflow(remainingCount)
+            guard !overflow else { continue }
+            availableCount = nextCount
+            credits.append(credit)
+        }
+
+        return RateLimitResetCredits(availableCount: availableCount, credits: credits)
     }
 
     private func rateLimitRetryAt(

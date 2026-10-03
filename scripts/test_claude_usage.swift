@@ -83,6 +83,12 @@ private actor FakeClaudeUsageTransport {
     func authorizationHeaders() -> [String] {
         requests.compactMap { $0.value(forHTTPHeaderField: "Authorization") }
     }
+    func requestURLs() -> [String] {
+        requests.compactMap { $0.url?.absoluteString }
+    }
+    func userAgentHeaders() -> [String] {
+        requests.compactMap { $0.value(forHTTPHeaderField: "User-Agent") }
+    }
 }
 
 @main
@@ -91,6 +97,8 @@ enum ClaudeUsageServiceTests {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         try await testConcurrentSingleFlight(now: now)
         try await testSuccessfulCacheTTL(now: now)
+        try await testResetCreditsUsageAndCacheExpiry(now: now)
+        try await testMalformedResetCreditsDoNotFailUsage(now: now)
         try await testRetryAfterVariants(now: now)
         try await testExponentialBackoff(now: now)
         try await testCredentialIsolation(now: now)
@@ -156,6 +164,120 @@ enum ClaudeUsageServiceTests {
         precondition(refreshed.rateLimit?.primaryWindow?.usedPercent == 20)
         requestCount = await fake.requestCount()
         precondition(requestCount == 2)
+    }
+
+    private static func testResetCreditsUsageAndCacheExpiry(now: Date) async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-reset-credit-cache-tests-\(UUID().uuidString)", isDirectory: true)
+        let cacheURL = directory.appendingPathComponent("usage-cache.json")
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let dateFormatter = ISO8601DateFormatter()
+        let expiringAt = dateFormatter.string(from: now.addingTimeInterval(60))
+        let alreadyExpiredAt = dateFormatter.string(from: now.addingTimeInterval(-60))
+        let grants: [[String: Any]] = [
+            [
+                "id": "expiring-grant",
+                "resets_left": 2,
+                "resets_total": 2,
+                "starts_at": NSNull(),
+                "ends_at": expiringAt,
+                "clears": ["five_hour"],
+                "paused": false,
+                "usable_now": true,
+                "use_requires_limit": false,
+            ],
+            [
+                "id": "limit-gated-grant",
+                "resets_left": 3,
+                "resets_total": 3,
+                "starts_at": NSNull(),
+                "ends_at": NSNull(),
+                "clears": ["seven_day", "unknown_scope"],
+                "paused": false,
+                "usable_now": false,
+                "use_requires_limit": true,
+            ],
+            [
+                "id": "already-expired",
+                "resets_left": 9,
+                "resets_total": 9,
+                "starts_at": NSNull(),
+                "ends_at": alreadyExpiredAt,
+                "clears": ["weekly"],
+                "paused": false,
+                "usable_now": false,
+                "use_requires_limit": false,
+            ],
+        ]
+        let fake = FakeClaudeUsageTransport([
+            .http(200, data: payload(percent: 37, cedarEmber: ["eligible": true, "grants": grants])),
+        ])
+        let clock = TestClock(now)
+        let writer = service(fake: fake, clock: clock, cacheURL: cacheURL)
+        let fetched = try await writer.fetchUsage(authToken: "synthetic-reset-token")
+        precondition(fetched.rateLimit?.primaryWindow?.usedPercent == 37)
+        precondition(fetched.rateLimitResetCredits?.availableCount == 5)
+        precondition(fetched.rateLimitResetCredits?.credits.count == 2)
+        precondition(fetched.rateLimitResetCredits?.credits[1].remainingCount == 3)
+        precondition(fetched.rateLimitResetCredits?.credits[1].requiresLimit == true)
+
+        let requestURLs = await fake.requestURLs()
+        let userAgents = await fake.userAgentHeaders()
+        precondition(
+            requestURLs == ["https://api.anthropic.com/api/oauth/usage?cedar_ember=1&skip_spend=1"],
+            "Usage and reset grants must be fetched together"
+        )
+        precondition(
+            userAgents == ["claude-cli/2.1.288 (external, cli, client-app/CodexMonitor)"],
+            "Use Claude CLI's verified grant-query User-Agent"
+        )
+
+        // Simulate an older saved usage entry without per-grant remaining_count.
+        // Cache reads must fall back to one reset per grant and discard the expired item.
+        var persisted = try JSONSerialization.jsonObject(with: Data(contentsOf: cacheURL)) as! [String: Any]
+        var entries = persisted["entries"] as! [String: Any]
+        let cacheKey = entries.keys.first!
+        var entry = entries[cacheKey] as! [String: Any]
+        var cachedUsage = entry["usage"] as! [String: Any]
+        var cachedCredits = cachedUsage["rate_limit_reset_credits"] as! [String: Any]
+        var cachedGrants = cachedCredits["credits"] as! [[String: Any]]
+        for index in cachedGrants.indices where cachedGrants[index]["id"] as? String == "limit-gated-grant" {
+            cachedGrants[index].removeValue(forKey: "remaining_count")
+        }
+        cachedCredits["credits"] = cachedGrants
+        cachedUsage["rate_limit_reset_credits"] = cachedCredits
+        entry["usage"] = cachedUsage
+        entries[cacheKey] = entry
+        persisted["entries"] = entries
+        let modifiedCache = try JSONSerialization.data(withJSONObject: persisted, options: [.sortedKeys])
+        try modifiedCache.write(to: cacheURL, options: [.atomic])
+
+        clock.set(now.addingTimeInterval(90))
+        let cacheReaderTransport = FakeClaudeUsageTransport([])
+        let reader = service(fake: cacheReaderTransport, clock: clock, cacheURL: cacheURL)
+        let cached = try await reader.fetchUsage(authToken: "synthetic-reset-token")
+        precondition(cached.rateLimitResetCredits?.availableCount == 1,
+                     "Recount remaining grants after filtering expiration; legacy entries default to one")
+        precondition(cached.rateLimitResetCredits?.credits.count == 1)
+        precondition(cached.rateLimitResetCredits?.credits.first?.id == "limit-gated-grant")
+        precondition(cached.rateLimitResetCredits?.credits.first?.remainingCount == nil)
+        precondition(cached.fetchMetadata?.isStale == false)
+        let cacheReadRequestCount = await cacheReaderTransport.requestCount()
+        precondition(cacheReadRequestCount == 0, "A valid cached usage response must retain its grants")
+    }
+
+    private static func testMalformedResetCreditsDoNotFailUsage(now: Date) async throws {
+        let fake = FakeClaudeUsageTransport([
+            .http(200, data: payload(percent: 28, cedarEmber: ["eligible": "malformed", "grants": []])),
+        ])
+        let subject = service(fake: fake, clock: TestClock(now))
+        let usage = try await subject.fetchUsage(authToken: "synthetic-malformed-grant-token")
+        precondition(usage.rateLimit?.primaryWindow?.usedPercent == 28)
+        precondition(usage.rateLimitResetCredits == nil,
+                     "Malformed grant metadata must not discard valid quota usage")
+        let requestCount = await fake.requestCount()
+        precondition(requestCount == 1)
     }
 
     private static func testRetryAfterVariants(now: Date) async throws {
@@ -343,12 +465,15 @@ enum ClaudeUsageServiceTests {
         throw ClaudeUsageTestError.expectedHTTPError
     }
 
-    private static func payload(percent: Double) -> Data {
+    private static func payload(percent: Double, cedarEmber: [String: Any]? = nil) -> Data {
         let reset = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: 1_900_000_000))
-        let root: [String: Any] = [
+        var root: [String: Any] = [
             "five_hour": ["utilization": percent, "resets_at": reset],
             "seven_day": ["utilization": percent / 2, "resets_at": reset],
         ]
+        if let cedarEmber {
+            root["cedar_ember"] = cedarEmber
+        }
         return try! JSONSerialization.data(withJSONObject: root, options: [.sortedKeys])
     }
 }

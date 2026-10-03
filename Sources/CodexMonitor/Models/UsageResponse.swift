@@ -13,7 +13,7 @@ struct UsageResponse: Codable {
     let credits: Credits?
     let rateLimitReachedType: RateLimitReached?
     let spendControl: SpendControl?
-    let rateLimitResetCredits: RateLimitResetCredits?
+    var rateLimitResetCredits: RateLimitResetCredits?
     var fetchMetadata: UsageFetchMetadata? = nil
     
     enum CodingKeys: String, CodingKey {
@@ -197,6 +197,11 @@ struct SpendControl: Codable {
 struct RateLimitResetCredits: Codable {
     let availableCount: Int
     let credits: [RateLimitResetCredit]
+
+    init(availableCount: Int, credits: [RateLimitResetCredit]) {
+        self.availableCount = availableCount
+        self.credits = credits
+    }
     
     enum CodingKeys: String, CodingKey {
         case availableCount = "available_count"
@@ -234,6 +239,8 @@ struct RateLimitResetCredit: Codable {
     let grantedAt: String?
     let expiresAt: String?
     let redeemedAt: String?
+    var remainingCount: Int? = nil
+    var requiresLimit: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -242,6 +249,8 @@ struct RateLimitResetCredit: Codable {
         case grantedAt = "granted_at"
         case expiresAt = "expires_at"
         case redeemedAt = "redeemed_at"
+        case remainingCount = "remaining_count"
+        case requiresLimit = "requires_limit"
     }
 
     var isAvailable: Bool {
