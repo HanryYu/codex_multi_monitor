@@ -51,6 +51,8 @@ struct Account: Codable, Identifiable, Sendable {
     var isHidden: Bool
     /// Optional OpenCode dashboard workspace override, e.g. wrk_... or wk_...
     var openCodeWorkspaceID: String?
+    /// Optional organization override for Claude web Cookie usage.
+    var claudeOrganizationID: String?
 
     init(
         id: UUID = UUID(),
@@ -63,7 +65,8 @@ struct Account: Codable, Identifiable, Sendable {
         localAuthInvalid: Bool = false,
         provider: AccountProvider = .codex,
         isHidden: Bool = false,
-        openCodeWorkspaceID: String? = nil
+        openCodeWorkspaceID: String? = nil,
+        claudeOrganizationID: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -76,6 +79,7 @@ struct Account: Codable, Identifiable, Sendable {
         self.provider = provider
         self.isHidden = isHidden
         self.openCodeWorkspaceID = openCodeWorkspaceID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.claudeOrganizationID = claudeOrganizationID?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // Custom decoder for backward compatibility with v0.4.x JSON
@@ -93,5 +97,6 @@ struct Account: Codable, Identifiable, Sendable {
         provider = try container.decodeIfPresent(AccountProvider.self, forKey: .provider) ?? .codex
         isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
         openCodeWorkspaceID = try container.decodeIfPresent(String.self, forKey: .openCodeWorkspaceID)
+        claudeOrganizationID = try container.decodeIfPresent(String.self, forKey: .claudeOrganizationID)
     }
 }

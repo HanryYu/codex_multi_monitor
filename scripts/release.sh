@@ -299,10 +299,33 @@ if [[ "$SKIP_CHECKS" == false && "$RESUME" == false ]]; then
         -module-cache-path "$TMP_ROOT/claude-usage-module-cache" \
         Sources/CodexMonitor/Models/UsageResponse.swift \
         Sources/CodexMonitor/Services/ClaudeResetCreditsDecoder.swift \
+        Sources/CodexMonitor/Services/ClaudeUsageCredential.swift \
         Sources/CodexMonitor/Services/ClaudeUsageService.swift \
         scripts/test_claude_usage.swift \
         -o "$TMP_ROOT/claude-usage-tests"
     "$TMP_ROOT/claude-usage-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/claude-usage-module-cache" \
+        Sources/CodexMonitor/Models/UsageResponse.swift \
+        Sources/CodexMonitor/Services/ClaudeResetCreditsDecoder.swift \
+        Sources/CodexMonitor/Services/ClaudeUsageCredential.swift \
+        Sources/CodexMonitor/Services/ClaudeUsageService.swift \
+        scripts/test_claude_cookie_usage.swift \
+        -o "$TMP_ROOT/claude-cookie-usage-tests"
+    "$TMP_ROOT/claude-cookie-usage-tests"
+    xcrun swiftc -parse-as-library \
+        -sdk "$SDK_PATH" \
+        -target "$TARGET_ARCH-apple-macosx15.0" \
+        -module-cache-path "$TMP_ROOT/claude-account-module-cache" \
+        Sources/CodexMonitor/Models/Account.swift \
+        Sources/CodexMonitor/Services/AuthTokenIdentity.swift \
+        Sources/CodexMonitor/Shared/CloudSyncedAccount.swift \
+        Sources/CodexMonitor/Services/BackupService.swift \
+        scripts/test_claude_account_persistence.swift \
+        -o "$TMP_ROOT/claude-account-persistence-tests"
+    "$TMP_ROOT/claude-account-persistence-tests"
     xcrun swiftc -parse-as-library \
         -sdk "$SDK_PATH" \
         -target "$TARGET_ARCH-apple-macosx15.0" \

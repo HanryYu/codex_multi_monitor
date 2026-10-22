@@ -11,7 +11,7 @@ class APIService {
         case .codex:
             return try await fetchUsage(authToken: account.authToken)
         case .claude:
-            return try await fetchClaudeUsage(authToken: account.authToken)
+            return try await fetchClaudeUsage(authToken: account.authToken, organizationID: account.claudeOrganizationID)
         case .grok:
             return try await fetchGrokUsage(authToken: account.authToken)
         case .openCodeGo:
@@ -23,14 +23,20 @@ class APIService {
         }
     }
 
-    func fetchClaudeUsage(authToken: String) async throws -> UsageResponse {
+    func fetchClaudeUsage(authToken: String, organizationID: String? = nil) async throws -> UsageResponse {
         do {
-            return try await ClaudeUsageService.shared.fetchUsage(authToken: authToken)
+            return try await ClaudeUsageService.shared.fetchUsage(authToken: authToken, organizationID: organizationID)
         } catch let error as ClaudeUsageError {
             switch error {
             case .rateLimited(let retryAt):
                 throw APIError.usageRateLimited(retryAt: retryAt)
             case .unauthorized:
+                if (try? ClaudeUsageCredential.parse(authToken).isCookie) == true {
+                    throw APIError.authenticationExpired(
+                        provider: "Claude",
+                        detail: "sign in to claude.ai and update this account's Cookie"
+                    )
+                }
                 throw APIError.unauthorized
             default:
                 throw APIError.message(error.localizedDescription)
@@ -39,93 +45,9 @@ class APIService {
     }
 
     func fetchGrokUsage(authToken: String) async throws -> UsageResponse {
-        if isCookieCredential(authToken) {
-            return try await fetchGrokWebUsage(cookie: authToken)
-        }
-        guard let url = URL(string: "https://cli-chat-proxy.grok.com/v1/billing?format=credits") else { throw APIError.invalidURL }
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(normalizedToken(authToken))", forHTTPHeaderField: "Authorization")
-        request.setValue(Self.installedGrokVersion(), forHTTPHeaderField: "x-grok-client-version")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 30
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response)
-        do {
-            let payload = try GrokBillingUsageDecoder.decode(data)
-            guard let usedPercent = payload.usedPercent else {
-                // Unified-billing responses can legitimately omit subscription usage at the
-                // beginning of a new period. Do not turn a successful response into a decode
-                // failure or infer subscription quota from on-demand currency fields.
-                return UsageResponse(planType: payload.planType, rateLimit: nil)
-            }
-            let percent = Int(usedPercent.rounded())
-            let resetAt = payload.resetAt
-            let window = WindowUsage(
-                usedPercent: percent,
-                limitWindowSeconds: payload.periodSeconds,
-                resetAfterSeconds: resetAt > 0 ? max(0, resetAt - Int(Date().timeIntervalSince1970)) : 0,
-                resetAt: resetAt
-            )
-            return UsageResponse(
-                planType: payload.planType,
-                rateLimit: RateLimit(
-                    allowed: percent < 100,
-                    limitReached: percent >= 100,
-                    primaryWindow: window,
-                    secondaryWindow: nil
-                )
-            )
-        } catch let error as APIError {
-            throw error
-        } catch {
-            throw APIError.upstreamFormatChanged(provider: "Grok", underlying: error)
-        }
+        try await GrokUsageService.shared.fetchUsage(authToken: authToken)
     }
 
-    private func fetchGrokWebUsage(cookie: String) async throws -> UsageResponse {
-        guard let url = URL(string: "https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig") else {
-            throw APIError.invalidURL
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.httpBody = Data([0, 0, 0, 0, 0])
-        request.setValue(normalizedCookie(cookie), forHTTPHeaderField: "Cookie")
-        request.setValue("application/grpc-web+proto", forHTTPHeaderField: "Content-Type")
-        request.setValue("1", forHTTPHeaderField: "x-grpc-web")
-        request.setValue("connect-es/2.1.1", forHTTPHeaderField: "x-user-agent")
-        request.setValue("https://grok.com/?_s=usage", forHTTPHeaderField: "Referer")
-        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 30
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response)
-        do {
-            let payload = try GrokWebUsageDecoder.decode(data)
-            let resetAt = payload.resetAt
-            let seconds = payload.periodSeconds
-            let window = WindowUsage(
-                usedPercent: Int(payload.usedPercent.rounded()),
-                limitWindowSeconds: seconds,
-                resetAfterSeconds: resetAt > 0 ? max(0, resetAt - Int(Date().timeIntervalSince1970)) : 0,
-                resetAt: resetAt
-            )
-            return UsageResponse(
-                planType: "Grok Web",
-                rateLimit: RateLimit(
-                    allowed: window.usedPercent < 100,
-                    limitReached: window.usedPercent >= 100,
-                    primaryWindow: window,
-                    secondaryWindow: nil
-                )
-            )
-        } catch let error as APIError {
-            throw error
-        } catch {
-            throw APIError.upstreamFormatChanged(provider: "Grok", underlying: error)
-        }
-    }
-    
     func fetchUsage(authToken: String) async throws -> UsageResponse {
         guard let url = URL(string: usageURL) else {
             throw APIError.invalidURL
@@ -225,7 +147,6 @@ class APIService {
         }
         return token
     }
-
     private func isCookieCredential(_ value: String) -> Bool {
         let token = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return token.lowercased().hasPrefix("cookie:") || (token.contains("=") && token.contains(";"))

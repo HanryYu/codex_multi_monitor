@@ -1071,18 +1071,18 @@ enum L10n {
     static func credentialLabel(_ provider: AccountProvider) -> String {
         switch provider {
         case .codex: return "ChatGPT Bearer Token"
-        case .claude: return "Claude OAuth Token / Auth JSON"
+        case .claude: return "Claude Cookie / OAuth Token / Auth JSON"
         case .grok: return "Grok Token / Cookie / Auth JSON"
-        case .openCodeGo: return "OpenCode Go Session Cookie"
+        case .openCodeGo: return "OpenCode Go API Key / Session Cookie"
         }
     }
 
     static func credentialPlaceholder(_ provider: AccountProvider) -> String {
         switch provider {
         case .codex: return "Bearer eyJ..."
-        case .claude: return "sk-ant-oat01-... or Claude auth JSON"
+        case .claude: return "sessionKey=… / sk-ant-oat01-…"
         case .grok: return "Bearer token, Cookie header, or Grok auth JSON"
-        case .openCodeGo: return "Fe26.2**… or auth=Fe26.2**…"
+        case .openCodeGo: return "sk-… / __Host-console_session=…"
         }
     }
 
@@ -1109,21 +1109,53 @@ enum L10n {
     static func credentialHint(_ provider: AccountProvider) -> String {
         switch (lang, provider) {
         case (.en, .codex): return "Copy the Bearer token from the ChatGPT usage request."
-        case (.en, .claude): return "Paste a Claude Bearer token or auth JSON. Local login is imported when accessible without a password prompt."
+        case (.en, .claude): return "Paste the Cookie header from a claude.ai usage request, a sessionKey, or an OAuth token/auth JSON. The credential type is detected automatically."
         case (.en, .grok): return "Paste a Grok token/auth JSON, or the full Cookie header from GetGrokCreditsConfig."
-        case (.en, .openCodeGo): return "Copy auth or __Host-auth from an opencode.ai request in your browser DevTools."
+        case (.en, .openCodeGo): return "Paste an API key or the __Host-console_session Cookie from opencode.ai/console. Legacy auth cookies remain supported."
         case (.ja, .codex): return "ChatGPT の使用量リクエストから Bearer トークンをコピーします。"
-        case (.ja, .claude): return "Claude のトークンまたは auth JSON を貼り付けます。パスワード入力なしで読み取れるローカルログインは自動インポートされます。"
+        case (.ja, .claude): return "claude.ai の使用量リクエストの Cookie、sessionKey、または OAuth トークン/auth JSON を貼り付けます。種類は自動判別されます。"
         case (.ja, .grok): return "Grok のトークン/auth JSON、または GetGrokCreditsConfig の Cookie を貼り付けます。"
-        case (.ja, .openCodeGo): return "ブラウザの DevTools で opencode.ai リクエストの auth または __Host-auth をコピーします。"
+        case (.ja, .openCodeGo): return "API キー、または opencode.ai/console の __Host-console_session Cookie を貼り付けます。従来の auth Cookie も対応。"
         case (.zhHans, .codex): return "从 ChatGPT 用量请求中复制 Bearer Token。"
-        case (.zhHans, .claude): return "粘贴 Claude Token 或 auth JSON；可免密码提示读取的本地登录会自动导入。"
+        case (.zhHans, .claude): return "粘贴 claude.ai 用量请求的 Cookie、sessionKey，或 OAuth Token/auth JSON，自动识别凭据类型。"
         case (.zhHans, .grok): return "粘贴 Grok Token/auth JSON，或 GetGrokCreditsConfig 的完整 Cookie。"
-        case (.zhHans, .openCodeGo): return "从浏览器开发者工具中的 opencode.ai 请求复制 auth 或 __Host-auth。"
+        case (.zhHans, .openCodeGo): return "粘贴 API Key，或 opencode.ai/console 的 __Host-console_session Cookie；兼容旧 auth Cookie。"
         case (.zhHant, .codex): return "從 ChatGPT 用量請求中複製 Bearer Token。"
-        case (.zhHant, .claude): return "貼上 Claude Token 或 auth JSON；可免密碼提示讀取的本機登入會自動匯入。"
+        case (.zhHant, .claude): return "貼上 claude.ai 用量請求的 Cookie、sessionKey，或 OAuth Token/auth JSON，自動識別憑據類型。"
         case (.zhHant, .grok): return "貼上 Grok Token/auth JSON，或 GetGrokCreditsConfig 的完整 Cookie。"
-        case (.zhHant, .openCodeGo): return "從瀏覽器開發者工具中的 opencode.ai 請求複製 auth 或 __Host-auth。"
+        case (.zhHant, .openCodeGo): return "貼上 API Key，或 opencode.ai/console 的 __Host-console_session Cookie；相容舊 auth Cookie。"
+        }
+    }
+
+    static func claudeDetectedCredential(isCookie: Bool) -> String {
+        let type = isCookie ? "Cookie" : "OAuth Token"
+        switch lang {
+        case .en: return "Detected: \(type)"
+        case .ja: return "検出された種類：\(type)"
+        case .zhHans: return "已识别：\(type)"
+        case .zhHant: return "已識別：\(type)"
+        }
+    }
+
+    static var claudeOrganizationID: String {
+        switch lang {
+        case .en: return "Organization ID (Optional)"
+        case .ja: return "組織 ID（任意）"
+        case .zhHans: return "组织 ID（可选）"
+        case .zhHant: return "組織 ID（選填）"
+        }
+    }
+
+    static var claudeOrganizationPlaceholder: String {
+        "UUID / https://claude.ai/api/organizations/…/usage"
+    }
+
+    static var claudeOrganizationHint: String {
+        switch lang {
+        case .en: return "Usually automatic. If you have multiple organizations, paste the usage request URL from the Claude account you want to monitor."
+        case .ja: return "通常は自動取得します。組織が複数ある場合は、表示したい Claude アカウントの usage リクエスト URL を貼り付けます。"
+        case .zhHans: return "通常可自动获取。若有多个组织，请粘贴要显示额度的 Claude 账号对应的 usage 请求地址。"
+        case .zhHant: return "通常可自動取得。若有多個組織，請貼上要顯示額度的 Claude 帳號對應的 usage 請求網址。"
         }
     }
 
@@ -1137,15 +1169,15 @@ enum L10n {
     }
 
     static var openCodeWorkspacePlaceholder: String {
-        "wrk_… / wk_…"
+        "org_… / wrk_…"
     }
 
     static var openCodeWorkspaceHint: String {
         switch lang {
-        case .en: return "Leave blank for automatic lookup. If needed, copy it from /workspace/wrk_…/go."
-        case .ja: return "通常は空欄。自動検出に失敗した場合は /workspace/wrk_…/go からコピーします。"
-        case .zhHans: return "通常留空自动获取；失败时从 /workspace/wrk_…/go 地址中复制。"
-        case .zhHant: return "通常留空自動取得；失敗時從 /workspace/wrk_…/go 網址中複製。"
+        case .en: return "Leave blank for automatic lookup, or paste the full opencode.ai/console/…/go URL."
+        case .ja: return "通常は空欄。必要に応じて opencode.ai/console/…/go の URL 全体を貼り付けます。"
+        case .zhHans: return "留空自动获取，也可粘贴完整的 opencode.ai/console/…/go 地址。"
+        case .zhHant: return "留空自動取得，也可貼上完整的 opencode.ai/console/…/go 網址。"
         }
     }
 

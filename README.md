@@ -36,7 +36,7 @@ A lightweight macOS menu bar app for monitoring Codex, Claude, Grok, and OpenCod
 - **Auto Account Sync** — Automatically detect and add local Codex accounts on launch
 - **Claude Monitoring** — Import local Claude OAuth credentials, refresh rotated tokens, and show 5-hour/weekly limits
 - **Grok Monitoring** — Read local Grok billing data or the shared weekly quota from a grok.com browser session
-- **OpenCode Go Monitoring** — Show authoritative 5-hour, weekly, and monthly quotas from the signed-in OpenCode dashboard
+- **OpenCode Go Monitoring** — Show authoritative 5-hour, weekly, and monthly quotas from the official OpenCode usage API or signed-in dashboard
 - **Provider-Aware UI** — Distinguish Codex, Claude, Grok, and OpenCode Go accounts with provider-specific forms
 - **Codex Reset Radar** — Track community reset forecasts and confirmed future reset times from Codex Reset Observatory
 - **Multi-Language** — English, 简体中文, 繁體中文, 日本語
@@ -135,8 +135,10 @@ Choose the agent type before adding an account. The account form changes its tit
 - Local import reads `~/.claude/.credentials.json` when available, otherwise `Claude Code-credentials` from macOS Keychain. Background access never opens a Keychain password dialog; if access requires permission, paste a token manually instead.
 - Credential reads are cached and failed attempts are delayed. Concurrent refreshes share one operation rather than repeatedly accessing Keychain.
 - Expiring access tokens are refreshed through Claude's OAuth token endpoint. Rotated credentials are written back without prompting; if writing fails, the app retains the new credentials in memory and retries later. A restart before successful write-back may require signing in to Claude Code again.
-- Manual entry accepts an OAuth Bearer token, a full `Authorization: Bearer ...` header, or Claude auth JSON.
-- Usage is loaded from `https://api.anthropic.com/api/oauth/usage` and shows the 5-hour and 7-day windows.
+- Manual entry detects and labels **Cookie** and **OAuth Token** separately. OAuth accepts a Bearer token, a full `Authorization: Bearer ...` header, or Claude auth JSON and uses `https://api.anthropic.com/api/oauth/usage`.
+- For web usage, paste the complete `Cookie` request header from a `claude.ai` usage request, `sessionKey=…`, or the raw `sk-ant-sid01-…` value. Cookie mode uses `https://claude.ai/api/organizations/{organizationID}/usage`; it does not use OAuth refresh or read CLI credentials.
+- Organization selection uses the optional Organization ID (or full usage request URL), then the Cookie's `lastActiveOrg`, then the only available organization. Multiple organizations without a clear selection require an explicit ID. This setting is saved per account, including backups and cloud sync.
+- Both modes show the available 5-hour and weekly windows. Expired sessions, website access challenges, rate limits, and missing quota data produce distinct errors; a missing quota is never presented as 0%. Website endpoints are undocumented and may change.
 - Usage requests share a five-minute cache. HTTP 429 responses pause requests for at least 15 minutes, honor longer `Retry-After` values, and increase the cooldown after repeated limits. Restarting the app does not reset a saved cooldown. During a cooldown, a snapshot up to 30 minutes old remains visible with its fetch time; otherwise the app shows when it can retry. A usage-query rate limit does not by itself establish that the account's quota is exhausted.
 
 **Grok**
@@ -144,14 +146,16 @@ Choose the agent type before adding an account. The account form changes its tit
 - Local import reads `~/.grok/auth.json`; expired OIDC credentials are refreshed and written back atomically.
 - Manual CLI mode accepts a Grok Bearer token or the complete local auth JSON.
 - To use the same shared weekly quota shown on `https://grok.com/?_s=usage`, open Developer Tools → Network, select `GetGrokCreditsConfig`, and copy its complete `Cookie` request header into the Grok credential field.
-- The web response uses gRPC-Web/Protobuf and includes the weekly usage percentage and reset time.
+- Web billing accepts both raw Protobuf and gRPC-Web responses, including RPC status trailers. Transient failures retry once; expired credentials and access denials are reported directly.
+- When CLI credits omit the percentage, the same token can read web billing or a separate monthly budget. Unavailable usage stays unknown rather than 0%.
+- Automatic credential recovery requires a matching local CLI account; it never replaces a web Cookie with a different local login. If local refresh credentials are missing, sign in again or update the saved token.
 
 **OpenCode Go**
 
-- OpenCode API keys do not expose the account's real quota windows, so CodexMonitor does not estimate remaining quota from local usage.
-- Manually add an OpenCode Go account and paste the `auth` or `__Host-auth` Cookie from a signed-in `opencode.ai` request. A raw `Fe26.2**…` value and the full Cookie header are both accepted.
-- The Workspace ID is discovered automatically. If discovery fails, copy the `wrk_…` or `wk_…` value from the `/workspace/{id}/go` dashboard URL into the optional override field.
-- A failed refresh can show that account's last successful dashboard result for up to 30 minutes, clearly labeled `Cached`; it never falls back to an estimated quota.
+- Manually add an OpenCode Go account and paste its API key (`sk-…` or `Bearer sk-…`). CodexMonitor reads the official `GET https://opencode.ai/zen/go/v1/usage` endpoint; no Workspace ID is needed.
+- For a Console session, paste `__Host-console_session=…` or the full Cookie header from a signed-in `opencode.ai/console` request. The app discovers workspaces via `/console/api/orgs` and reads `/console/api/go/status` with `x-org-id`. The optional Workspace ID accepts `org_…`, `wrk_…`, `wk_…`, or a full Console URL. Legacy `auth` / `__Host-auth` cookies still have a fallback, but migrated accounts may require a fresh Console cookie; an old `auth` cookie alone is not sufficient.
+- The [current Go rules](https://opencode.ai/docs/go/#usage-limits) apply model-specific quota multipliers. The 5-hour and weekly limits correspond to 20% and 50% of the monthly allowance. All three windows use the server's weighted quota and reset times; local token costs are never treated as remaining subscription quota.
+- A failed refresh can show the same account's last successful server result for up to 30 minutes, labeled `Cached`. Changing credentials or workspace prevents reuse of another result.
 
 Tokens and browser cookies grant account access. They are stored using CodexMonitor's encrypted token storage; do not share them or include them in bug reports.
 

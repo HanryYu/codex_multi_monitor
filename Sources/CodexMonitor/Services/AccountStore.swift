@@ -199,7 +199,8 @@ class AccountStore: ObservableObject {
                 localAuthInvalid: synced.localAuthInvalid,
                 provider: AccountProvider(rawValue: synced.provider ?? "codex") ?? .codex,
                 isHidden: synced.isHidden ?? false,
-                openCodeWorkspaceID: synced.openCodeWorkspaceID
+                openCodeWorkspaceID: synced.openCodeWorkspaceID,
+                claudeOrganizationID: synced.claudeOrganizationID
             )
         }
 
@@ -222,6 +223,7 @@ class AccountStore: ObservableObject {
                 provider: account.provider.rawValue,
                 isHidden: account.isHidden,
                 openCodeWorkspaceID: account.openCodeWorkspaceID,
+                claudeOrganizationID: account.claudeOrganizationID,
                 updatedAt: revision
             )
         }
@@ -264,6 +266,8 @@ class AccountStore: ObservableObject {
         for auth in discovered {
             if let index = accounts.firstIndex(where: {
                 $0.provider == auth.provider && $0.source == .localAuth
+                    && !($0.provider == .claude
+                        && (try? ClaudeUsageCredential.parse($0.authToken).isCookie) == true)
             }) {
                 if accounts[index].authToken != auth.token {
                     accounts[index].authToken = auth.token
@@ -523,7 +527,12 @@ class AccountStore: ObservableObject {
                         rejectedAccessToken: requestAccount.authToken
                     )
                 case .grok:
-                    let credential = try await AgentAuthDiscoveryService.forceRefreshGrok()
+                    // A web session has no relationship to ~/.grok/auth.json;
+                    // never replace it with whichever CLI account is local.
+                    guard !GrokCredentialRecovery.isCookieCredential(account.authToken) else {
+                        throw error
+                    }
+                    let credential = try await AgentAuthDiscoveryService.forceRefreshGrok(for: account)
                     requestAccount.authToken = credential.token
                     requestAccount.accountEmail = credential.email ?? requestAccount.accountEmail
                     requestAccount.accountID = credential.accountID ?? requestAccount.accountID

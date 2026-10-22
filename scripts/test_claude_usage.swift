@@ -293,18 +293,19 @@ enum ClaudeUsageServiceTests {
             (httpDate, 1_800),
             ("not-a-retry-value", 900),
         ]
-        for (header, expectedDelay) in cases {
+        for (caseIndex, (header, expectedDelay)) in cases.enumerated() {
             var headers: [String: String] = [:]
             if let header { headers["Retry-After"] = header }
             let fake = FakeClaudeUsageTransport([.http(429, headers: headers)])
             let clock = TestClock(now)
             let subject = service(fake: fake, clock: clock)
+            let token = "retry-case-\(caseIndex)"
             let retryAt = try await requireRateLimit {
-                try await subject.fetchUsage(authToken: "retry-\(header ?? "missing")")
+                try await subject.fetchUsage(authToken: token)
             }
             precondition(abs(retryAt.timeIntervalSince(now) - expectedDelay) < 1)
             _ = try await requireRateLimit {
-                try await subject.fetchUsage(authToken: "retry-\(header ?? "missing")")
+                try await subject.fetchUsage(authToken: token)
             }
             let requestCount = await fake.requestCount()
             precondition(requestCount == 1, "Cooldown must block network retries")

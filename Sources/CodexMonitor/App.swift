@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import UserNotifications
+import Combine
 
 @main
 struct CodexMonitorApp: App {
@@ -15,6 +16,10 @@ struct CodexMonitorApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     var statusItem: NSStatusItem!
+    private var additionalStatusItems: [NSStatusItem] = []
+    private var statusButtonAccounts: [ObjectIdentifier: UUID] = [:]
+    private let accountNavigation = MenuBarAccountNavigation()
+    private var statusBarSubscriptions: Set<AnyCancellable> = []
     var popover: NSPopover!
     var accountStore: AccountStore!
     var codexResetService: CodexResetService!
@@ -74,18 +79,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Setup status item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
-        if let button = statusItem.button {
-            let icon = NSImage(systemSymbolName: "gauge.with.dots.fill.60percent", accessibilityDescription: "CodexMonitor")
-                ?? NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "CodexMonitor")
-                ?? NSImage(named: NSImage.Name("NSApplicationIcon"))
-            icon?.isTemplate = true
-            button.image = icon
-            button.action = #selector(togglePopover)
-            button.target = self
-        }
-
-        // Set initial icon template mode
         updateStatusBarIcon()
+
+        // Receive on the next main-loop turn: @Published emits before the value is stored.
+        accountStore.$accounts.combineLatest(accountStore.$usageData)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusBarIcon() }
+            .store(in: &statusBarSubscriptions)
+        LocaleManager.shared.$currentLanguage
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusBarIcon() }
+            .store(in: &statusBarSubscriptions)
+
+        NSApp.publisher(for: \.effectiveAppearance)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusBarIcon() }
+            .store(in: &statusBarSubscriptions)
 
         // Setup popover
         popover = NSPopover()
@@ -95,7 +104,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         let contentView = MenuBarView(
             accountStore: accountStore,
-            codexResetService: codexResetService
+            codexResetService: codexResetService,
+            accountNavigation: accountNavigation
         )
         popover.contentViewController = NSHostingController(rootView: contentView)
 
@@ -171,16 +181,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         weeklyQuotaActivationScheduler?.stop()
     }
 
-    @objc func togglePopover() {
-        if let button = statusItem.button {
-            if popover.isShown {
-                popover.performClose(nil)
-            } else {
-                refreshCodexResetIfEnabled()
-                popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-                NSApp.activate(ignoringOtherApps: true)
-            }
+    @MainActor
+    @objc func togglePopover(_ sender: NSStatusBarButton) {
+        let availableIDs = accountStore.accounts.filter { !$0.isHidden }.map(\.id)
+        let mappedID = statusButtonAccounts[ObjectIdentifier(sender)]
+        let accountID = mappedID.flatMap { availableIDs.contains($0) ? $0 : nil }
+        if popover.isShown, accountNavigation.request.accountID == accountID {
+            popover.performClose(nil)
+            return
         }
+        if !availableIDs.isEmpty,
+           MenuBarQuotaPreferences.selectedAccountIDs(available: availableIDs).isEmpty {
+            popover.performClose(nil)
+            WindowManager.shared.openSettingsWindow(initialTab: .preferences)
+            return
+        }
+        // Switching rings while open should open the new account at the clicked ring's anchor.
+        if popover.isShown { popover.performClose(nil) }
+        accountNavigation.focus(accountID: accountID)
+        refreshCodexResetIfEnabled()
+        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc func refreshIntervalDidChange() {
@@ -284,49 +305,73 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     @MainActor
     func updateStatusBarIcon() {
-        guard let button = statusItem.button else { return }
+        guard statusItem != nil else { return }
+        let defaults = UserDefaults.standard
+        let available = accountStore.accounts.filter { !$0.isHidden }
+        let selectedIDs = MenuBarQuotaPreferences.selectedAccountIDs(available: available.map(\.id))
+        MenuBarQuotaPreferences.migrateLegacyQuotaWindow(for: selectedIDs)
+        let selected = selectedIDs.compactMap { id in available.first { $0.id == id } }
+        let requiredExtraItems = max(0, selected.count - 1)
+        while additionalStatusItems.count > requiredExtraItems {
+            NSStatusBar.system.removeStatusItem(additionalStatusItems.removeLast())
+        }
+        while additionalStatusItems.count < requiredExtraItems {
+            additionalStatusItems.append(NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength))
+        }
 
-        let image = NSImage(systemSymbolName: "gauge.with.dots.fill.60percent", accessibilityDescription: "CodexMonitor")
-            ?? NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "CodexMonitor")
-            ?? NSImage(named: NSImage.Name("NSApplicationIcon"))
-        image?.isTemplate = true
-        button.image = image
+        let showRemaining = (defaults.string(forKey: PreferencesKeys.displayMode)
+            ?? DisplayMode.remaining.rawValue) != DisplayMode.used.rawValue
+        let showPercentage = defaults.bool(forKey: PreferencesKeys.showMenuBarText)
+        let style = MenuBarQuotaPreferences.iconStyle()
+        let appearance = MenuBarQuotaAppearance.load()
+        let numberPosition = appearance.effectiveNumberPosition(iconStyle: style)
+        let showNumberInside = showPercentage && numberPosition == .inside
+        let items = [statusItem!] + additionalStatusItems
+        statusButtonAccounts.removeAll(keepingCapacity: true)
 
-        // Update title with usage summary
-        updateStatusBarTitle()
+        for (index, item) in items.enumerated() {
+            guard let button = item.button else { continue }
+            let account = selected.indices.contains(index) ? selected[index] : nil
+            if let account { statusButtonAccounts[ObjectIdentifier(button)] = account.id }
+            let usage: UsageResponse?
+            if let account, case .success(let value) = accountStore.usageData[account.id] {
+                usage = value
+            } else {
+                usage = nil
+            }
+            let preferredWindow = account.map { MenuBarQuotaPreferences.quotaWindow(for: $0.id) } ?? .fiveHour
+            let snapshot = MenuBarQuotaSnapshot(usage: usage, preferredWindow: preferredWindow)
+            if style == .ring {
+                button.image = MenuBarQuotaRing.image(snapshot: snapshot, showRemaining: showRemaining,
+                                                     appearance: appearance, showNumberInside: showNumberInside)
+            } else {
+                let image = NSImage(systemSymbolName: "gauge.with.dots.fill.60percent",
+                                    accessibilityDescription: "CodexMonitor")
+                    ?? NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "CodexMonitor")
+                image?.isTemplate = true
+                button.image = image
+            }
+            let percentage = snapshot.percentage(showRemaining: showRemaining)
+            let numberText = percentage.map { "\($0)%" } ?? "—"
+            button.title = showPercentage && !showNumberInside
+                ? (numberPosition == .leading ? "\(numberText) " : " \(numberText)") : ""
+            button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+            button.imagePosition = numberPosition == .leading ? .imageTrailing : .imageLeading
+            button.action = #selector(togglePopover(_:))
+            button.target = self
+
+            let detail = percentage.map { showRemaining ? L10n.percentLeft($0) : L10n.percentUsed($0) }
+                ?? MenuBarQuotaL10n.noUsage
+            let period = MenuBarQuotaL10n.windowLabel(snapshot.actualWindow ?? preferredWindow)
+            let label = account.map { "\($0.provider.displayName) · \($0.name) · \(period): \(detail)" }
+                ?? "CodexMonitor · \(MenuBarQuotaL10n.selectAccount)"
+            button.toolTip = label
+            button.setAccessibilityLabel(label)
+        }
     }
 
     @MainActor
     func updateStatusBarTitle() {
-        guard let button = statusItem.button else { return }
-
-        let showText = UserDefaults.standard.bool(forKey: PreferencesKeys.showMenuBarText)
-        guard showText else {
-            button.title = ""
-            return
-        }
-
-        let modeString = UserDefaults.standard.string(forKey: PreferencesKeys.displayMode) ?? DisplayMode.remaining.rawValue
-        let displayMode = DisplayMode(rawValue: modeString) ?? .remaining
-
-        let percentages = accountStore.topUsagePercentages
-        if percentages.isEmpty {
-            button.title = ""
-        } else if percentages.count == 1 {
-            let p = percentages[0]
-            if displayMode == .remaining {
-                button.title = L10n.percentLeft(100 - p)
-            } else {
-                button.title = L10n.percentUsed(p)
-            }
-        } else {
-            if displayMode == .remaining {
-                let labels = percentages.map { L10n.percentLeft(100 - $0) }.joined(separator: " / ")
-                button.title = " \(labels)"
-            } else {
-                let labels = percentages.map { L10n.percentUsed($0) }.joined(separator: " / ")
-                button.title = " \(labels)"
-            }
-        }
+        updateStatusBarIcon()
     }
 }

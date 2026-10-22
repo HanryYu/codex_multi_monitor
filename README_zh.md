@@ -34,7 +34,7 @@
 - **周额度周期启动 (Beta)** — 周额度恢复后，或检测到云端重置导致周额度回到 100% 时，发送一次简短 Codex 请求来启动新的周订阅额度周期
 - **5 小时额度定时刷新 (Beta)** — 每天在指定时间用极简、最低思考请求启动新的 5 小时窗口；高级设置支持不同账号单独启停、设置时间和选择轻量模型
 - **自动账户同步** — 启动时自动检测本地 Codex 账户并添加
-- **OpenCode Go 监控** — 从登录后的 OpenCode 官网看板获取真实的 5 小时、周和月额度
+- **OpenCode Go 监控** — 从 OpenCode 官方用量 API 或登录后的官网看板获取真实的 5 小时、周和月额度
 - **Codex Reset Radar** — 从 Codex Reset Observatory 获取社区重置预测和已确认的下一次重置时间
 - **多语言** — English、中文、日本語
 - **版本更新提醒** — GitHub 有新版本时自动提醒
@@ -127,15 +127,18 @@ CodexMonitor 支持 Codex、Claude、Grok 和 OpenCode Go 四种账户类型：
 - **本地自动导入**：Claude Code 优先读取 `~/.claude/.credentials.json`，否则静默读取 macOS 钥匙串中的 `Claude Code-credentials`；需要授权时不会弹出密码框，可手动粘贴 Token。凭据读取有缓存、失败后延迟重试，并发刷新会合并。Grok Build 从 `~/.grok/auth.json` 读取。
 - **Claude 凭据续期**：access token 即将过期时使用 OAuth refresh 流程，轮换后的凭据会静默写回原存储。写入失败时先在内存中保留新凭据并稍后重试；写回成功前若重启应用，可能需要重新登录 Claude Code。
 - **手动添加**：先选择 Agent 类型，再粘贴 Bearer token。输入框也接受完整的 `Authorization: Bearer ...` 文本，以及 Claude/Grok 的本地 auth JSON。
-- **Claude 网页 token**：登录 Claude 后，在开发者工具 Network 中打开 usage 请求，复制 `Authorization` 请求头中的 Bearer token。
+- **Claude Cookie**：登录 claude.ai 后，在开发者工具 Network 中打开 usage 请求，复制完整 `Cookie` 请求头；也支持 `sessionKey=…` 或原始 `sk-ant-sid01-…` 值。界面会明确显示识别结果为 Cookie 或 OAuth Token，Cookie 使用独立网页接口，不走 OAuth 续期或读取 CLI 凭据。
+- **Claude 组织选择**：优先使用该账号设置的组织 ID（也可粘贴完整 usage 请求地址），其次使用 Cookie 中的 `lastActiveOrg`，只有一个组织时自动选中。多个组织无法确定时会提示填写，不会默认显示第一个。组织设置支持备份与云同步。
+- **Claude 错误提示**：区分登录过期、网页访问验证、限流和额度数据缺失；缺失的额度不会显示为 0%。网页接口未公开，可能随服务端更新而变化。
 - **Grok token**：可从 Grok CLI 请求的 `Authorization` 请求头复制 Bearer token，或直接把 `~/.grok/auth.json` 内容粘贴到 Grok 类型的 token 输入框。
-- **Grok 网页登录态**：打开 `https://grok.com/?_s=usage`，在开发者工具 Network 中选择 `GetGrokCreditsConfig` 请求，复制完整的 `Cookie` 请求头并粘贴。网页模式读取与设置页面一致的共享周额度。
+- **Grok 网页登录态**：打开 `https://grok.com/?_s=usage`，在开发者工具 Network 中选择 `GetGrokCreditsConfig` 请求，复制完整的 `Cookie` 请求头并粘贴。网页模式兼容原始 Protobuf 与 gRPC-Web 响应，并检查 RPC 状态。瞬时故障最多重试一次；凭据过期和访问拒绝直接提示。
+- **Grok 额度缺失**：CLI 未提供周百分比时，使用同一 token 查询网页额度，再尝试单独的月度预算；无有效数据时保留未知，不显示为 0%。自动恢复仅允许匹配当前账号的本地 CLI 凭据，不会用另一个本地账号替换网页 Cookie；缺少本地刷新凭据时需要重新登录或更新 token。
 
-Claude 额度来自 `https://api.anthropic.com/api/oauth/usage`；Grok 本地模式读取 CLI billing，网页模式读取 `GetGrokCreditsConfig` 的共享周额度。应用会尝试自动刷新本地 Claude/Grok 凭证；刷新凭证无效时，再运行 `claude` 或 `grok login` 重新登录。
+Claude OAuth 额度来自 `https://api.anthropic.com/api/oauth/usage`，Cookie 额度来自 `https://claude.ai/api/organizations/{organizationID}/usage`，均显示服务端提供的 5 小时及周额度；Grok 本地模式读取 CLI billing，网页模式读取 `GetGrokCreditsConfig` 的共享周额度。应用会尝试自动刷新本地 Claude/Grok 凭证；刷新凭证无效时，再运行 `claude` 或 `grok login` 重新登录。
 
 Claude 用量查询使用 5 分钟缓存。收到 HTTP 429 时至少暂停请求 15 分钟，遵守更长的 `Retry-After`，连续限流会延长冷却时间；重启应用不会清除已保存的冷却时间。冷却期间最多显示 30 分钟前的缓存，并明确标注获取时间；没有有效缓存时显示可重试时间。用量查询被限流本身并不代表账号额度耗尽。
 
-**OpenCode Go**：OpenCode API Key 不提供账号的真实额度窗口，因此应用不再根据本地用量估算剩余额度。请手动添加 OpenCode Go 账号，并从已登录的 `opencode.ai` 请求中复制 `auth` 或 `__Host-auth` Cookie；支持直接粘贴 `Fe26.2**…` 原始值或完整 Cookie 请求头。Workspace ID 默认自动获取，失败时可从 `/workspace/wrk_…/go` 地址复制到可选输入框。官网刷新失败时，只会保留该账号 30 分钟内最后一次成功的官网数据并标记“缓存”，不会回退到估算值。
+**OpenCode Go**：手动添加账号并粘贴 API Key（`sk-…` 或 `Bearer sk-…`），应用通过官方 `GET https://opencode.ai/zen/go/v1/usage` 读取额度，无需 Workspace ID。Console 账号请粘贴 `__Host-console_session=…` 或登录后的完整 Cookie 请求头。应用通过 `/console/api/orgs` 自动发现工作区，再携带 `x-org-id` 请求 `/console/api/go/status`。可选 Workspace ID 支持 `org_…`、`wrk_…`、`wk_…` 及完整 Console 地址。旧 `auth` / `__Host-auth` Cookie 保留兼容路径，但已迁移的账号可能需要重新登录并更新 Console Cookie，仅旧 `auth` 不一定有效。[最新额度规则](https://opencode.ai/docs/go/#usage-limits)按模型倍率折算，5 小时和周上限分别对应月额度的 20% 和 50%；应用直接使用服务端折算后的额度及重置时间，不用本地费用估算。刷新失败时，只保留同账号、同凭证及同工作区 30 分钟内最后一次成功的数据并标记“缓存”。
 
 ## 使用说明
 

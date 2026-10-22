@@ -785,6 +785,7 @@ struct MenuBarView: View {
     @ObservedObject var accountStore: AccountStore
     @ObservedObject var localeManager = LocaleManager.shared
     @ObservedObject var codexResetService: CodexResetService
+    @ObservedObject var accountNavigation: MenuBarAccountNavigation
     @State private var displayMode: DisplayMode = .remaining
     @State private var resetTimeFormat: ResetTimeFormat = .relative
     @State private var showResetRadar = true
@@ -940,7 +941,7 @@ struct MenuBarView: View {
     // MARK: - Accounts Quota View (Gemini Canvas style — cards grid)
 
     private var accountsQuotaView: some View {
-        ScrollView {
+        AccountFocusScrollView(navigation: accountNavigation) {
             VStack(spacing: 8) {
                 // Loading indicator when refreshing
                 if accountStore.isLoading {
@@ -1085,6 +1086,7 @@ struct MenuBarView: View {
                             .strokeBorder(Color.primary.opacity(0.075), lineWidth: 0.5)
                             .allowsHitTesting(false)
                     }
+                    .id(account.id)
                 }
             }
             .padding(12)

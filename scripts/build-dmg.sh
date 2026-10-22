@@ -16,18 +16,24 @@ DMG_OUTPUT="$PROJECT_DIR/.build/$DMG_NAME-$VERSION.dmg"
 
 echo "🔨 Building $APP_NAME $VERSION (Universal release)..."
 cd "$PROJECT_DIR"
-swift build -c release \
+# Keep the architecture output paths below stable with newer SwiftPM versions.
+# An explicit SDK also allows local testing when the default CLT SDK is incomplete.
+SWIFT_BUILD_ARGS=(--build-system native)
+if [[ -n "${SWIFT_BUILD_SDK:-}" ]]; then
+    SWIFT_BUILD_ARGS+=(--sdk "$SWIFT_BUILD_SDK")
+fi
+swift build "${SWIFT_BUILD_ARGS[@]}" -c release \
     --triple arm64-apple-macosx15.0 \
     --scratch-path "$PROJECT_DIR/.build/arm64" 2>&1
-swift build -c release \
+swift build "${SWIFT_BUILD_ARGS[@]}" -c release \
     --triple x86_64-apple-macosx15.0 \
     --scratch-path "$PROJECT_DIR/.build/x86_64" 2>&1
 
 # SwiftPM's output layout varies with the selected build system and toolchain.
-ARM64_BUILD_DIR="$(swift build -c release \
+ARM64_BUILD_DIR="$(swift build "${SWIFT_BUILD_ARGS[@]}" -c release \
     --triple arm64-apple-macosx15.0 \
     --scratch-path "$PROJECT_DIR/.build/arm64" --show-bin-path)"
-X86_64_BUILD_DIR="$(swift build -c release \
+X86_64_BUILD_DIR="$(swift build "${SWIFT_BUILD_ARGS[@]}" -c release \
     --triple x86_64-apple-macosx15.0 \
     --scratch-path "$PROJECT_DIR/.build/x86_64" --show-bin-path)"
 

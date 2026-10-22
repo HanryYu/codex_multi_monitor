@@ -654,9 +654,7 @@ struct PreferencesContentView: View {
     @ObservedObject private var updater = GitHubReleaseUpdater.shared
     @State private var refreshInterval: RefreshInterval = .fiveMinutes
     @State private var launchAtLogin: Bool = false
-    @State private var displayMode: DisplayMode = .remaining
     @State private var alertThreshold: Double = 80
-    @State private var showMenuBarText: Bool = false
     @State private var showResetRadar: Bool = true
     @State private var showQuotaAllowanceSummary: Bool = true
     @State private var resetTimeFormat: ResetTimeFormat = .relative
@@ -686,6 +684,7 @@ struct PreferencesContentView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                MenuBarQuotaSettingsView(accountStore: accountStore)
                 displaySettingsSection
                 notificationSettingsSection
                 quotaActivationSettingsSection
@@ -707,18 +706,6 @@ struct PreferencesContentView: View {
 
     private var displaySettingsSection: some View {
         SettingGroupCard(label: L10n.displaySection, systemImage: "eye") {
-            SettingsCheckbox(
-                title: L10n.showTextInMenuBar,
-                description: L10n.showTextInMenuBarDesc,
-                isChecked: $showMenuBarText
-            )
-            .onChange(of: showMenuBarText) { _, newValue in
-                UserDefaults.standard.set(newValue, forKey: PreferencesKeys.showMenuBarText)
-                NotificationCenter.default.post(name: .menuBarTextChanged, object: nil)
-            }
-
-            CardDivider()
-
             SettingsCheckbox(
                 title: L10n.showResetRadar,
                 description: L10n.showResetRadarDesc,
@@ -1131,13 +1118,8 @@ struct PreferencesContentView: View {
 
         launchAtLogin = LoginItemService.isEnabled
 
-        let modeString = UserDefaults.standard.string(forKey: PreferencesKeys.displayMode) ?? DisplayMode.remaining.rawValue
-        displayMode = DisplayMode(rawValue: modeString) ?? .remaining
-
         let savedThreshold = UserDefaults.standard.integer(forKey: PreferencesKeys.alertThreshold)
         alertThreshold = savedThreshold > 0 ? Double(savedThreshold) : 80
-
-        showMenuBarText = UserDefaults.standard.bool(forKey: PreferencesKeys.showMenuBarText)
 
         showResetRadar = (UserDefaults.standard.object(forKey: PreferencesKeys.showResetRadar) as? Bool) ?? true
 

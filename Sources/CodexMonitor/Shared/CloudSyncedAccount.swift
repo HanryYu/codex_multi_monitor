@@ -12,6 +12,7 @@ struct CloudSyncedAccount: Codable, Identifiable, Equatable {
     var provider: String? = nil
     var isHidden: Bool? = nil
     var openCodeWorkspaceID: String? = nil
+    var claudeOrganizationID: String? = nil
     var updatedAt: Date
 
     var displayName: String {
