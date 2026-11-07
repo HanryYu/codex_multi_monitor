@@ -1232,7 +1232,7 @@ struct MenuBarView: View {
         .padding(.leading, 12)
         .padding(.trailing, 4)
         .padding(.vertical, 3)
-        .background(MenuBarPanelStyle.inset, in: RoundedRectangle(cornerRadius: 12))
+        .background(MenuBarPanelStyle.card.opacity(0.8), in: RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal, 12)
         .padding(.bottom, 12)
     }
