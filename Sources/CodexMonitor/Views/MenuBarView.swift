@@ -229,7 +229,7 @@ struct QuotaCardsGridView: View {
                         maxUsedPercent: maxUsed
                     )
                     QuotaCardView(
-                        label: formatWindowLabel(seconds: primary.limitWindowSeconds),
+                        label: L10n.compactQuotaWindow(seconds: primary.limitWindowSeconds),
                         displayPercent: displayMode == .remaining
                             ? (100 - primary.usedPercent)
                             : primary.usedPercent,
@@ -250,7 +250,7 @@ struct QuotaCardsGridView: View {
                         maxUsedPercent: maxUsed
                     )
                     QuotaCardView(
-                        label: formatWindowLabel(seconds: secondary.limitWindowSeconds),
+                        label: L10n.compactQuotaWindow(seconds: secondary.limitWindowSeconds),
                         displayPercent: displayMode == .remaining
                             ? (100 - secondary.usedPercent)
                             : secondary.usedPercent,
@@ -266,7 +266,7 @@ struct QuotaCardsGridView: View {
 
                 if let tertiary = rateLimit.tertiaryWindow {
                     QuotaCardView(
-                        label: formatWindowLabel(seconds: tertiary.limitWindowSeconds),
+                        label: L10n.compactQuotaWindow(seconds: tertiary.limitWindowSeconds),
                         displayPercent: displayMode == .remaining
                             ? (100 - tertiary.usedPercent)
                             : tertiary.usedPercent,
@@ -314,19 +314,6 @@ struct QuotaCardsGridView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 20)
-        }
-    }
-
-    func formatWindowLabel(seconds: Int) -> String {
-        let hours = seconds / 3600
-        if hours >= 24 * 28 {
-            return L10n.monthlyLimit()
-        } else if hours >= 168 {
-            return L10n.weeklyLimit()
-        } else if hours >= 24 {
-            return L10n.hourlyLimit(hours: hours)
-        } else {
-            return L10n.hourlyLimit(hours: hours)
         }
     }
 
@@ -789,12 +776,12 @@ struct LimitOverlayView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            .ultraThinMaterial.opacity(0.62),
+            MenuBarPanelStyle.inset,
             in: RoundedRectangle(cornerRadius: 10, style: .continuous)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                .strokeBorder(MenuBarPanelStyle.border, lineWidth: 0.5)
         }
         .allowsHitTesting(false)
     }
@@ -845,7 +832,7 @@ struct MenuBarView: View {
             footerView
         }
         .frame(width: MenuBarPanelStyle.width)
-        .frame(maxHeight: MenuBarPanelStyle.maximumHeight)
+        .frame(maxHeight: MenuBarPanelStyle.maximumHeight, alignment: .top)
         .background {
             Rectangle().fill(.ultraThinMaterial)
             MenuBarPanelStyle.background.opacity(0.88)
@@ -960,6 +947,7 @@ struct MenuBarView: View {
             }
         }
         .padding(12)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     // MARK: - Empty State
@@ -989,6 +977,7 @@ struct MenuBarView: View {
             .controlSize(.small)
         }
         .padding(.vertical, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var hiddenAccountsEmptyState: some View {
@@ -1007,7 +996,7 @@ struct MenuBarView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 30)
     }
 
