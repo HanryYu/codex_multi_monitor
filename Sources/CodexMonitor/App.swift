@@ -98,7 +98,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Setup popover
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 300, height: 520)
+        popover.contentSize = NSSize(width: MenuBarPanelStyle.width, height: 600)
         popover.behavior = .transient
         popover.animates = true
 

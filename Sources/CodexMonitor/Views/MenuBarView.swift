@@ -1,5 +1,22 @@
 import SwiftUI
 
+enum MenuBarPanelStyle {
+    static let width: CGFloat = 360
+    static let maximumHeight: CGFloat = 640
+
+    static let background = adaptiveColor(light: "F1F3F5", dark: "1B242B")
+    static let card = adaptiveColor(light: "FFFFFF", dark: "2B353D")
+    static let inset = adaptiveColor(light: "F1F3F5", dark: "222C33")
+    static let border = Color.primary.opacity(0.06)
+
+    private static func adaptiveColor(light: String, dark: String) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            return NSColor(Color(hex: isDark ? dark : light))
+        })
+    }
+}
+
 // MARK: - Shimmer Loading Animation
 
 struct ShimmerView: View {
@@ -35,19 +52,20 @@ struct ShimmerView: View {
     }
 }
 
-// MARK: - Compact Progress Bar (3px, Gemini Canvas style)
+// MARK: - Compact Progress Bar
 
 struct CompactProgressBar: View {
     let percentage: Int  // used percentage (0-100)
     var reversed: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var gradientColors: [Color] {
+    private var barColor: Color {
         if percentage >= 90 {
-            return [Color(hex: "ff3b30"), Color(hex: "ff453a")]
+            return .red
         } else if percentage >= 60 {
-            return [Color(hex: "FF6B00"), Color(hex: "FF8A33")]
+            return .orange
         } else {
-            return [Color(hex: "34c759"), Color(hex: "30d158")]
+            return .green
         }
     }
 
@@ -59,17 +77,13 @@ struct CompactProgressBar: View {
 
                 RoundedRectangle(cornerRadius: 2)
                     .fill(
-                        LinearGradient(
-                            colors: gradientColors,
-                            startPoint: reversed ? .trailing : .leading,
-                            endPoint: reversed ? .leading : .trailing
-                        )
+                        barColor
                     )
-                    .frame(width: geometry.size.width * CGFloat(percentage) / 100)
-                    .animation(.easeInOut(duration: 0.7), value: percentage)
+                    .frame(width: geometry.size.width * CGFloat(min(100, max(0, percentage))) / 100)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: percentage)
             }
         }
-        .frame(height: 3)
+        .frame(height: 4)
     }
 }
 
@@ -93,7 +107,7 @@ extension View {
     }
 }
 
-// MARK: - QuotaCardView (single quota card — Gemini Canvas style)
+// MARK: - Quota Card
 
 struct QuotaCardView: View {
     let label: String
@@ -137,11 +151,13 @@ struct QuotaCardView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(label)
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
 
                 Spacer(minLength: 2)
 
@@ -150,43 +166,40 @@ struct QuotaCardView: View {
                 }
             }
 
-            Spacer(minLength: 2)
-
-            // Percentage + sublabel on one line
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text("\(displayPercent)%")
-                    .font(.system(size: isLimited ? 13 : 15, weight: .semibold))
+            HStack(alignment: .firstTextBaseline, spacing: 1) {
+                Text("\(displayPercent)")
+                    .font(.system(size: 27, weight: .semibold))
                     .foregroundStyle(Color.primary)
                     .lineLimit(1)
                     .monospacedDigit()
 
-                Text(displayMode == .remaining ? L10n.remaining : L10n.used)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(Color.secondary.opacity(0.7))
-                    .tracking(0.2)
+                Text("%")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
 
-            Spacer(minLength: 0)
+            Text(displayMode == .remaining ? L10n.remaining : L10n.used)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
 
-            // Progress bar
             CompactProgressBar(percentage: usedPercent)
                 .opacity(isLimited ? 0.65 : 1.0)
+                .padding(.top, 2)
 
-            // Reset time
             if !resetTimeText.isEmpty {
-                Spacer(minLength: 3)
                 Text(resetTimeText)
-                    .font(.system(size: 11, weight: .regular).monospacedDigit())
-                    .foregroundStyle(Color.secondary.opacity(0.7))
+                    .font(.system(size: 10, weight: .regular).monospacedDigit())
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .help(resetTimeText)
             }
         }
-        .padding(10)
-        .frame(height: 82)
+        .padding(12)
+        .frame(height: 130, alignment: .topLeading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(isLimited ? 0.78 : 1.0)
         .saturation(isLimited ? 0.6 : 1.0)
-        .background(isLimited ? Color.red.opacity(0.03) : Color.primary.opacity(0.03))
+        .background(isLimited ? Color.red.opacity(0.04) : MenuBarPanelStyle.inset)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
@@ -374,7 +387,7 @@ struct OpenCodeGoQuotaView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(Color.primary.opacity(0.03))
+            .background(MenuBarPanelStyle.inset)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .opacity(isLimited ? 0.78 : 1)
         }
@@ -399,7 +412,7 @@ struct OpenCodeGoQuotaView: View {
                     .frame(width: 37, alignment: .leading)
 
                 Text("\(displayPercent)%")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.primary)
                     .monospacedDigit()
 
@@ -458,12 +471,12 @@ struct QuotaAllowanceInlineView: View {
 
     var body: some View {
         Text(L10n.quotaAllowanceSummary(summary))
-            .font(.system(size: 8.5, weight: .semibold).monospacedDigit())
+            .font(.system(size: 9, weight: .medium).monospacedDigit())
             .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-        .foregroundStyle(Color(hex: "60A5FA"))
-        .help(L10n.quotaAllowanceHelp(summary: summary))
-        .accessibilityLabel(L10n.quotaAllowanceHelp(summary: summary))
+            .minimumScaleFactor(0.85)
+            .foregroundStyle(.secondary)
+            .help(L10n.quotaAllowanceHelp(summary: summary))
+            .accessibilityLabel(L10n.quotaAllowanceHelp(summary: summary))
     }
 }
 
@@ -515,12 +528,12 @@ struct CreditsCardView: View {
                     .foregroundStyle(credits.hasCredits ? .green : .red)
             }
         }
-        .padding(10)
-        .frame(height: 82)
+        .padding(12)
+        .frame(height: 130)
         .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(isLimited ? 0.78 : 1.0)
         .saturation(isLimited ? 0.6 : 1.0)
-        .background(isLimited ? Color.red.opacity(0.03) : Color.primary.opacity(0.03))
+        .background(isLimited ? Color.red.opacity(0.04) : MenuBarPanelStyle.inset)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
@@ -529,7 +542,8 @@ struct CreditsCardView: View {
 
 struct ResetCreditsCompactView: View {
     let credits: RateLimitResetCredits
-    var provider: AccountProvider = .codex
+    let provider: AccountProvider
+    let resetTimeFormat: ResetTimeFormat
     @ObservedObject var localeManager = LocaleManager.shared
     @State private var isExpanded = false
 
@@ -590,7 +604,7 @@ struct ResetCreditsCompactView: View {
 
                 if isExpanded {
                     if visibleCredits.isEmpty {
-                        Text(L10n.resetCreditDatesUnavailable)
+                        Text(L10n.resetCreditExpirationUnavailable)
                             .font(.system(size: 9.5, weight: .regular))
                             .foregroundStyle(Color.secondary)
                             .lineLimit(1)
@@ -625,20 +639,27 @@ struct ResetCreditsCompactView: View {
     }
 
     private func dateLine(for credit: RateLimitResetCredit) -> String {
-        var parts: [String] = []
-        if let expires = credit.expiresDate {
-            parts.append(L10n.resetCreditExpires(date: L10n.compactDateTime(expires)))
-        }
-        if let granted = credit.grantedDate {
-            parts.append(L10n.resetCreditGranted(date: L10n.compactDateTime(granted)))
-        }
+        var parts = [expirationText(for: credit.expiresDate)]
         let scope = L10n.resetCreditScope(credit.resetType)
         if !scope.isEmpty { parts.append(scope) }
         if let count = credit.remainingCount, count > 1 {
             parts.append(L10n.resetCreditsAvailable(count: count))
         }
         if credit.requiresLimit == true { parts.append(L10n.resetCreditRequiresLimit) }
-        return parts.isEmpty ? L10n.resetCreditDatesUnavailable : parts.joined(separator: " · ")
+        return parts.joined(separator: " · ")
+    }
+
+    private func expirationText(for date: Date?) -> String {
+        guard let date else { return L10n.resetCreditExpirationUnavailable }
+
+        switch resetTimeFormat {
+        case .relative:
+            let seconds = date.timeIntervalSinceNow
+            guard seconds > 0 else { return L10n.resetCreditExpired }
+            return L10n.resetCreditExpires(in: RelativeResetTime(seconds: Int(seconds)))
+        case .absolute:
+            return L10n.resetCreditExpires(date: L10n.compactDateTime(date, includesTime: false))
+        }
     }
 }
 
@@ -779,13 +800,14 @@ struct LimitOverlayView: View {
     }
 }
 
-// MARK: - MenuBarView (Popover — Gemini Canvas style)
+// MARK: - Menu Bar Panel
 
 struct MenuBarView: View {
     @ObservedObject var accountStore: AccountStore
     @ObservedObject var localeManager = LocaleManager.shared
     @ObservedObject var codexResetService: CodexResetService
     @ObservedObject var accountNavigation: MenuBarAccountNavigation
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var displayMode: DisplayMode = .remaining
     @State private var resetTimeFormat: ResetTimeFormat = .relative
     @State private var showResetRadar = true
@@ -797,13 +819,15 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            headerView
+
             if showResetRadar {
                 CodexResetRadarView(
                     service: codexResetService,
                     resetTimeFormat: resetTimeFormat
                 )
                     .padding(.horizontal, 12)
-                    .padding(.top, 10)
+                    .padding(.top, 2)
             }
 
             // Content
@@ -820,9 +844,12 @@ struct MenuBarView: View {
             // Footer
             footerView
         }
-        .frame(width: 300)
-        .frame(maxHeight: 600)
-        .background(.ultraThinMaterial)
+        .frame(width: MenuBarPanelStyle.width)
+        .frame(maxHeight: MenuBarPanelStyle.maximumHeight)
+        .background {
+            Rectangle().fill(.ultraThinMaterial)
+            MenuBarPanelStyle.background.opacity(0.88)
+        }
         .onAppear {
             loadDisplayMode()
             loadResetTimeFormat()
@@ -841,6 +868,52 @@ struct MenuBarView: View {
         .onReceive(NotificationCenter.default.publisher(for: .quotaAllowanceSummaryVisibilityChanged)) { _ in
             loadQuotaAllowanceSummaryVisibility()
         }
+    }
+
+    private var headerView: some View {
+        HStack(spacing: 9) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
+                .resizable()
+                .frame(width: 26, height: 26)
+                .accessibilityHidden(true)
+
+            Text("Codex Monitor")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.primary)
+
+            Spacer(minLength: 8)
+
+            Button {
+                Task { await accountStore.refreshAll() }
+            } label: {
+                Group {
+                    if accountStore.isLoading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .frame(width: 28, height: 28)
+            }
+            .disabled(accountStore.isLoading)
+            .help(L10n.refreshModels)
+            .accessibilityLabel(L10n.refreshModels)
+
+            Button {
+                WindowManager.shared.openSettingsWindow(initialTab: .preferences)
+            } label: {
+                Image(systemName: "gearshape")
+                    .frame(width: 28, height: 28)
+            }
+            .help(L10n.settings)
+            .accessibilityLabel(L10n.settings)
+        }
+        .font(.system(size: 13, weight: .medium))
+        .foregroundStyle(.secondary)
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
     }
 
     private func loadDisplayMode() {
@@ -882,8 +955,8 @@ struct MenuBarView: View {
     private var loadingPlaceholder: some View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
-                ShimmerView().frame(height: 82)
-                ShimmerView().frame(height: 82)
+                ShimmerView().frame(height: 130)
+                ShimmerView().frame(height: 130)
             }
         }
         .padding(12)
@@ -938,11 +1011,11 @@ struct MenuBarView: View {
         .padding(.vertical, 30)
     }
 
-    // MARK: - Accounts Quota View (Gemini Canvas style — cards grid)
+    // MARK: - Account Cards
 
     private var accountsQuotaView: some View {
         AccountFocusScrollView(navigation: accountNavigation) {
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 // Loading indicator when refreshing
                 if accountStore.isLoading {
                     HStack(spacing: 6) {
@@ -966,30 +1039,31 @@ struct MenuBarView: View {
 
                     VStack(spacing: 0) {
                         // Account header: name + plan badge
-                        HStack(alignment: .center) {
-                            ProviderIconView(provider: account.provider, size: 18)
+                        HStack(alignment: .center, spacing: 9) {
+                            ProviderIconView(provider: account.provider, size: 20)
+                                .frame(width: 32, height: 32)
+                                .background(MenuBarPanelStyle.inset, in: RoundedRectangle(cornerRadius: 9))
 
-                            Text(account.name)
-                                .font(.system(size: 11, weight: limited ? .semibold : .medium))
-                                .foregroundStyle(limited ? Color.secondary.opacity(0.68) : Color.secondary)
-                                .strikethrough(limited, color: Color.secondary.opacity(0.45))
-                                .lineLimit(1)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(account.name)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                    .help(account.name)
 
-                            if let usageResult, case .success(let usage) = usageResult {
-                                Text(providerPlanLabel(account: account, usage: usage))
-                                    .font(.system(size: 11.5, weight: .medium))
-                                    .foregroundStyle(limited ? Color.secondary.opacity(0.58) : Color.orange)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background((limited ? Color.secondary : Color.orange).opacity(limited ? 0.06 : 0.12))
-                                    .clipShape(Capsule())
+                                if let usageResult, case .success(let usage) = usageResult {
+                                    Text(providerPlanLabel(account: account, usage: usage))
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
                             }
 
-                            Spacer()
+                            Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 12)
-                        .padding(.top, 10)
-                        .padding(.bottom, 7)
+                        .padding(.top, 12)
+                        .padding(.bottom, 10)
 
                         // Quota cards content
                         if let usageResult {
@@ -1051,7 +1125,11 @@ struct MenuBarView: View {
                                     if let resetCredits {
                                         Divider().opacity(0.25)
                                             .padding(.horizontal, 14)
-                                        ResetCreditsCompactView(credits: resetCredits, provider: account.provider)
+                                        ResetCreditsCompactView(
+                                            credits: resetCredits,
+                                            provider: account.provider,
+                                            resetTimeFormat: resetTimeFormat
+                                        )
                                     }
                                 }
                             case .failure(let error):
@@ -1079,18 +1157,18 @@ struct MenuBarView: View {
                             .padding(.vertical, 12)
                         }
                     }
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(MenuBarPanelStyle.card)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(Color.primary.opacity(0.075), lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(MenuBarPanelStyle.border, lineWidth: 0.5)
                             .allowsHitTesting(false)
                     }
                     .id(account.id)
                 }
             }
             .padding(12)
-            .animation(.easeInOut(duration: 0.3), value: visibleAccounts.count)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: visibleAccounts.count)
         }
         .menuBarScrollEdgeTreatment()
     }
@@ -1129,62 +1207,34 @@ struct MenuBarView: View {
         return "\(provider) · \(plan)"
     }
 
-    // MARK: - Footer (Gemini Canvas style)
+    // MARK: - Footer
 
     private var footerView: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button(action: {
-                    WindowManager.shared.openSettingsWindow(initialTab: .preferences)
-                }) {
-                    Text(L10n.settings)
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color.secondary)
-                }
-                .buttonStyle(.plain)
+        HStack(spacing: 8) {
+            Label(formattedRefreshTime, systemImage: "clock")
+                .font(.system(size: 10).monospacedDigit())
+                .foregroundStyle(.secondary)
 
-                Spacer()
-
-                Button(action: {
-                    Task { await accountStore.refreshAll() }
-                }) {
-                    HStack(spacing: 4) {
-                        Text(formattedRefreshTime)
-                            .font(.system(size: 10).monospacedDigit())
-                            .foregroundStyle(Color.secondary.opacity(0.7))
-
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color.secondary.opacity(0.7))
-                            .rotationEffect(.degrees(accountStore.isLoading ? 360 : 0))
-                            .animation(
-                                accountStore.isLoading
-                                    ? .linear(duration: 0.6).repeatForever(autoreverses: false)
-                                    : .default,
-                                value: accountStore.isLoading
-                            )
-                    }
-                }
-                .buttonStyle(.plain)
-                .disabled(accountStore.isLoading)
-            }
-
-            Divider().opacity(0.22).padding(.top, 7)
+            Spacer(minLength: 4)
 
             Button(action: {
                 NSApp.terminate(nil)
             }) {
-                Text(L10n.quitCodexMonitor)
-                    .font(.system(size: 9))
-                    .foregroundStyle(Color.secondary.opacity(0.5))
+                Image(systemName: "power")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
             }
-            .buttonStyle(.plain)
-            .padding(.top, 4)
+            .buttonStyle(.borderless)
+            .help(L10n.quitCodexMonitor)
+            .accessibilityLabel(L10n.quitCodexMonitor)
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 9)
-        .padding(.bottom, 8)
-        .background(Color.primary.opacity(0.01))
+        .padding(.leading, 12)
+        .padding(.trailing, 4)
+        .padding(.vertical, 3)
+        .background(MenuBarPanelStyle.inset, in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
     }
 }
 

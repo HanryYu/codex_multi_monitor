@@ -198,24 +198,26 @@ enum L10n {
         return "\(formatter.string(from: date)) \(resetWord)"
     }
 
-    static func compactDateTime(_ date: Date) -> String {
+    static func compactDateTime(_ date: Date, includesTime: Bool = true) -> String {
         let formatter = DateFormatter()
+        let dateFormat: String
 
         switch lang {
         case .en:
             formatter.locale = Locale(identifier: "en_US")
-            formatter.dateFormat = "M/d HH:mm"
+            dateFormat = "M/d"
         case .ja:
             formatter.locale = Locale(identifier: "ja_JP")
-            formatter.dateFormat = "M月d日 HH:mm"
+            dateFormat = "M月d日"
         case .zhHans:
             formatter.locale = Locale(identifier: "zh_CN")
-            formatter.dateFormat = "M月d日 HH:mm"
+            dateFormat = "M月d日"
         case .zhHant:
             formatter.locale = Locale(identifier: "zh_TW")
-            formatter.dateFormat = "M月d日 HH:mm"
+            dateFormat = "M月d日"
         }
 
+        formatter.dateFormat = includesTime ? "\(dateFormat) HH:mm" : dateFormat
         return formatter.string(from: date)
     }
 
@@ -484,15 +486,6 @@ enum L10n {
         }
     }
 
-    static func resetCreditGranted(date: String) -> String {
-        switch lang {
-        case .en:    return "Granted \(date)"
-        case .ja:    return "付与 \(date)"
-        case .zhHans: return "授予 \(date)"
-        case .zhHant: return "授予 \(date)"
-        }
-    }
-
     static func resetCreditExpires(date: String) -> String {
         switch lang {
         case .en:    return "Expires \(date)"
@@ -502,13 +495,17 @@ enum L10n {
         }
     }
 
-    static var resetCreditDatesUnavailable: String {
-        switch lang {
-        case .en:    return "Dates unavailable"
-        case .ja:    return "日時不明"
-        case .zhHans: return "暂无日期"
-        case .zhHant: return "暫無日期"
-        }
+    static func resetCreditExpires(in time: RelativeResetTime) -> String {
+        let duration = time.compactDescription
+        return localized("Expires in \(duration)", "期限まで \(duration)", "\(duration) 后到期", "\(duration) 後到期")
+    }
+
+    static var resetCreditExpired: String {
+        localized("Expired", "期限切れ", "已到期", "已到期")
+    }
+
+    static var resetCreditExpirationUnavailable: String {
+        localized("Expiration date unavailable", "有効期限不明", "到期日期未知", "到期日期未知")
     }
 
     static func resetCreditsMore(count: Int) -> String {
