@@ -48,9 +48,9 @@ struct CodexResetRadarView: View {
         .frame(height: radarHeight)
         .background(CodexResetPanelAnchor(controller: detailsPanel))
         .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(cardBorderColor, lineWidth: 0.5)
                 .allowsHitTesting(false)
         }
@@ -193,7 +193,7 @@ struct CodexResetRadarView: View {
         if service.snapshot?.resetSchedule() != nil {
             return Color.blue.opacity(detailsPanel.isShown ? 0.09 : (isHovering ? 0.07 : 0.045))
         }
-        return MenuBarPanelStyle.card.opacity(detailsPanel.isShown ? 1 : (isHovering ? 0.95 : 0.8))
+        return Color.primary.opacity(detailsPanel.isShown ? 0.065 : (isHovering ? 0.045 : 0.03))
     }
 
     private var cardBorderColor: Color {
