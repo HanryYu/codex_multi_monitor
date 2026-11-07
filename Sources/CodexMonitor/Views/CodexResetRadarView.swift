@@ -7,7 +7,6 @@ struct CodexResetRadarView: View {
     @StateObject private var detailsPanel = CodexResetDetailsPanelController()
     @StateObject private var avatarStore = CodexResetAvatarStore()
     @State private var delayedHoverTask: Task<Void, Never>?
-    @State private var isHovering = false
 
     private let siteURL = URL(string: "https://codex.gussuriworks.com/en")!
 
@@ -47,13 +46,11 @@ struct CodexResetRadarView: View {
         .buttonStyle(.plain)
         .frame(height: radarHeight)
         .background(CodexResetPanelAnchor(controller: detailsPanel))
-        .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(cardBorderColor, lineWidth: 0.5)
-                .allowsHitTesting(false)
-        }
+        .menuBarGlassSurface(
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous),
+            tint: glassTint,
+            isInteractive: true
+        )
         .onDisappear {
             delayedHoverTask?.cancel()
             detailsPanel.close()
@@ -183,30 +180,17 @@ struct CodexResetRadarView: View {
         return .blue
     }
 
-    private var cardBackground: Color {
+    private var glassTint: Color? {
         if service.errorMessage != nil {
-            return Color.red.opacity(detailsPanel.isShown ? 0.07 : (isHovering ? 0.05 : 0.035))
+            return Color.red.opacity(0.05)
         }
         if service.snapshot?.feed.stale == true {
-            return Color.orange.opacity(detailsPanel.isShown ? 0.07 : (isHovering ? 0.05 : 0.035))
+            return Color.orange.opacity(0.05)
         }
         if service.snapshot?.resetSchedule() != nil {
-            return Color.blue.opacity(detailsPanel.isShown ? 0.09 : (isHovering ? 0.07 : 0.045))
+            return Color.blue.opacity(0.05)
         }
-        return Color.primary.opacity(detailsPanel.isShown ? 0.065 : (isHovering ? 0.045 : 0.03))
-    }
-
-    private var cardBorderColor: Color {
-        if service.errorMessage != nil {
-            return Color.red.opacity(0.15)
-        }
-        if service.snapshot?.feed.stale == true {
-            return Color.orange.opacity(0.15)
-        }
-        if service.snapshot?.resetSchedule() != nil {
-            return Color.blue.opacity(0.16)
-        }
-        return Color.primary.opacity(0.075)
+        return nil
     }
 
     private func toggleDetails() {
@@ -215,7 +199,6 @@ struct CodexResetRadarView: View {
     }
 
     private func updateHover(_ isHovering: Bool) {
-        self.isHovering = isHovering
         delayedHoverTask?.cancel()
         guard isHovering, !detailsPanel.isShown else { return }
 

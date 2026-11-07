@@ -25,6 +25,8 @@ final class CodexResetDetailsPanelController: ObservableObject {
         let hostingController = NSHostingController(
             rootView: CodexResetPanelContent(content: content)
         )
+        hostingController.view.wantsLayer = true
+        hostingController.view.layer?.backgroundColor = NSColor.clear.cgColor
         let panel = panel ?? makePanel()
         panel.contentViewController = hostingController
 
@@ -141,49 +143,27 @@ private struct CodexResetPanelContent<Content: View>: View {
     let content: Content
 
     var body: some View {
-        HStack(spacing: -0.5) {
-            content
-                .frame(width: Self.contentWidth)
-                .background(.regularMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
-                        .allowsHitTesting(false)
-                }
-
-            CodexResetRightPointer()
-                .fill(.regularMaterial)
-                .overlay {
-                    CodexResetRightPointerOutline()
-                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
-                }
-                .frame(width: Self.pointerWidth, height: 12)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .padding(.top, 9)
-        }
-        .frame(width: Self.panelWidth, alignment: .leading)
+        content
+            .frame(width: Self.contentWidth)
+            .padding(.trailing, Self.pointerWidth)
+            .menuBarGlassSurface(in: CodexResetPanelShape(pointerWidth: Self.pointerWidth))
+            .frame(width: Self.panelWidth, alignment: .leading)
     }
 }
 
-private struct CodexResetRightPointer: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.closeSubpath()
-        return path
-    }
-}
+private struct CodexResetPanelShape: Shape {
+    let pointerWidth: CGFloat
 
-private struct CodexResetRightPointerOutline: Shape {
     func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        return path
+        let bodyRect = CGRect(x: rect.minX, y: rect.minY,
+                              width: rect.width - pointerWidth, height: rect.height)
+        let body = RoundedRectangle(cornerRadius: 12, style: .continuous).path(in: bodyRect)
+        var pointer = Path()
+        pointer.move(to: CGPoint(x: bodyRect.maxX - 0.5, y: rect.minY + 9))
+        pointer.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + 15))
+        pointer.addLine(to: CGPoint(x: bodyRect.maxX - 0.5, y: rect.minY + 21))
+        pointer.closeSubpath()
+        return body.union(pointer)
     }
 }
 

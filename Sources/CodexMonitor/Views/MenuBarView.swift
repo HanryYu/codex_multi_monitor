@@ -75,21 +75,48 @@ struct CompactProgressBar: View {
 
 // MARK: - Glass Card Modifier
 
-struct GlassCardModifier: ViewModifier {
+struct MenuBarGlassSurfaceModifier<Surface: Shape>: ViewModifier {
+    let shape: Surface
+    let tint: Color?
+    let isInteractive: Bool
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
-            }
+        if reduceTransparency {
+            content
+                .background {
+                    shape.fill(Color(nsColor: .windowBackgroundColor))
+                        .overlay { shape.fill(tint ?? .clear) }
+                }
+                .overlay {
+                    shape.stroke(Color.primary.opacity(0.09), lineWidth: 0.5)
+                        .allowsHitTesting(false)
+                }
+        } else if #available(macOS 26.0, *) {
+            content.glassEffect(.regular.tint(tint).interactive(isInteractive), in: shape)
+        } else {
+            content
+                .background {
+                    shape.fill(.regularMaterial)
+                        .overlay { shape.fill(tint ?? .clear) }
+                }
+                .overlay {
+                    shape.stroke(Color.primary.opacity(0.09), lineWidth: 0.5)
+                        .allowsHitTesting(false)
+                }
+                .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
+        }
     }
 }
 
 extension View {
-    func glassCard() -> some View {
-        modifier(GlassCardModifier())
+    func menuBarGlassSurface<Surface: Shape>(
+        in shape: Surface,
+        tint: Color? = nil,
+        isInteractive: Bool = false
+    ) -> some View {
+        modifier(MenuBarGlassSurfaceModifier(shape: shape, tint: tint, isInteractive: isInteractive))
     }
 }
 
@@ -216,7 +243,7 @@ struct QuotaCardsGridView: View {
                         maxUsedPercent: maxUsed
                     )
                     QuotaCardView(
-                        label: formatWindowLabel(seconds: primary.limitWindowSeconds),
+                        label: L10n.compactQuotaWindow(seconds: primary.limitWindowSeconds),
                         displayPercent: displayMode == .remaining
                             ? (100 - primary.usedPercent)
                             : primary.usedPercent,
@@ -237,7 +264,7 @@ struct QuotaCardsGridView: View {
                         maxUsedPercent: maxUsed
                     )
                     QuotaCardView(
-                        label: formatWindowLabel(seconds: secondary.limitWindowSeconds),
+                        label: L10n.compactQuotaWindow(seconds: secondary.limitWindowSeconds),
                         displayPercent: displayMode == .remaining
                             ? (100 - secondary.usedPercent)
                             : secondary.usedPercent,
@@ -253,7 +280,7 @@ struct QuotaCardsGridView: View {
 
                 if let tertiary = rateLimit.tertiaryWindow {
                     QuotaCardView(
-                        label: formatWindowLabel(seconds: tertiary.limitWindowSeconds),
+                        label: L10n.compactQuotaWindow(seconds: tertiary.limitWindowSeconds),
                         displayPercent: displayMode == .remaining
                             ? (100 - tertiary.usedPercent)
                             : tertiary.usedPercent,
@@ -301,19 +328,6 @@ struct QuotaCardsGridView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 20)
-        }
-    }
-
-    func formatWindowLabel(seconds: Int) -> String {
-        let hours = seconds / 3600
-        if hours >= 24 * 28 {
-            return L10n.monthlyLimit()
-        } else if hours >= 168 {
-            return L10n.weeklyLimit()
-        } else if hours >= 24 {
-            return L10n.hourlyLimit(hours: hours)
-        } else {
-            return L10n.hourlyLimit(hours: hours)
         }
     }
 
@@ -775,14 +789,10 @@ struct LimitOverlayView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            .ultraThinMaterial.opacity(0.62),
-            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        .menuBarGlassSurface(
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous),
+            tint: Color.red.opacity(0.035)
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
-        }
         .allowsHitTesting(false)
     }
 }
@@ -830,7 +840,6 @@ struct MenuBarView: View {
         }
         .frame(width: 300)
         .frame(maxHeight: 600)
-        .background(.ultraThinMaterial)
         .onAppear {
             loadDisplayMode()
             loadResetTimeFormat()
@@ -979,7 +988,7 @@ struct MenuBarView: View {
 
                             Text(account.name)
                                 .font(.system(size: 11, weight: limited ? .semibold : .medium))
-                                .foregroundStyle(limited ? Color.secondary.opacity(0.68) : Color.secondary)
+                                .foregroundStyle(limited ? Color.secondary.opacity(0.68) : Color.primary.opacity(0.85))
                                 .strikethrough(limited, color: Color.secondary.opacity(0.45))
                                 .lineLimit(1)
 
@@ -1091,18 +1100,13 @@ struct MenuBarView: View {
                             .padding(.vertical, 12)
                         }
                     }
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(Color.primary.opacity(0.075), lineWidth: 0.5)
-                            .allowsHitTesting(false)
-                    }
+                    .menuBarGlassSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .id(account.id)
                 }
             }
             .padding(12)
             .animation(.easeInOut(duration: 0.3), value: visibleAccounts.count)
+            .menuBarGlassContainer()
         }
         .menuBarScrollEdgeTreatment()
     }
@@ -1201,6 +1205,15 @@ struct MenuBarView: View {
 }
 
 private extension View {
+    @ViewBuilder
+    func menuBarGlassContainer() -> some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer(spacing: 8) { self }
+        } else {
+            self
+        }
+    }
+
     @ViewBuilder
     func menuBarScrollEdgeTreatment() -> some View {
         if #available(macOS 26.0, *) {
